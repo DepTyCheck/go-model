@@ -1,0 +1,10 @@
+[custom.all.go-module]
+type = "local"
+path = "."
+ipkg = "go-module.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.go-module-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"

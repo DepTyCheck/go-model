@@ -1,0 +1,19 @@
+package go-module
+
+version = 0.1.0
+
+authors = "Mikhail Lavrentiev"
+
+sourcedir = "src"
+builddir = "build"
+
+-- prebuild = "sh .derive-in-parallel"
+
+depends = deptycheck
+        , getopts
+        , prettier
+
+executable = "go-module"
+main = Runner
+
+-- modules = Language.GoModule
