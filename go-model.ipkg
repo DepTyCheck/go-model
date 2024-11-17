@@ -18,4 +18,5 @@ executable = "go-model"
 main = Runner
 
 modules = Language.Go
+        , Language.Go.Derived
         , Utils.MkSnocList

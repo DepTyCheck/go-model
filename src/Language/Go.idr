@@ -37,11 +37,13 @@ namespace Ty
       (:<) : SnocListTy -> Ty -> SnocListTy
 
   mutual
+    public export
     Eq FuncTy where
       (==) (MkFuncTy a c) (MkFuncTy a' c') = a == a' && c == c'
 
     %runElab derive "Ty" [DE.Eq]
 
+    public export
     Eq SnocListTy where
       (==) Lin Lin = True
       (==) (xs :< x) (xs' :< x') = assert_total $ xs == xs' && x == x'
@@ -70,11 +72,13 @@ namespace Ty
     biinjective Refl = (Refl, Refl)
 
   mutual
+    export
     DecEq FuncTy where
       decEq (MkFuncTy a c) (MkFuncTy a' c') = decEqCong2 (decEq a a') (decEq c c')
 
     %runElab derive "Ty" [Generic, DecEq]
 
+    export
     DecEq SnocListTy where
       decEq Lin Lin = Yes Refl
       decEq Lin (_ :< _) = No $ \case Refl impossible
@@ -83,6 +87,7 @@ namespace Ty
 
 
 namespace Def
+  public export
   data Def : Type where
     DVar : (varTy : Ty) -> Def
 
@@ -99,9 +104,10 @@ namespace Expr
 
   public export
   data Literal : Ty -> Type where
-    MkInt : Int -> Literal Int'
+    MkInt : Nat -> Literal Int'
     MkBool : Bool -> Literal Bool'
 
+  export
   Show (Literal ty) where
     show (MkInt x) = show x
     show (MkBool x) = show x
@@ -122,6 +128,7 @@ namespace Stmt
 
     Ret : (res : Expr ctxt contTy) -> Statement ctxt contTy
 
+  export
   Show (Statement ctxt contTy) where
     show Nop = "Nop"
     show (Ret res) = "(Ret " ++ show res ++ ")"
