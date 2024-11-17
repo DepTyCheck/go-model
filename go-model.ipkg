@@ -1,4 +1,4 @@
-package go-module
+package go-model
 
 version = 0.1.0
 
@@ -12,8 +12,10 @@ builddir = "build"
 depends = deptycheck
         , getopts
         , prettier
+        , sop
 
-executable = "go-module"
+executable = "go-model"
 main = Runner
 
--- modules = Language.GoModule
+modules = Language.Go
+        , Utils.MkSnocList

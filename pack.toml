@@ -1,7 +1,7 @@
 [custom.all.go-module]
 type = "local"
 path = "."
-ipkg = "go-module.ipkg"
+ipkg = "go-model.ipkg"
 test = "test/test.ipkg"
 
 [custom.all.go-module-test]

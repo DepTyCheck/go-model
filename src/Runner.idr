@@ -1,4 +1,5 @@
 module Runner
 
+
 main : IO ()
-main = putStrLn "Hello from Idris2!"
+main = putStrLn "Hi"
