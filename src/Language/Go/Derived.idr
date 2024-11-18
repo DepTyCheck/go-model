@@ -8,4 +8,4 @@ import Deriving.DepTyCheck.Gen
 
 %logging "deptycheck.derive" 5
 
-Language.Go.genStmts = deriveGen
+Language.Go.genBlocks = deriveGen

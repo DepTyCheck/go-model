@@ -120,21 +120,35 @@ namespace Expr
   Show (Expr ctxt res) where
     show (C val) = "(C " ++ show val ++ ")"
 
-namespace Stmt
+namespace Block
   public export
-  data Statement : (ctxt : Context) ->
-                   (cont : Types) ->
-                   (mustTerm : Bool) ->
-                   Type where
-    End : Statement ctxt cont False
+  record BlockOpts where
+    constructor Opts
+    mustTerm : Bool
 
-    Ret : (res : Expr ctxt cont) -> Statement ctxt cont mustTerm
+  public export
+  data Block : (ctxt : Context) ->
+                 (cont : Types) ->
+                 (opts : BlockOpts) ->
+                 Type where
+    End : Block ctxt cont (Opts False)
+
+    Ret : (res : Expr ctxt cont) -> Block ctxt cont opts
+
+    SimpleIf : (test : Expr ctxt [<Bool']) ->
+               (th, el : Block ctxt cont (Opts False))->
+               (next : Block ctxt cont opts) ->
+               Block ctxt cont opts
 
   export
-  Show (Statement ctxt cont opts) where
+  Show (Block ctxt cont opts) where
     show End = "End"
     show (Ret res) = "(Ret " ++ show res ++ ")"
+    show (SimpleIf test th el next) = unlines [ "(If " ++ show test
+                                              , "  " ++ show th
+                                              , "  " ++ show el ++ ")"
+                                              ]
 
 export
-genStmts : Fuel -> (ctxt : Context) -> (cont : Types) -> (mustTerm : Bool) ->
-                   Gen MaybeEmpty $ Statement ctxt cont mustTerm
+genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (opts : BlockOpts) ->
+                   Gen MaybeEmpty $ Block ctxt cont opts
