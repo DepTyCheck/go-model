@@ -155,8 +155,12 @@ namespace Block
 
     SimpleIf : (test : Expr ctxt [<Bool']) ->
                (th, el : Block ctxt cont (MkBlockOpts False))->
-               (next : Block ctxt cont bo) ->
+               (next : Block ctxt cont (MkBlockOpts False)) ->
                Block ctxt cont bo
+
+    TermIf : (test : Expr ctxt [<Bool']) ->
+             (th, el : Block ctxt cont bo)->
+             Block ctxt cont bo
 
   export
   isNop : Block _ _ _ -> Bool
