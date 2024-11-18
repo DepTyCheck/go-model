@@ -8,6 +8,8 @@ import Data.String
 
 import Language.Go
 import Language.Go.Derived
+import Language.Go.Pretty
+import Language.Go.Pretty.Derived
 
 import Test.DepTyCheck.Gen
 
@@ -96,11 +98,11 @@ cliOpts =
 -----------------------
 
 namespace Builtins
-  export
+  public export
   goBuiltins : Context
-  goBuiltins =
-    [< DVar (Func' $ MkFuncTy [< Int' ] [<])
-    ]
+  goBuiltins = [<]
+    -- [< DVar (Func' $ MkFuncTy [< Int' ] [<])
+    -- ]
 
 ---------------
 --- Running ---
@@ -110,11 +112,11 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genBlocks conf.modelFuel goBuiltins [<Int'] (Opts True)
-               pure $ show stmt
+               stmt <- genBlocks conf.modelFuel goBuiltins [<Int'] (MkBlockOpts True)
+               printGo conf.ppFuel @{Empty} stmt
   Lazy.for_ vals $ \val => do
     putStrLn "-------------------\n"
-    putStr val
+    putStr $ render conf.layoutOpts val
 
 ---------------
 --- Startup ---

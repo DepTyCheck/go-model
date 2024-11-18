@@ -92,13 +92,34 @@ namespace Def
     DVar : (varTy : Ty) -> Def
 
   public export
-  data SnocListDef : Type where
-    Lin  : SnocListDef
-    (:<) : SnocListDef -> Def -> SnocListDef
+  data Context : Type where
+    Lin  : Context
+    (:<) : Context -> Def -> Context
 
   public export
-  Context : Type
-  Context = SnocListDef
+  data IndexIn : Context -> Type where
+    Here  : IndexIn $ sx :< x
+    There : IndexIn sx -> IndexIn $ sx :< x
+
+  public export
+  index : (sx : Context) -> IndexIn sx -> Def
+  index (_ :<x) Here      = x
+  index (sx:<_) (There i) = index sx i
+
+  public export
+  length : Context -> Nat
+  length Lin = Z
+  length (sx :< _) = S $ length sx
+
+  public export %inline
+  (.length) : Context -> Nat
+  (.length) = length
+
+  public export
+  data AtIndex : {sx : Context} -> (idx : IndexIn sx) -> Def -> Type where
+    [search sx idx]
+    Here'  : AtIndex {sx = sx :< sig} Here sig
+    There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
 
 namespace Expr
 
@@ -110,45 +131,38 @@ namespace Expr
   export
   Show (Literal ty) where
     show (MkInt x) = show x
-    show (MkBool x) = show x
+    show (MkBool True) = "true"
+    show (MkBool False) = "false"
 
   public export
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    C : (x : Literal ty) -> Expr ctxt [<ty]
-
-  export
-  Show (Expr ctxt res) where
-    show (C val) = "(C " ++ show val ++ ")"
+    Const : (x : Literal ty) -> Expr ctxt [<ty]
 
 namespace Block
   public export
   record BlockOpts where
-    constructor Opts
+    constructor MkBlockOpts
     mustTerm : Bool
 
   public export
   data Block : (ctxt : Context) ->
-                 (cont : Types) ->
-                 (opts : BlockOpts) ->
-                 Type where
-    End : Block ctxt cont (Opts False)
+               (cont : Types) ->
+               (bo : BlockOpts) ->
+               Type where
+    End : Block ctxt cont (MkBlockOpts False)
 
-    Ret : (res : Expr ctxt cont) -> Block ctxt cont opts
+    Ret : (res : Expr ctxt cont) -> Block ctxt cont bo
 
     SimpleIf : (test : Expr ctxt [<Bool']) ->
-               (th, el : Block ctxt cont (Opts False))->
-               (next : Block ctxt cont opts) ->
-               Block ctxt cont opts
+               (th, el : Block ctxt cont (MkBlockOpts False))->
+               (next : Block ctxt cont bo) ->
+               Block ctxt cont bo
 
   export
-  Show (Block ctxt cont opts) where
-    show End = "End"
-    show (Ret res) = "(Ret " ++ show res ++ ")"
-    show (SimpleIf test th el next) = unlines [ "(If " ++ show test
-                                              , "  " ++ show th
-                                              , "  " ++ show el ++ ")"
-                                              ]
+  isNop : Block _ _ _ -> Bool
+  isNop End = True
+  isNop _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (opts : BlockOpts) ->
-                   Gen MaybeEmpty $ Block ctxt cont opts
+genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (bo : BlockOpts) ->
+                   Gen MaybeEmpty $ Block ctxt cont bo
