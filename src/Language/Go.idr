@@ -32,16 +32,19 @@ namespace Ty
       | Func' FuncTy
 
     public export
+    data MaybeTy
+      = Nothing
+      | Just Ty
+
+    public export
     data SnocListTy : Type where
       Lin  : SnocListTy
       (:<) : SnocListTy -> Ty -> SnocListTy
 
   mutual
-    public export
-    Eq FuncTy where
-      (==) (MkFuncTy a c) (MkFuncTy a' c') = a == a' && c == c'
-
+    %runElab derive "FuncTy" [DE.Eq]
     %runElab derive "Ty" [DE.Eq]
+    %runElab derive "MaybeTy" [DE.Eq]
 
     public export
     Eq SnocListTy where
@@ -72,11 +75,9 @@ namespace Ty
     biinjective Refl = (Refl, Refl)
 
   mutual
-    export
-    DecEq FuncTy where
-      decEq (MkFuncTy a c) (MkFuncTy a' c') = decEqCong2 (decEq a a') (decEq c c')
-
+    %runElab derive "FuncTy" [Generic, DecEq]
     %runElab derive "Ty" [Generic, DecEq]
+    %runElab derive "MaybeTy" [Generic, DecEq]
 
     export
     DecEq SnocListTy where
