@@ -21,13 +21,12 @@ namespace Ty
     public export
     record FuncTy where
       constructor MkFuncTy
-      args: SnocListTy
-      rets: SnocListTy
+      args: Types
+      rets: Types
 
     public export
     data Ty
-      = NoValue
-      | Int'
+      = Int'
       | Bool'
       | Func' FuncTy
 
@@ -37,9 +36,9 @@ namespace Ty
       | Just Ty
 
     public export
-    data SnocListTy : Type where
-      Lin  : SnocListTy
-      (:<) : SnocListTy -> Ty -> SnocListTy
+    data Types : Type where
+      Lin  : Types
+      (:<) : Types -> Ty -> Types
 
   mutual
     %runElab derive "FuncTy" [DE.Eq]
@@ -47,23 +46,23 @@ namespace Ty
     %runElab derive "MaybeTy" [DE.Eq]
 
     public export
-    Eq SnocListTy where
+    Eq Types where
       (==) Lin Lin = True
       (==) (xs :< x) (xs' :< x') = assert_total $ xs == xs' && x == x'
       (==) _ _ = False
 
   public export
-  snocListTyToList : SnocListTy -> List Ty
+  snocListTyToList : Types -> List Ty
   snocListTyToList Lin = []
   snocListTyToList (xs :< x) = (snocListTyToList xs) ++ [x]
 
   public export
-  length : SnocListTy -> Nat
+  length : Types -> Nat
   length Lin = Z
   length (sx :< _) = S $ length sx
 
   public export %inline
-  (.length) : SnocListTy -> Nat
+  (.length) : Types -> Nat
   (.length) = length
 
   export
@@ -80,7 +79,7 @@ namespace Ty
     %runElab derive "MaybeTy" [Generic, DecEq]
 
     export
-    DecEq SnocListTy where
+    DecEq Types where
       decEq Lin Lin = Yes Refl
       decEq Lin (_ :< _) = No $ \case Refl impossible
       decEq (_ :< _) Lin = No $ \case Refl impossible
@@ -114,25 +113,28 @@ namespace Expr
     show (MkBool x) = show x
 
   public export
-  data Expr : Context -> Ty -> Type where
-    C : (x : Literal ty) -> Expr ctxt ty
+  data Expr : (ctxt : Context) -> (res : Types) -> Type where
+    C : (x : Literal ty) -> Expr ctxt [<ty]
 
   export
-  Show (Expr ctxt ty) where
+  Show (Expr ctxt res) where
     show (C val) = "(C " ++ show val ++ ")"
 
 namespace Stmt
-
   public export
-  data Statement : (ctxt : Context) -> (contTy : Ty) -> Type where
-    Nop : Statement ctxt contTy
+  data Statement : (ctxt : Context) ->
+                   (cont : Types) ->
+                   (mustTerm : Bool) ->
+                   Type where
+    End : Statement ctxt cont False
 
-    Ret : (res : Expr ctxt contTy) -> Statement ctxt contTy
+    Ret : (res : Expr ctxt cont) -> Statement ctxt cont mustTerm
 
   export
-  Show (Statement ctxt contTy) where
-    show Nop = "Nop"
+  Show (Statement ctxt cont opts) where
+    show End = "End"
     show (Ret res) = "(Ret " ++ show res ++ ")"
 
 export
-genStmts : Fuel -> (ctxt : Context) -> (contTy : Ty) -> Gen MaybeEmpty $ Statement ctxt contTy
+genStmts : Fuel -> (ctxt : Context) -> (cont : Types) -> (mustTerm : Bool) ->
+                   Gen MaybeEmpty $ Statement ctxt cont mustTerm

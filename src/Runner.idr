@@ -99,7 +99,7 @@ namespace Builtins
   export
   goBuiltins : Context
   goBuiltins =
-    [< DVar (Func' $ MkFuncTy [< Int' ] [< NoValue ])
+    [< DVar (Func' $ MkFuncTy [< Int' ] [<])
     ]
 
 ---------------
@@ -110,7 +110,7 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genStmts conf.modelFuel goBuiltins Int'
+               stmt <- genStmts conf.modelFuel goBuiltins [<Int'] False
                pure $ show stmt
   Lazy.for_ vals $ \val => do
     putStrLn "-------------------\n"
