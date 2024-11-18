@@ -140,33 +140,35 @@ namespace Expr
 
 namespace Block
   public export
-  record BlockOpts where
-    constructor MkBlockOpts
-    mustTerm : Bool
+  data BlockPos
+    = Intermediate
+    | Terminating
 
-  public export
-  data Block : (ctxt : Context) ->
-               (cont : Types) ->
-               (bo : BlockOpts) ->
-               Type where
-    End : Block ctxt cont (MkBlockOpts False)
+  mutual
+    public export
+    data Block : (ctxt : Context) ->
+                 (cont : Types) ->
+                 (pos : BlockPos) ->
+                 Type where
+      End : Block ctxt cont Intermediate
 
-    Ret : (res : Expr ctxt cont) -> Block ctxt cont bo
+      Ret : (res : Expr ctxt cont) -> Block ctxt cont pos
 
-    SimpleIf : (test : Expr ctxt [<Bool']) ->
-               (th, el : Block ctxt cont (MkBlockOpts False))->
-               (next : Block ctxt cont (MkBlockOpts False)) ->
-               Block ctxt cont bo
+      If : (test : Expr ctxt [<Bool']) ->
+           (th, el : Block ctxt cont pos)->
+           (next : MaybeNext ctxt cont pos) ->
+           Block ctxt cont pos
 
-    TermIf : (test : Expr ctxt [<Bool']) ->
-             (th, el : Block ctxt cont bo)->
-             Block ctxt cont bo
+    public export
+    data MaybeNext : Context -> Types -> BlockPos -> Type where
+      Just : Block ctxt cont Intermediate -> MaybeNext ctxt cont Intermediate
+      Nothing : MaybeNext ctxt cont Terminating
 
   export
-  isNop : Block _ _ _ -> Bool
-  isNop End = True
-  isNop _ = False
+  isEmpty : Block _ _ _ -> Bool
+  isEmpty End = True
+  isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (bo : BlockOpts) ->
-                   Gen MaybeEmpty $ Block ctxt cont bo
+genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (pos : BlockPos) ->
+                   Gen MaybeEmpty $ Block ctxt cont pos

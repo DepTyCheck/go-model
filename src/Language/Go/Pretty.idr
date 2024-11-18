@@ -227,54 +227,49 @@ printExpr :  (fuel :  Fuel) ->
 
 export
 printBlock : (fuel : Fuel) ->
-             {ctxt : Context} -> {cont : Types} -> {bo : _} -> {opts : _} ->
+             {ctxt : Context} -> {cont : Types} -> {pos : _} -> {opts : _} ->
              (names : UniqNames ctxt) =>
              (newNames : Gen0 String) =>
-             Block ctxt cont bo -> Gen0 $ Doc opts
-
+             Block ctxt cont pos -> Gen0 $ Doc opts
 export
-printIf : (fuel : Fuel) ->
-          {ctxt : Context} -> {cont : Types} -> {bo : _} -> {opts : _} ->
-          (names : UniqNames ctxt) =>
-          (newNames : Gen0 String) =>
-          Expr ctxt [<Bool'] ->
-          Block ctxt cont bo -> Block ctxt cont bo ->
-          Gen0 $ Doc opts
+printNext : (fuel : Fuel) ->
+            {ctxt : Context} -> {cont : Types} -> {pos : _} -> {opts : _} ->
+            (names : UniqNames ctxt) =>
+            (newNames : Gen0 String) =>
+            MaybeNext ctxt cont pos ->
+            Gen0 $ Doc opts
 
 printExpr fuel (Const lit) = pure $ line $ show lit
 
-printIf fuel test th el = do
-  test' <- printExpr fuel test
-  th' <- printBlock fuel th
-  let skipElse = isNop el && !(chooseAnyOf Bool)
-  el' <- if skipElse
-           then pure empty
-           else do
-             body <- printBlock @{names} @{newNames} fuel el
-             pure $ "} else {" `vappend` indent' 2 body
-  let top = hangSep 0 ("if" <++> test') "{"
-  pure $ vsep [ top
-              , indent' 2 th'
-              , el'
-              , "}"
-              ]
+printNext fuel (Just block) = printBlock fuel block
+printNext fuel Nothing = pure ""
 
 printBlock fuel End = pure ""
 
 printBlock fuel (Ret res) = do
   pure $ "return" <++> !(printExpr fuel res)
 
-printBlock fuel (TermIf test th el) = do
-  printIf fuel test th el
-
-printBlock fuel (SimpleIf test th el next) = do
-  this <- printIf fuel test th el
-  next' <- printBlock fuel next
-  pure $ this `vappend` next'
+printBlock fuel (If test th el next) = do
+  test' <- printExpr fuel test
+  th' <- printBlock fuel th
+  let skipElse = isEmpty el && !(chooseAnyOf Bool)
+  el' <- if skipElse
+           then pure empty
+           else do
+             body <- printBlock @{names} @{newNames} fuel el
+             pure $ "} else {" `vappend` indent' 2 body
+  let top = hangSep 0 ("if" <++> test') "{"
+  next' <- printNext fuel next
+  pure $ vsep [ top
+              , indent' 2 th'
+              , el'
+              , "}"
+              , next'
+              ]
 
 public export
 printGo : (fuel : Fuel) ->
-          {ctxt : Context} -> {cont : Types} -> {bo : _} -> {opts : _} ->
+          {ctxt : Context} -> {cont : Types} -> {pos : _} -> {opts : _} ->
           (names : UniqNames ctxt) =>
-          Block ctxt cont bo -> Gen0 $ Doc opts
+          Block ctxt cont pos -> Gen0 $ Doc opts
 printGo fuel = printBlock fuel {names} {newNames = goNamesGen}
