@@ -9,7 +9,7 @@ import Data.String
 import Language.Go
 import Language.Go.Derived
 import Language.Go.Pretty
-import Language.Go.Pretty.Derived
+import Language.Go.Pretty.Go
 
 import Test.DepTyCheck.Gen
 

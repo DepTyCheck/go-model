@@ -139,36 +139,68 @@ namespace Expr
     Const : (x : Literal ty) -> Expr ctxt [<ty]
 
 namespace Block
+  ||| Weater the current block is the last one in the current function
   public export
-  data BlockPos
+  data PosInFunc
     = Intermediate
     | Terminating
 
   mutual
     public export
-    data Block : (ctxt : Context) ->
-                 (cont : Types) ->
-                 (pos : BlockPos) ->
-                 Type where
-      End : Block ctxt cont Intermediate
+    data InterStmt : (ctxt : Context) ->
+                     (ret : Types) ->
+                     (pos : PosInFunc) ->
+                     Type where
+      -- ExprStmt : {res : Types} -> (expr : Expr ctxt res) -> InterStmt ctxt ret pos
 
-      Ret : (res : Expr ctxt cont) -> Block ctxt cont pos
-
-      If : (test : Expr ctxt [<Bool']) ->
-           (th, el : Block ctxt cont pos)->
-           (next : MaybeNext ctxt cont pos) ->
-           Block ctxt cont pos
+      InterIf : (test : Expr ctxt [<Bool']) ->
+           (th, el : Block ctxt ret Intermediate)->
+           InterStmt ctxt ret pos
 
     public export
-    data MaybeNext : Context -> Types -> BlockPos -> Type where
-      Just : Block ctxt cont Intermediate -> MaybeNext ctxt cont Intermediate
-      Nothing : MaybeNext ctxt cont Terminating
+    data LastStmt : (ctxt : Context) ->
+                    (ret : Types) ->
+                    (pos : PosInFunc) ->
+                    Type where
+      JustStopI : LastStmt ctxt ret Intermediate
+
+      JustStopN : LastStmt ctxt [<] pos
+
+      Ret : (res : Expr ctxt ret) -> LastStmt ctxt ret pos
+
+      LastIf : (test : Expr ctxt [<Bool']) ->
+               (th, el : Block ctxt ret pos)->
+               LastStmt ctxt ret pos
+
+    -- public export
+    -- data AnyStmt : (ctxt : Context) ->
+    --                (ret : Types) ->
+    --                (pos : PosInFunc) ->
+    --                Type where
+
+    public export
+    data Block : (ctxt : Context) ->
+                 (ret : Types) ->
+                 (pos : PosInFunc) ->
+                 Type where
+      ContI : InterStmt ctxt ret pos ->
+              Block ctxt ret pos ->
+              Block ctxt ret pos
+
+      -- ContA : AnyStmt ctxt ret pos ->
+      --         Block ctxt ret pos ->
+      --         Block ctxt ret pos
+
+      LastL : LastStmt ctxt ret pos -> Block ctxt ret pos
+
+      -- LastA : AnyStmt ctxt ret pos -> Block ctxt ret pos
 
   export
   isEmpty : Block _ _ _ -> Bool
-  isEmpty End = True
+  isEmpty (LastL JustStopI) = True
+  isEmpty (LastL JustStopN) = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (cont : Types) -> (pos : BlockPos) ->
-                   Gen MaybeEmpty $ Block ctxt cont pos
+genBlocks : Fuel -> (ctxt : Context) -> (ret : Types) -> (pos : PosInFunc) ->
+                   Gen MaybeEmpty $ Block ctxt ret pos
