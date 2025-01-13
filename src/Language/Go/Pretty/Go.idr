@@ -152,32 +152,34 @@ import System.Random.Pure.StdGen
 --   pure $ "return" <++> !(printExpr fuel Nothing res)
 
 mutual
-  export
   printExpr :  (fuel :  Fuel) ->
                {ctxt : Context} -> {ret : Types} -> {opts : _} ->
-               (names : UniqNames ctxt) =>
-               (newNames : Gen0 String) =>
+               -- (names : UniqNames ctxt) =>
+               -- (newNames : Gen0 String) =>
                Expr ctxt ret -> Gen0 $ Doc opts
 
   printExpr fuel (Const lit) = pure $ line $ show lit
 
-  export
   printIf : (fuel : Fuel) ->
-            {ctxt : Context} -> {ret : Types} -> {pos : _} -> {opts : _} ->
-            (names : UniqNames ctxt) =>
-            (newNames : Gen0 String) =>
-            Expr ctxt [<Bool'] ->
-            Block ctxt ret pos -> Block ctxt ret pos ->
+            {ctxt : Context} ->
+            {retThen : Types} ->
+            {retElse : Types} ->
+            {opts : _} ->
+            -- (names : UniqNames ctxt) =>
+            -- (newNames : Gen0 String) =>
+            (test : Expr ctxt [<Bool']) ->
+            (th : Block ctxt retThen) ->
+            (el : Block ctxt retElse) ->
             Gen0 $ Doc opts
 
   printIf fuel test th el = do
     test' <- printExpr fuel test
-    th' <- printBlock fuel th
+    th' <- assert_total printBlock fuel th
     let skipElse = isEmpty el && !(chooseAnyOf Bool)
     el' <- if skipElse
              then pure empty
              else do
-               body <- printBlock @{names} @{newNames} fuel el
+               body <- assert_total printBlock fuel el
                pure $ "} else {" `vappend` indent' 4 body
     let top = hangSep 0 ("if" <++> test') "{"
     pure $ vsep [ top
@@ -187,48 +189,31 @@ mutual
                 ]
 
   export
-  printInterStmt : (fuel : Fuel) ->
-                   {ctxt : Context} -> {ret : Types} -> {pos : _} -> {opts : _} ->
-                   (names : UniqNames ctxt) =>
-                   (newNames : Gen0 String) =>
-                   InterStmt ctxt ret pos -> Gen0 $ Doc opts
-
-  -- printInterStmt fuel (ExprStmt expr) = printExpr fuel expr
-
-  printInterStmt fuel (InterIf test th el) = printIf fuel test th el
-
-  export
   printBlock : (fuel : Fuel) ->
-               {ctxt : Context} -> {ret : Types} -> {pos : _} -> {opts : _} ->
-               (names : UniqNames ctxt) =>
-               (newNames : Gen0 String) =>
-               Block ctxt ret pos -> Gen0 $ Doc opts
+               {ctxt : Context} -> {ret : Types} -> {opts : _} ->
+               -- (names : UniqNames ctxt) =>
+               -- (newNames : Gen0 String) =>
+               Block ctxt ret -> Gen0 $ Doc opts
 
-  printBlock fuel (LastL JustStopI) = pure ""
-  printBlock fuel (LastL JustStopN) = pure ""
+  printBlock fuel ImplicitReturn = pure ""
 
-  printBlock fuel (LastL (Ret res)) = do
-    pure $ "return" <++> !(printExpr fuel res)
+  printBlock fuel (Return res) = do
+    resText <- printExpr fuel res
+    pure $ "return" <++> resText
 
-  printBlock fuel (LastL (LastIf test th el)) = printIf fuel test th el
+  printBlock fuel (InterIf test th el cont) = do
+    ifText <- printIf fuel test th el
+    contText <- printBlock fuel cont
+    pure $ ifText `vappend` contText
 
-  -- printBlock fuel (LastA any) = do
-  --   printAnyStmt fuel any
-
-  -- printBlock fuel (ContA any next) = do
-  --   cur <- printAnyStmt fuel any
-  --   next <- printBlock fuel next
-  --   pure $ cur `vappend` next
-
-  printBlock fuel (ContI inter next) = do
-    cur <- printInterStmt fuel inter
-    next <- printBlock fuel next
-    pure $ cur `vappend` next
+  printBlock fuel (TermIf test th el) = do
+    ifText <- printIf fuel test th el
+    pure ifText
 
 
 public export
 printGo : (fuel : Fuel) ->
-          {ctxt : Context} -> {ret : Types} -> {pos : _} -> {opts : _} ->
-          (names : UniqNames ctxt) =>
-          Block ctxt ret pos -> Gen0 $ Doc opts
-printGo fuel = printBlock fuel {names} {newNames = goNamesGen}
+          {ctxt : Context} -> {ret : Types} -> {opts : _} ->
+          -- (names : UniqNames ctxt) =>
+          Block ctxt ret -> Gen0 $ Doc opts
+printGo fuel = printBlock fuel -- {names} {newNames = goNamesGen}

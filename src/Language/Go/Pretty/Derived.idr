@@ -9,4 +9,4 @@ import Deriving.DepTyCheck.Gen
 
 %logging "deptycheck.derive" 5
 
-Language.Go.Pretty.rawNewName = deriveGen
+-- Language.Go.Pretty.rawNewName = deriveGen

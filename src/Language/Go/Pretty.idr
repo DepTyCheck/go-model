@@ -14,48 +14,48 @@ import System.Random.Pure.StdGen
 
 %default total
 
-mutual
-  public export
-  data UniqNames : (ctxt : Context) -> Type where
-    [search ctxt]
-    Empty   : UniqNames [<]
-    JustNew : (ss : UniqNames ctxt) => (s : String) -> (0 _ : NameIsNew ctxt ss s) => UniqNames ctxt
-    NewDef  : (ss : UniqNames ctxt) => (s : String) -> (0 _ : NameIsNew ctxt ss s) => UniqNames (ctxt :< def)
+-- mutual
+--   public export
+--   data UniqNames : (ctxt : Context) -> Type where
+--     [search ctxt]
+--     Empty   : UniqNames [<]
+--     JustNew : (ss : UniqNames ctxt) => (s : String) -> (0 _ : NameIsNew ctxt ss s) => UniqNames ctxt
+--     NewDef  : (ss : UniqNames ctxt) => (s : String) -> (0 _ : NameIsNew ctxt ss s) => UniqNames (ctxt :< def)
 
-  public export
-  data NameIsNew : (ctxt : Context) -> UniqNames ctxt -> String -> Type where
-    E : NameIsNew [<] Empty x
-    J : (0 _ : So $ x /= s) -> NameIsNew ctxt ss x -> NameIsNew ctxt (JustNew @{ss} s @{sub}) x
-    D : (0 _ : So $ x /= s) -> NameIsNew ctxt ss x -> NameIsNew (ctxt :< def) (NewDef @{ss} s @{sub}) x
+--   public export
+--   data NameIsNew : (ctxt : Context) -> UniqNames ctxt -> String -> Type where
+--     E : NameIsNew [<] Empty x
+--     J : (0 _ : So $ x /= s) -> NameIsNew ctxt ss x -> NameIsNew ctxt (JustNew @{ss} s @{sub}) x
+--     D : (0 _ : So $ x /= s) -> NameIsNew ctxt ss x -> NameIsNew (ctxt :< def) (NewDef @{ss} s @{sub}) x
 
-reservedKeywords : SortedSet String
+-- reservedKeywords : SortedSet String
 
-mutual
-  rawNewName : Fuel ->
-               (Fuel -> Gen MaybeEmpty String) =>
-               (ctxt : Context) ->
-               (names : UniqNames ctxt) ->
-               Gen MaybeEmpty (s ** NameIsNew ctxt names s)
+-- mutual
+--   rawNewName : Fuel ->
+--                (Fuel -> Gen MaybeEmpty String) =>
+--                (ctxt : Context) ->
+--                (names : UniqNames ctxt) ->
+--                Gen MaybeEmpty (s ** NameIsNew ctxt names s)
 
-  genNewName : Fuel ->
-               Gen MaybeEmpty String ->
-               (ctxt : Context) ->
-               (names : UniqNames ctxt) ->
-               Gen MaybeEmpty (s ** NameIsNew ctxt names s)
-  genNewName fuel genStr ctxt names = do
-    nn@(nm ** _) <- rawNewName fuel @{const genStr} ctxt names
-    if reservedKeywords `contains'` nm
-      then assert_total $ genNewName fuel genStr ctxt names
-      else pure nn
+--   genNewName : Fuel ->
+--                Gen MaybeEmpty String ->
+--                (ctxt : Context) ->
+--                (names : UniqNames ctxt) ->
+--                Gen MaybeEmpty (s ** NameIsNew ctxt names s)
+--   genNewName fuel genStr ctxt names = do
+--     nn@(nm ** _) <- rawNewName fuel @{const genStr} ctxt names
+--     if reservedKeywords `contains'` nm
+--       then assert_total $ genNewName fuel genStr ctxt names
+--       else pure nn
 
-goNamesGen : Gen0 String
-goNamesGen = pack <$> listOf {length = choose (1,10)} (choose ('a', 'z'))
+-- goNamesGen : Gen0 String
+-- goNamesGen = pack <$> listOf {length = choose (1,10)} (choose ('a', 'z'))
 
-export
-prettyName : UniqNames ctxt -> IndexIn ctxt -> String
-prettyName (JustNew @{ss} _) i         = prettyName ss i
-prettyName (NewDef s)        Here      = s
-prettyName (NewDef @{ss} _)  (There i) = prettyName ss i
+-- export
+-- prettyName : UniqNames ctxt -> IndexIn ctxt -> String
+-- prettyName (JustNew @{ss} _) i         = prettyName ss i
+-- prettyName (NewDef s)        Here      = s
+-- prettyName (NewDef @{ss} _)  (There i) = prettyName ss i
 
 -- -- Returned vect has a reverse order; I'd like some `SnocVect` here.
 -- newVars : NamesRestrictions =>

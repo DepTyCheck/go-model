@@ -31,11 +31,6 @@ namespace Ty
       | Func' FuncTy
 
     public export
-    data MaybeTy
-      = Nothing
-      | Just Ty
-
-    public export
     data Types : Type where
       Lin  : Types
       (:<) : Types -> Ty -> Types
@@ -43,7 +38,6 @@ namespace Ty
   mutual
     %runElab derive "FuncTy" [DE.Eq]
     %runElab derive "Ty" [DE.Eq]
-    %runElab derive "MaybeTy" [DE.Eq]
 
     public export
     Eq Types where
@@ -73,10 +67,25 @@ namespace Ty
   Biinjective Ty.(:<) where
     biinjective Refl = (Refl, Refl)
 
+  export
+  Injective Ty.Func' where
+    injective Refl = Refl
+
   mutual
     %runElab derive "FuncTy" [Generic, DecEq]
-    %runElab derive "Ty" [Generic, DecEq]
-    %runElab derive "MaybeTy" [Generic, DecEq]
+    -- %runElab derive "Ty" [Generic, DecEq]
+
+    public export
+    DecEq Ty where
+      decEq Int' Int' = Yes Refl
+      decEq Bool' Bool' = Yes Refl
+      decEq (Func' t1) (Func' t2) = decEqCong (assert_total decEq t1 t2)
+      decEq Int' Bool' = No $ \case Refl impossible
+      decEq Int' (Func' _) = No $ \case Refl impossible
+      decEq Bool' Int' = No $ \case Refl impossible
+      decEq Bool' (Func' _) = No $ \case Refl impossible
+      decEq (Func' _) Int' = No $ \case Refl impossible
+      decEq (Func' _) Bool' = No $ \case Refl impossible
 
     export
     DecEq Types where
@@ -139,68 +148,43 @@ namespace Expr
     Const : (x : Literal ty) -> Expr ctxt [<ty]
 
 namespace Block
-  ||| Weater the current block is the last one in the current function
-  public export
-  data PosInFunc
-    = Intermediate
-    | Terminating
-
   mutual
     public export
-    data InterStmt : (ctxt : Context) ->
-                     (ret : Types) ->
-                     (pos : PosInFunc) ->
-                     Type where
-      -- ExprStmt : {res : Types} -> (expr : Expr ctxt res) -> InterStmt ctxt ret pos
+    data AllowedInTnterIf : (retIf : Types) ->
+                            (retBranch : Types) ->
+                            Type where
+      RetSameAllowedInInterIf : AllowedInTnterIf ret ret
+      NoRetAllowedInInterIf : AllowedInTnterIf ret [<]
 
-      InterIf : (test : Expr ctxt [<Bool']) ->
-           (th, el : Block ctxt ret Intermediate)->
-           InterStmt ctxt ret pos
-
-    public export
-    data LastStmt : (ctxt : Context) ->
-                    (ret : Types) ->
-                    (pos : PosInFunc) ->
-                    Type where
-      JustStopI : LastStmt ctxt ret Intermediate
-
-      JustStopN : LastStmt ctxt [<] pos
-
-      Ret : (res : Expr ctxt ret) -> LastStmt ctxt ret pos
-
-      LastIf : (test : Expr ctxt [<Bool']) ->
-               (th, el : Block ctxt ret pos)->
-               LastStmt ctxt ret pos
-
-    -- public export
-    -- data AnyStmt : (ctxt : Context) ->
-    --                (ret : Types) ->
-    --                (pos : PosInFunc) ->
-    --                Type where
 
     public export
     data Block : (ctxt : Context) ->
                  (ret : Types) ->
-                 (pos : PosInFunc) ->
                  Type where
-      ContI : InterStmt ctxt ret pos ->
-              Block ctxt ret pos ->
-              Block ctxt ret pos
+      ImplicitReturn : Block ctxt [<]
 
-      -- ContA : AnyStmt ctxt ret pos ->
-      --         Block ctxt ret pos ->
-      --         Block ctxt ret pos
+      Return : (res : Expr ctxt ret) -> Block ctxt ret
 
-      LastL : LastStmt ctxt ret pos -> Block ctxt ret pos
+      InterIf : (test : Expr ctxt [<Bool']) ->
+                {retThen : Types} ->
+                {retElse : Types} ->
+                (th : Block ctxt retThen) ->
+                (el : Block ctxt retElse) ->
+                {allowThen : AllowedInTnterIf ret retThen} ->
+                {allowElse : AllowedInTnterIf ret retElse} ->
+                (cont : Block ctxt ret) ->
+                Block ctxt ret
 
-      -- LastA : AnyStmt ctxt ret pos -> Block ctxt ret pos
+      TermIf : (test : Expr ctxt [<Bool']) ->
+                (th : Block ctxt ret) ->
+                (el : Block ctxt ret) ->
+                Block ctxt ret
 
   export
-  isEmpty : Block _ _ _ -> Bool
-  isEmpty (LastL JustStopI) = True
-  isEmpty (LastL JustStopN) = True
+  isEmpty : Block _ _ -> Bool
+  isEmpty ImplicitReturn = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (ret : Types) -> (pos : PosInFunc) ->
-                   Gen MaybeEmpty $ Block ctxt ret pos
+genBlocks : Fuel -> (ctxt : Context) -> (ret : Types) ->
+                   Gen MaybeEmpty $ Block ctxt ret
