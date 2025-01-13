@@ -71,9 +71,9 @@ namespace Ty
   Injective Ty.Func' where
     injective Refl = Refl
 
-  mutual
-    %runElab derive "FuncTy" [Generic, DecEq]
-    %runElab derive "Ty" [Generic, DecEq]
+  -- mutual
+    -- %runElab derive "FuncTy" [Generic, DecEq]
+    -- %runElab derive "Ty" [Generic, DecEq]
     -- export
     -- DecEq FuncTy where
     --   decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
@@ -90,12 +90,12 @@ namespace Ty
     --   decEq (Func' _) Int' = No $ \case Refl impossible
     --   decEq (Func' _) Bool' = No $ \case Refl impossible
 
-    export
-    DecEq Types where
-      decEq Lin Lin = Yes Refl
-      decEq Lin (_ :< _) = No $ \case Refl impossible
-      decEq (_ :< _) Lin = No $ \case Refl impossible
-      decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
+    -- export
+    -- DecEq Types where
+    --   decEq Lin Lin = Yes Refl
+    --   decEq Lin (_ :< _) = No $ \case Refl impossible
+    --   decEq (_ :< _) Lin = No $ \case Refl impossible
+    --   decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
 
 
 namespace Definition
