@@ -168,6 +168,15 @@ namespace Block
     StopWhenReturnNone : AllowJustStop (MkContext _ [<]) isTerminating
 
 
+  public export
+  data AllowInnerIf : (isTerminatingThen : Bool) ->
+                      (isTerminatingElse : Bool) ->
+                      Type where
+    InnerIfCC : AllowInnerIf False False
+    InnerIfCT : AllowInnerIf False True
+    InnerIfTC : AllowInnerIf True False
+
+
   mutual
     public export
     data Block : (ctxt : Context) ->
@@ -181,8 +190,9 @@ namespace Block
                Block (MkContext defs ret) True
 
       InnerIf : (test : Expr ctxt [<Bool']) ->
-                (th : Block ctxt isTerminatingTh) ->
-                (el : Block ctxt isTerminatingEl) ->
+                {_ : AllowInnerIf isTerminatingThen isTerminatingElse} ->
+                (th : Block ctxt isTerminatingThen) ->
+                (el : Block ctxt isTerminatingElse) ->
                 (cont : Block ctxt isTerminating) ->
                 Block ctxt isTerminating
 
