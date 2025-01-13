@@ -72,10 +72,13 @@ namespace Ty
     injective Refl = Refl
 
   mutual
-    %runElab derive "FuncTy" [Generic, DecEq]
+    -- %runElab derive "FuncTy" [Generic, DecEq]
     -- %runElab derive "Ty" [Generic, DecEq]
+    export
+    DecEq FuncTy where
+      decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
 
-    public export
+    export
     DecEq Ty where
       decEq Int' Int' = Yes Refl
       decEq Bool' Bool' = Yes Refl
