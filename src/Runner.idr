@@ -99,7 +99,7 @@ cliOpts =
 
 namespace Builtins
   public export
-  goBuiltins : Context
+  goBuiltins : Definitions
   goBuiltins = [<]
     -- [< DVar (Func' $ MkFuncTy [< Int' ] [<])
     -- ]
@@ -112,7 +112,8 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genBlocks conf.modelFuel goBuiltins [<Int']
+               let ctxt = MkContext goBuiltins [<Int']
+               stmt <- genBlocks conf.modelFuel ctxt True
                printGo conf.ppFuel stmt
   Lazy.for_ vals $ \val => do
     putStrLn "-------------------\n"

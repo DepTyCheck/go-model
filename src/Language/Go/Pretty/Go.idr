@@ -162,14 +162,12 @@ mutual
 
   printIf : (fuel : Fuel) ->
             {ctxt : Context} ->
-            {retThen : Types} ->
-            {retElse : Types} ->
             {opts : _} ->
             -- (names : UniqNames ctxt) =>
             -- (newNames : Gen0 String) =>
             (test : Expr ctxt [<Bool']) ->
-            (th : Block ctxt retThen) ->
-            (el : Block ctxt retElse) ->
+            (th : Block ctxt _) ->
+            (el : Block ctxt _) ->
             Gen0 $ Doc opts
 
   printIf fuel test th el = do
@@ -190,18 +188,18 @@ mutual
 
   export
   printBlock : (fuel : Fuel) ->
-               {ctxt : Context} -> {ret : Types} -> {opts : _} ->
+               {ctxt : Context} -> {opts : _} ->
                -- (names : UniqNames ctxt) =>
                -- (newNames : Gen0 String) =>
-               Block ctxt ret -> Gen0 $ Doc opts
+               Block ctxt _ -> Gen0 $ Doc opts
 
-  printBlock fuel ImplicitReturn = pure ""
+  printBlock fuel JustStop = pure ""
 
   printBlock fuel (Return res) = do
     resText <- printExpr fuel res
     pure $ "return" <++> resText
 
-  printBlock fuel (InterIf test th el cont) = do
+  printBlock fuel (InnerIf test th el cont) = do
     ifText <- printIf fuel test th el
     contText <- printBlock fuel cont
     pure $ ifText `vappend` contText
@@ -213,7 +211,7 @@ mutual
 
 public export
 printGo : (fuel : Fuel) ->
-          {ctxt : Context} -> {ret : Types} -> {opts : _} ->
+          {ctxt : Context} -> {opts : _} ->
           -- (names : UniqNames ctxt) =>
-          Block ctxt ret -> Gen0 $ Doc opts
+          Block ctxt True -> Gen0 $ Doc opts
 printGo fuel = printBlock fuel -- {names} {newNames = goNamesGen}

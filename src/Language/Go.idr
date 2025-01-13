@@ -21,8 +21,8 @@ namespace Ty
     public export
     record FuncTy where
       constructor MkFuncTy
-      args: Types
-      rets: Types
+      args : Types
+      rets : Types
 
     public export
     data Ty
@@ -72,23 +72,23 @@ namespace Ty
     injective Refl = Refl
 
   mutual
-    -- %runElab derive "FuncTy" [Generic, DecEq]
-    -- %runElab derive "Ty" [Generic, DecEq]
-    export
-    DecEq FuncTy where
-      decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
+    %runElab derive "FuncTy" [Generic, DecEq]
+    %runElab derive "Ty" [Generic, DecEq]
+    -- export
+    -- DecEq FuncTy where
+    --   decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
 
-    export
-    DecEq Ty where
-      decEq Int' Int' = Yes Refl
-      decEq Bool' Bool' = Yes Refl
-      decEq (Func' t1) (Func' t2) = decEqCong (assert_total decEq t1 t2)
-      decEq Int' Bool' = No $ \case Refl impossible
-      decEq Int' (Func' _) = No $ \case Refl impossible
-      decEq Bool' Int' = No $ \case Refl impossible
-      decEq Bool' (Func' _) = No $ \case Refl impossible
-      decEq (Func' _) Int' = No $ \case Refl impossible
-      decEq (Func' _) Bool' = No $ \case Refl impossible
+    -- export
+    -- DecEq Ty where
+    --   decEq Int' Int' = Yes Refl
+    --   decEq Bool' Bool' = Yes Refl
+    --   decEq (Func' t1) (Func' t2) = decEqCong (assert_total decEq t1 t2)
+    --   decEq Int' Bool' = No $ \case Refl impossible
+    --   decEq Int' (Func' _) = No $ \case Refl impossible
+    --   decEq Bool' Int' = No $ \case Refl impossible
+    --   decEq Bool' (Func' _) = No $ \case Refl impossible
+    --   decEq (Func' _) Int' = No $ \case Refl impossible
+    --   decEq (Func' _) Bool' = No $ \case Refl impossible
 
     export
     DecEq Types where
@@ -98,43 +98,51 @@ namespace Ty
       decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
 
 
-namespace Def
+namespace Definition
   public export
-  data Def : Type where
-    DVar : (varTy : Ty) -> Def
+  data Definition : Type where
+    DVar : (varTy : Ty) -> Definition
 
   public export
-  data Context : Type where
-    Lin  : Context
-    (:<) : Context -> Def -> Context
+  data Definitions : Type where
+    Lin  : Definitions
+    (:<) : Definitions -> Definition -> Definitions
 
   public export
-  data IndexIn : Context -> Type where
+  data IndexIn : Definitions -> Type where
     Here  : IndexIn $ sx :< x
     There : IndexIn sx -> IndexIn $ sx :< x
 
   public export
-  index : (sx : Context) -> IndexIn sx -> Def
+  index : (sx : Definitions) -> IndexIn sx -> Definition
   index (_ :<x) Here      = x
   index (sx:<_) (There i) = index sx i
 
   public export
-  length : Context -> Nat
+  length : Definitions -> Nat
   length Lin = Z
   length (sx :< _) = S $ length sx
 
   public export %inline
-  (.length) : Context -> Nat
+  (.length) : Definitions -> Nat
   (.length) = length
 
   public export
-  data AtIndex : {sx : Context} -> (idx : IndexIn sx) -> Def -> Type where
+  data AtIndex : {sx : Definitions} -> (idx : IndexIn sx) -> Definition -> Type where
     [search sx idx]
     Here'  : AtIndex {sx = sx :< sig} Here sig
     There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
 
-namespace Expr
 
+namespace Context
+  public export
+  record Context where
+    constructor MkContext
+    definitions : Definitions
+    returnType : Types
+
+
+namespace Expr
   public export
   data Literal : Ty -> Type where
     MkInt : Nat -> Literal Int'
@@ -150,45 +158,44 @@ namespace Expr
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
     Const : (x : Literal ty) -> Expr ctxt [<ty]
 
+
 namespace Block
+  public export
+  data AllowJustStop : (ctxt : Context) ->
+                       (isTerminating : Bool) ->
+                       Type where
+    StopWhenNonTerminating : AllowJustStop _ False
+    StopWhenReturnNone : AllowJustStop (MkContext _ [<]) isTerminating
+
+
   mutual
     public export
-    data AllowedTnterIf : (ret : Types) ->
-                          (retThen : Types) ->
-                          (retElse : Types) ->
-                          Type where
-      InterIfCC : AllowedTnterIf ret [<] [<]
-      InterIfCT : AllowedTnterIf ret [<] ret
-      InterIfTC : AllowedTnterIf ret ret [<]
-
-
-    public export
     data Block : (ctxt : Context) ->
-                 (ret : Types) ->
+                 (isReturning : Bool) ->
                  Type where
-      ImplicitReturn : Block ctxt [<]
 
-      Return : (res : Expr ctxt ret) -> Block ctxt ret
+      JustStop : {_ : AllowJustStop ctxt isTerminating} ->
+                 Block ctxt isTerminating
 
-      InterIf : (test : Expr ctxt [<Bool']) ->
-                {retThen : Types} ->
-                {retElse : Types} ->
-                {allow : AllowedTnterIf ret retThen retElse} ->
-                (th : Block ctxt retThen) ->
-                (el : Block ctxt retElse) ->
-                (cont : Block ctxt ret) ->
-                Block ctxt ret
+      Return : (res : Expr (MkContext defs ret) ret) ->
+               Block (MkContext defs ret) True
+
+      InnerIf : (test : Expr ctxt [<Bool']) ->
+                (th : Block ctxt isTerminatingTh) ->
+                (el : Block ctxt isTerminatingEl) ->
+                (cont : Block ctxt isTerminating) ->
+                Block ctxt isTerminating
 
       TermIf : (test : Expr ctxt [<Bool']) ->
-                (th : Block ctxt ret) ->
-                (el : Block ctxt ret) ->
-                Block ctxt ret
+               (th : Block ctxt True) ->
+               (el : Block ctxt True) ->
+               Block ctxt True
 
   export
   isEmpty : Block _ _ -> Bool
-  isEmpty ImplicitReturn = True
+  isEmpty JustStop = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (ret : Types) ->
-                   Gen MaybeEmpty $ Block ctxt ret
+genBlocks : Fuel -> (ctxt : Context) -> (isTerminating : Bool) ->
+            Gen MaybeEmpty $ Block ctxt isTerminating
