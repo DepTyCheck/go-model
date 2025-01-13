@@ -153,11 +153,13 @@ namespace Expr
 namespace Block
   mutual
     public export
-    data AllowedInTnterIf : (retIf : Types) ->
-                            (retBranch : Types) ->
-                            Type where
-      RetSameAllowedInInterIf : AllowedInTnterIf ret ret
-      NoRetAllowedInInterIf : AllowedInTnterIf ret [<]
+    data AllowedTnterIf : (ret : Types) ->
+                          (retThen : Types) ->
+                          (retElse : Types) ->
+                          Type where
+      InterIfCC : AllowedTnterIf ret [<] [<]
+      InterIfCT : AllowedTnterIf ret [<] ret
+      InterIfTC : AllowedTnterIf ret ret [<]
 
 
     public export
@@ -171,10 +173,9 @@ namespace Block
       InterIf : (test : Expr ctxt [<Bool']) ->
                 {retThen : Types} ->
                 {retElse : Types} ->
+                {allow : AllowedTnterIf ret retThen retElse} ->
                 (th : Block ctxt retThen) ->
                 (el : Block ctxt retElse) ->
-                {allowThen : AllowedInTnterIf ret retThen} ->
-                {allowElse : AllowedInTnterIf ret retElse} ->
                 (cont : Block ctxt ret) ->
                 Block ctxt ret
 
