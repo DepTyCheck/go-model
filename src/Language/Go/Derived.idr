@@ -6,6 +6,6 @@ import Deriving.DepTyCheck.Gen
 
 %default total
 
-%logging "deptycheck.derive" 5
+%logging "deptycheck.derive" 15
 
 Language.Go.genBlocks = deriveGen

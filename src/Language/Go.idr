@@ -21,8 +21,8 @@ namespace Ty
     public export
     record FuncTy where
       constructor MkFuncTy
-      args: Types
-      rets: Types
+      func_arg: Ty
+      func_ret: Ty
 
     public export
     data Ty
@@ -30,41 +30,18 @@ namespace Ty
       | Bool'
       | Func' FuncTy
 
-    public export
-    data Types : Type where
-      Lin  : Types
-      (:<) : Types -> Ty -> Types
-
   mutual
-    %runElab derive "FuncTy" [DE.Eq]
-    %runElab derive "Ty" [DE.Eq]
+    Eq FuncTy where
+      MkFuncTy a1 r1 == MkFuncTy a2 r2 = a1 == a2 && r1 == r2
 
-    public export
-    Eq Types where
-      (==) Lin Lin = True
-      (==) (xs :< x) (xs' :< x') = assert_total $ xs == xs' && x == x'
-      (==) _ _ = False
-
-  public export
-  snocListTyToList : Types -> List Ty
-  snocListTyToList Lin = []
-  snocListTyToList (xs :< x) = (snocListTyToList xs) ++ [x]
-
-  public export
-  length : Types -> Nat
-  length Lin = Z
-  length (sx :< _) = S $ length sx
-
-  public export %inline
-  (.length) : Types -> Nat
-  (.length) = length
+    Eq Ty where
+      Int' == Int' = True
+      Bool' == Bool' = True
+      Func' f1 == Func' f2 = assert_total $ f1 == f2
+      _ == _ = False
 
   export
   Biinjective Ty.MkFuncTy where
-    biinjective Refl = (Refl, Refl)
-
-  export
-  Biinjective Ty.(:<) where
     biinjective Refl = (Refl, Refl)
 
   export
@@ -73,10 +50,6 @@ namespace Ty
 
   mutual
     %runElab derive "FuncTy" [Generic, DecEq]
-    -- %runElab derive "Ty" [Generic, DecEq]
-    -- export
-    -- DecEq FuncTy where
-    --   decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
 
     export
     DecEq Ty where
@@ -89,13 +62,6 @@ namespace Ty
       decEq Bool' (Func' _) = No $ \case Refl impossible
       decEq (Func' _) Int' = No $ \case Refl impossible
       decEq (Func' _) Bool' = No $ \case Refl impossible
-
-    export
-    DecEq Types where
-      decEq Lin Lin = Yes Refl
-      decEq Lin (_ :< _) = No $ \case Refl impossible
-      decEq (_ :< _) Lin = No $ \case Refl impossible
-      decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
 
 
 namespace Def
