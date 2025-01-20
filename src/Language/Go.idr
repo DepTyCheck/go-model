@@ -108,31 +108,6 @@ namespace Def
     Lin  : Context
     (:<) : Context -> Def -> Context
 
-  -- public export
-  -- data IndexIn : Context -> Type where
-  --   Here  : IndexIn $ sx :< x
-  --   There : IndexIn sx -> IndexIn $ sx :< x
-
-  -- public export
-  -- index : (sx : Context) -> IndexIn sx -> Def
-  -- index (_ :<x) Here      = x
-  -- index (sx:<_) (There i) = index sx i
-
-  -- public export
-  -- length : Context -> Nat
-  -- length Lin = Z
-  -- length (sx :< _) = S $ length sx
-
-  -- public export %inline
-  -- (.length) : Context -> Nat
-  -- (.length) = length
-
-  -- public export
-  -- data AtIndex : {sx : Context} -> (idx : IndexIn sx) -> Def -> Type where
-  --   [search sx idx]
-  --   Here'  : AtIndex {sx = sx :< sig} Here sig
-  --   There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
-
 namespace Expr
 
   public export
@@ -141,8 +116,8 @@ namespace Expr
     MkBool : Bool -> Literal Bool'
 
   public export
-  data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    Const : (x : Literal ty) -> Expr ctxt [<ty]
+  data Expr : (ctxt : Context) -> (res : Ty) -> Type where
+    Const : (x : Literal ty) -> Expr ctxt ty
 
 namespace Block
   mutual
@@ -160,7 +135,7 @@ namespace Block
                  Type where
       Return : Block ctxt ret
 
-      InterIf : (test : Expr ctxt [<Bool']) ->
+      InterIf : (test : Expr ctxt Bool') ->
                 {retThen : Types} ->
                 {retElse : Types} ->
                 (th : Block ctxt retThen) ->
