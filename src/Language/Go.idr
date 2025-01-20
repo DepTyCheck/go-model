@@ -27,7 +27,6 @@ namespace Ty
     public export
     data Ty
       = Int'
-      | Bool'
       | Func' FuncTy
 
   mutual
@@ -36,7 +35,6 @@ namespace Ty
 
     Eq Ty where
       Int' == Int' = True
-      Bool' == Bool' = True
       Func' f1 == Func' f2 = assert_total $ f1 == f2
       _ == _ = False
 
@@ -54,14 +52,9 @@ namespace Ty
     export
     DecEq Ty where
       decEq Int' Int' = Yes Refl
-      decEq Bool' Bool' = Yes Refl
       decEq (Func' t1) (Func' t2) = decEqCong (assert_total decEq t1 t2)
-      decEq Int' Bool' = No $ \case Refl impossible
       decEq Int' (Func' _) = No $ \case Refl impossible
-      decEq Bool' Int' = No $ \case Refl impossible
-      decEq Bool' (Func' _) = No $ \case Refl impossible
       decEq (Func' _) Int' = No $ \case Refl impossible
-      decEq (Func' _) Bool' = No $ \case Refl impossible
 
 
 namespace Def
@@ -79,7 +72,6 @@ namespace Expr
   public export
   data Literal : Ty -> Type where
     MkInt : Nat -> Literal Int'
-    MkBool : Bool -> Literal Bool'
 
   public export
   data Expr : (ctxt : Context) -> (res : Ty) -> Type where
@@ -92,7 +84,7 @@ namespace Block
                             (retBranch : Ty) ->
                             Type where
       Con1 : AllowedInTnterIf ret ret
-      Con2 : AllowedInTnterIf ret Bool'
+      Con2 : AllowedInTnterIf ret Int'
 
 
     public export
@@ -101,7 +93,7 @@ namespace Block
                  Type where
       Return : Block ctxt ret
 
-      InterIf : (test : Expr ctxt Bool') ->
+      InterIf : (test : Expr ctxt Int') ->
                 {retThen : Ty} ->
                 {retElse : Ty} ->
                 (th : Block ctxt retThen) ->
