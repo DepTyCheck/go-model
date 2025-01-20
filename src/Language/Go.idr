@@ -72,11 +72,11 @@ namespace Ty
     injective Refl = Refl
 
   mutual
-    -- %runElab derive "FuncTy" [Generic, DecEq]
+    %runElab derive "FuncTy" [Generic, DecEq]
     -- %runElab derive "Ty" [Generic, DecEq]
-    export
-    DecEq FuncTy where
-      decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
+    -- export
+    -- DecEq FuncTy where
+    --   decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
 
     export
     DecEq Ty where
@@ -108,30 +108,30 @@ namespace Def
     Lin  : Context
     (:<) : Context -> Def -> Context
 
-  public export
-  data IndexIn : Context -> Type where
-    Here  : IndexIn $ sx :< x
-    There : IndexIn sx -> IndexIn $ sx :< x
+  -- public export
+  -- data IndexIn : Context -> Type where
+  --   Here  : IndexIn $ sx :< x
+  --   There : IndexIn sx -> IndexIn $ sx :< x
 
-  public export
-  index : (sx : Context) -> IndexIn sx -> Def
-  index (_ :<x) Here      = x
-  index (sx:<_) (There i) = index sx i
+  -- public export
+  -- index : (sx : Context) -> IndexIn sx -> Def
+  -- index (_ :<x) Here      = x
+  -- index (sx:<_) (There i) = index sx i
 
-  public export
-  length : Context -> Nat
-  length Lin = Z
-  length (sx :< _) = S $ length sx
+  -- public export
+  -- length : Context -> Nat
+  -- length Lin = Z
+  -- length (sx :< _) = S $ length sx
 
-  public export %inline
-  (.length) : Context -> Nat
-  (.length) = length
+  -- public export %inline
+  -- (.length) : Context -> Nat
+  -- (.length) = length
 
-  public export
-  data AtIndex : {sx : Context} -> (idx : IndexIn sx) -> Def -> Type where
-    [search sx idx]
-    Here'  : AtIndex {sx = sx :< sig} Here sig
-    There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
+  -- public export
+  -- data AtIndex : {sx : Context} -> (idx : IndexIn sx) -> Def -> Type where
+  --   [search sx idx]
+  --   Here'  : AtIndex {sx = sx :< sig} Here sig
+  --   There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
 
 namespace Expr
 
@@ -139,12 +139,6 @@ namespace Expr
   data Literal : Ty -> Type where
     MkInt : Nat -> Literal Int'
     MkBool : Bool -> Literal Bool'
-
-  export
-  Show (Literal ty) where
-    show (MkInt x) = show x
-    show (MkBool True) = "true"
-    show (MkBool False) = "false"
 
   public export
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
@@ -164,9 +158,7 @@ namespace Block
     data Block : (ctxt : Context) ->
                  (ret : Types) ->
                  Type where
-      ImplicitReturn : Block ctxt [<]
-
-      Return : (res : Expr ctxt ret) -> Block ctxt ret
+      Return : Block ctxt ret
 
       InterIf : (test : Expr ctxt [<Bool']) ->
                 {retThen : Types} ->
@@ -175,18 +167,7 @@ namespace Block
                 (el : Block ctxt retElse) ->
                 {allowThen : AllowedInTnterIf ret retThen} ->
                 {allowElse : AllowedInTnterIf ret retElse} ->
-                (cont : Block ctxt ret) ->
                 Block ctxt ret
-
-      TermIf : (test : Expr ctxt [<Bool']) ->
-                (th : Block ctxt ret) ->
-                (el : Block ctxt ret) ->
-                Block ctxt ret
-
-  export
-  isEmpty : Block _ _ -> Bool
-  isEmpty ImplicitReturn = True
-  isEmpty _ = False
 
 export
 genBlocks : Fuel -> (ctxt : Context) -> (ret : Types) ->
