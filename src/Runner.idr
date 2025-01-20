@@ -112,7 +112,7 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genBlocks conf.modelFuel goBuiltins [<Int']
+               stmt <- genBlocks conf.modelFuel goBuiltins Int'
                printGo conf.ppFuel stmt
   Lazy.for_ vals $ \val => do
     putStrLn "-------------------\n"
