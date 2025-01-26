@@ -101,12 +101,9 @@ cliOpts =
 run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
-  let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genBlocks conf.modelFuel () Int'
-               printGo conf.ppFuel stmt
+  let vals = unGenTryN conf.testsCnt seed $ genBlocks conf.modelFuel () Int'
   Lazy.for_ vals $ \val => do
-    putStrLn "-------------------\n"
-    putStr $ render conf.layoutOpts val
+    putStrLn "Done"
 
 ---------------
 --- Startup ---

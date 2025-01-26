@@ -7,11 +7,8 @@ authors = "Mikhail Lavrentiev"
 sourcedir = "src"
 builddir = "build"
 
--- prebuild = "sh .derive-in-parallel"
-
 depends = deptycheck
         , getopts
-        , prettier
         , sop
 
 executable = "go-model"
@@ -19,7 +16,3 @@ main = Runner
 
 modules = Language.Go
         , Language.Go.Derived
-        , Language.Go.Pretty
-        , Language.Go.Pretty.Derived
-        , Language.Go.Pretty.Go
-        , Utils.MkSnocList
