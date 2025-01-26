@@ -9,7 +9,6 @@ builddir = "build"
 
 depends = deptycheck
         , getopts
-        , sop
 
 executable = "go-model"
 main = Runner
