@@ -93,16 +93,6 @@ cliOpts =
       "Sets how much fuel there is for pretty-printing."
   ]
 
------------------------
---- Builtins ---
------------------------
-
-namespace Builtins
-  public export
-  goBuiltins : Context
-  goBuiltins = [<]
-    -- [< DVar (Func' $ MkFuncTy [< Int' ] [<])
-    -- ]
 
 ---------------
 --- Running ---
@@ -112,7 +102,7 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               stmt <- genBlocks conf.modelFuel goBuiltins Int'
+               stmt <- genBlocks conf.modelFuel () Int'
                printGo conf.ppFuel stmt
   Lazy.for_ vals $ \val => do
     putStrLn "-------------------\n"

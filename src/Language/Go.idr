@@ -57,16 +57,6 @@ namespace Ty
       decEq (Func' _) Int' = No $ \case Refl impossible
 
 
-namespace Def
-  public export
-  data Def : Type where
-    DVar : (varTy : Ty) -> Def
-
-  public export
-  data Context : Type where
-    Lin  : Context
-    (:<) : Context -> Def -> Context
-
 namespace Expr
 
   public export
@@ -74,7 +64,7 @@ namespace Expr
     MkInt : Nat -> Literal Int'
 
   public export
-  data Expr : (ctxt : Context) -> (res : Ty) -> Type where
+  data Expr : (ctxt : ()) -> (res : Ty) -> Type where
     Const : (x : Literal ty) -> Expr ctxt ty
 
 namespace Block
@@ -88,7 +78,7 @@ namespace Block
 
 
     public export
-    data Block : (ctxt : Context) ->
+    data Block : (ctxt : ()) ->
                  (ret : Ty) ->
                  Type where
       Return : Block ctxt ret
@@ -103,5 +93,5 @@ namespace Block
                 Block ctxt ret
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (ret : Ty) ->
+genBlocks : Fuel -> (ctxt : ()) -> (ret : Ty) ->
                    Gen MaybeEmpty $ Block ctxt ret
