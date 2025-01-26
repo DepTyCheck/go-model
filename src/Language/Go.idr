@@ -47,7 +47,8 @@ namespace Block
                 (th : Block ctxt retThen) ->
                 (el : Block ctxt retElse) ->
                 {allowThen : AllowedInTnterIf ret retThen} ->
-                {allowElse : AllowedInTnterIf ret retElse} ->
+                -- it's even slower with allowElse
+                -- {allowElse : AllowedInTnterIf ret retElse} ->
                 Block ctxt ret
 
 export
