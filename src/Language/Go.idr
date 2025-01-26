@@ -26,16 +26,6 @@ namespace Ty
     decEq Func' Int' = No $ \case Refl impossible
 
 
-namespace Expr
-
-  public export
-  data Literal : Ty -> Type where
-    MkInt : Nat -> Literal Int'
-
-  public export
-  data Expr : (ctxt : ()) -> (res : Ty) -> Type where
-    Const : (x : Literal ty) -> Expr ctxt ty
-
 namespace Block
   mutual
     public export
@@ -52,8 +42,7 @@ namespace Block
                  Type where
       Return : Block ctxt ret
 
-      InterIf : (test : Expr ctxt Int') ->
-                {retThen : Ty} ->
+      InterIf : {retThen : Ty} ->
                 {retElse : Ty} ->
                 (th : Block ctxt retThen) ->
                 (el : Block ctxt retElse) ->
