@@ -32,8 +32,7 @@ namespace Block
     data AllowedInTnterIf : (retIf : Ty) ->
                             (retBranch : Ty) ->
                             Type where
-      Con1 : AllowedInTnterIf ret ret
-      Con2 : AllowedInTnterIf ret Int'
+      AllowedSameRet : AllowedInTnterIf ret ret
 
 
     public export
