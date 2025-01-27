@@ -8,10 +8,9 @@ sourcedir = "src"
 builddir = "build"
 
 depends = deptycheck
-        , getopts
 
 executable = "go-model"
 main = Runner
 
-modules = Language.Go
-        , Language.Go.Derived
+modules = Language.Go.Derived
+        , Language.Go

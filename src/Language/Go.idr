@@ -7,6 +7,10 @@ import Decidable.Equality
 
 import Test.DepTyCheck.Gen
 
+%default total
+
+%logging "deptycheck.derive" 15
+
 namespace Ty
   public export
   data Ty
@@ -49,7 +53,3 @@ namespace Block
                 -- it's even slower with allowElse
                 -- {allowElse : AllowedInTnterIf ret retElse} ->
                 Block ctxt ret
-
-export
-genBlocks : Fuel -> (ctxt : ()) -> (ret : Ty) ->
-                   Gen MaybeEmpty $ Block ctxt ret

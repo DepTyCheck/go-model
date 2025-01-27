@@ -1,11 +1,17 @@
 module Language.Go.Derived
 
-import public Language.Go
+import Language.Go
 
 import Deriving.DepTyCheck.Gen
+
+import Test.DepTyCheck.Gen
 
 %default total
 
 %logging "deptycheck.derive" 15
 
-Language.Go.genBlocks = deriveGen
+
+export
+genBlocks : Fuel -> (ctxt : ()) -> (ret : Ty) ->
+                   Gen MaybeEmpty $ Block ctxt ret
+genBlocks = deriveGen
