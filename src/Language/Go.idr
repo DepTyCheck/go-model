@@ -100,8 +100,15 @@ namespace Ty
 
 namespace Definition
   public export
-  data Definition : Type where
-    DVar : (varTy : Ty) -> Definition
+  data Mutablity
+    = Mut
+    | Const
+
+  public export
+  record Definition where
+    constructor Define
+    defMutability : Mutablity
+    defType : Ty
 
   public export
   data Definitions : Type where
@@ -113,25 +120,19 @@ namespace Definition
     Here  : IndexIn $ sx :< x
     There : IndexIn sx -> IndexIn $ sx :< x
 
+  export
+  toNat : IndexIn defs -> Nat
+  toNat Here = 0
+  toNat (There x) = S (toNat x)
+
   public export
   index : (sx : Definitions) -> IndexIn sx -> Definition
   index (_ :<x) Here      = x
   index (sx:<_) (There i) = index sx i
 
   public export
-  length : Definitions -> Nat
-  length Lin = Z
-  length (sx :< _) = S $ length sx
-
-  public export %inline
-  (.length) : Definitions -> Nat
-  (.length) = length
-
-  public export
-  data AtIndex : {sx : Definitions} -> (idx : IndexIn sx) -> Definition -> Type where
-    [search sx idx]
-    Here'  : AtIndex {sx = sx :< sig} Here sig
-    There' : AtIndex {sx} i sig -> AtIndex {sx = sx :< x} (There i) sig
+  VarTy : (defs : Definitions) -> IndexIn defs -> Ty
+  VarTy defs idx = defType $ index defs idx
 
 
 namespace Context
@@ -140,6 +141,12 @@ namespace Context
     constructor MkContext
     definitions : Definitions
     returnType : Types
+
+  AddDef : (ctxt : Context) -> (mut : Mutablity) -> (newTy : Ty) -> Context
+  AddDef ctxt mut newTy = let
+      newDefs = ctxt.definitions :< Define mut newTy
+    in
+      { definitions := newDefs } ctxt
 
 
 namespace Expr
@@ -157,6 +164,7 @@ namespace Expr
   public export
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
     Const : (x : Literal ty) -> Expr ctxt [<ty]
+    GetVar : (idx : IndexIn ctxt.definitions) -> Expr ctxt [< VarTy ctxt.definitions idx ]
 
 
 namespace Block
@@ -200,6 +208,12 @@ namespace Block
                (th : Block ctxt True) ->
                (el : Block ctxt True) ->
                Block ctxt True
+
+      InitVar : (newTy : Ty) ->
+                (mut : Mutablity) ->
+                (initVal : Expr ctxt [<newTy]) ->
+                (cont : Block (AddDef ctxt mut newTy) isRet) ->
+                Block ctxt isRet
 
   export
   isEmpty : Block _ _ -> Bool

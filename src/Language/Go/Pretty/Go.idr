@@ -151,7 +151,14 @@ import System.Random.Pure.StdGen
 -- printStmts fuel (Ret res) =
 --   pure $ "return" <++> !(printExpr fuel Nothing res)
 
+printDef : (defs : Definitions) -> IndexIn defs -> Gen0 $ Doc opts
+printDef defs idx = do
+    let name = "v" ++ show (toNat idx)
+    pure $ line name
+
+
 mutual
+
   printExpr :  (fuel :  Fuel) ->
                {ctxt : Context} -> {ret : Types} -> {opts : _} ->
                -- (names : UniqNames ctxt) =>
@@ -159,6 +166,8 @@ mutual
                Expr ctxt ret -> Gen0 $ Doc opts
 
   printExpr fuel (Const lit) = pure $ line $ show lit
+
+  printExpr fuel (GetVar idx) = printDef ctxt.definitions idx
 
   printIf : (fuel : Fuel) ->
             {ctxt : Context} ->
@@ -207,6 +216,13 @@ mutual
   printBlock fuel (TermIf test th el) = do
     ifText <- printIf fuel test th el
     pure ifText
+
+  printBlock fuel (InitVar newTy mut initVal cont) = do
+    initValText <- printExpr fuel initVal
+    varText <- pure "new_name"
+    let lineText = "var" <++> varText <++> "=" <++> initValText
+    contText <- printBlock fuel cont
+    pure $ lineText `vappend` contText
 
 
 public export
