@@ -12,31 +12,20 @@ import Test.DepTyCheck.Gen
 %logging "deptycheck.derive" 15
 
 public export
-data Ty
-  = Int'
-  | Func'
+data Ty = A | B
 
 export
 DecEq Ty where
-  decEq Int' Int' = Yes Refl
-  decEq Func' Func' = Yes Refl
-  decEq Int' Func' = No $ \case Refl impossible
-  decEq Func' Int' = No $ \case Refl impossible
-
-
-public export
-data AllowedInTnterIf : (retIf : Ty) ->
-                        (retBranch : Ty) ->
-                        Type where
-  AllowedSameRet : AllowedInTnterIf ret ret
-
+  decEq A A = Yes Refl
+  decEq B B = Yes Refl
+  decEq A B = No $ \case Refl impossible
+  decEq B A = No $ \case Refl impossible
 
 public export
-data Block : (ctxt : ()) ->
-             (ret : Ty) ->
-             Type where
-  Return : Block ctxt ret
+data TEq : Ty -> Ty -> Type where
+  Refl : TEq t t
 
-  InterIf : {allowThen : AllowedInTnterIf ret retThen} ->
-            (th : Block ctxt retThen) ->
-            Block ctxt ret
+public export
+data Block : () -> Ty -> Type where
+  Ret : Block c r
+  Cons : {eq : TEq t1 t2} -> (x : Block c t1) -> Block c t2

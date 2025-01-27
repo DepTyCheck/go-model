@@ -16,6 +16,6 @@ main = do
   seed <- initSeed
   let testCnt = 10
   let modelFuel = limit 10_000
-  let vals = unGenTryN testCnt seed $ genBlocks modelFuel () Int'
+  let vals = unGenTryN testCnt seed $ gen modelFuel () A
   Lazy.for_ vals $ \val => do
     putStrLn "Done"
