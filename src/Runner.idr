@@ -14,8 +14,7 @@ export
 main : IO ()
 main = do
   seed <- initSeed
-  let testCnt = 10
   let modelFuel = limit 10_000
-  let vals = unGenTryN testCnt seed $ gen modelFuel () A
+  let vals = unGenTryN 1 seed $ gen modelFuel A
   Lazy.for_ vals $ \val => do
     putStrLn "Done"
