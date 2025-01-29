@@ -12,5 +12,5 @@ import Test.DepTyCheck.Gen
 
 
 export
-gen : Fuel -> (r : Ty) -> Gen MaybeEmpty $ Block r
+gen : Fuel -> (c : ()) -> (r : Ty) -> Gen MaybeEmpty $ Block c r
 gen = deriveGen
