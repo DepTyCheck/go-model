@@ -12,22 +12,19 @@ import Test.DepTyCheck.Gen
 %logging "deptycheck.derive" 15
 
 public export
-data Ty = A | B
+data T = A | B
 
-DecEq Ty where
+DecEq T where
   decEq A A = Yes Refl
   decEq B B = Yes Refl
   decEq A B = No $ \case Refl impossible
   decEq B A = No $ \case Refl impossible
 
 public export
-data TEq : Ty -> Ty -> Type where
+data TEq : T -> T -> Type where
   Refl : TEq t t
 
 public export
-data Block : () -> Ty -> Type where
-  Em : Block c r
-  Con : Block c t1 ->
-        Block c t2 ->
-        TEq t1 t =>
-        Block c t
+data S : () -> T -> Type where
+  Em : S c r
+  Con : S c t1 -> S c t2 -> TEq t1 t => S c t
