@@ -151,23 +151,21 @@ import System.Random.Pure.StdGen
 -- printStmts fuel (Ret res) =
 --   pure $ "return" <++> !(printExpr fuel Nothing res)
 
-printDef : (defs : Definitions) -> IndexIn defs -> Gen0 $ Doc opts
-printDef defs idx = do
-    let name = "v" ++ show (toNat idx)
-    pure $ line name
-
+printVar :  {ctxt : Context} -> {opts : _} ->
+            (depth : Depth ctxt.definitions) -> Gen0 $ Doc opts
+printVar depth = pure $ line $ show $ dig ctxt.definitions depth
 
 mutual
-
   printExpr :  (fuel :  Fuel) ->
-               {ctxt : Context} -> {ret : Types} -> {opts : _} ->
+               {ctxt : Context} -> {opts : _} ->
                -- (names : UniqNames ctxt) =>
                -- (newNames : Gen0 String) =>
                Expr ctxt ret -> Gen0 $ Doc opts
 
-  printExpr fuel (Const lit) = pure $ line $ show lit
-
-  printExpr fuel (GetVar idx) = printDef ctxt.definitions idx
+  printExpr fuel (IntLiteral x) = pure $ line $ show x
+  printExpr fuel (BoolLiteral True) = pure $ line "true"
+  printExpr fuel (BoolLiteral False) = pure $ line "false"
+  printExpr fuel (GetVar depth) = printVar depth
 
   printIf : (fuel : Fuel) ->
             {ctxt : Context} ->
@@ -217,9 +215,10 @@ mutual
     ifText <- printIf fuel test th el
     pure ifText
 
-  printBlock fuel (InitVar newTy mut initVal cont) = do
+  printBlock fuel (InitVar {newCtxt} {pr} newTy initVal cont) = do
+    let NewDeBruijn = pr
     initValText <- printExpr fuel initVal
-    varText <- pure "new_name"
+    varText <- printVar {ctxt = newCtxt} Z
     let lineText = "var" <++> varText <++> "=" <++> initValText
     contText <- printBlock fuel cont
     pure $ lineText `vappend` contText

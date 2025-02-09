@@ -38,7 +38,7 @@ defaultConfig = MkConfig
   { usedSeed = initSeed
   , layoutOpts = Opts 152
   , testsCnt   = 10
-  , modelFuel  = limit 8
+  , modelFuel  = limit 3
   , ppFuel     = limit 1000000
   }
 
@@ -112,7 +112,7 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals = unGenTryN conf.testsCnt seed $ do
-               let ctxt = MkContext goBuiltins [<Int']
+               let ctxt = MkContext goBuiltins [<Int'] Z
                stmt <- genBlocks conf.modelFuel ctxt True
                printGo conf.ppFuel stmt
   Lazy.for_ vals $ \val => do

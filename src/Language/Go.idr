@@ -19,31 +19,15 @@ import Utils.MkSnocList
 namespace Ty
   mutual
     public export
-    record FuncTy where
-      constructor MkFuncTy
-      args : Types
-      rets : Types
-
-    public export
     data Ty
       = Int'
       | Bool'
-      | Func' FuncTy
+      | Func' Types Types
 
     public export
     data Types : Type where
       Lin  : Types
       (:<) : Types -> Ty -> Types
-
-  mutual
-    %runElab derive "FuncTy" [DE.Eq]
-    %runElab derive "Ty" [DE.Eq]
-
-    public export
-    Eq Types where
-      (==) Lin Lin = True
-      (==) (xs :< x) (xs' :< x') = assert_total $ xs == xs' && x == x'
-      (==) _ _ = False
 
   public export
   snocListTyToList : Types -> List Ty
@@ -60,55 +44,56 @@ namespace Ty
   (.length) = length
 
   export
-  Biinjective Ty.MkFuncTy where
-    biinjective Refl = (Refl, Refl)
-
-  export
   Biinjective Ty.(:<) where
     biinjective Refl = (Refl, Refl)
 
   export
-  Injective Ty.Func' where
-    injective Refl = Refl
+  Biinjective Ty.Func' where
+    biinjective Refl = (Refl, Refl)
 
-  -- mutual
-    -- %runElab derive "FuncTy" [Generic, DecEq]
-    -- %runElab derive "Ty" [Generic, DecEq]
-    -- export
-    -- DecEq FuncTy where
-    --   decEq (MkFuncTy p1 r1) (MkFuncTy p2 r2) = decEqCong2 (decEq p1 p2) (decEq r1 r2)
+  mutual
+    export
+    DecEq Ty where
+      decEq Int' Int' = Yes Refl
+      decEq Bool' Bool' = Yes Refl
+      decEq (Func' t1 r1) (Func' t2 r2) = decEqCong2 (assert_total decEq t1 t2) (assert_total decEq r1 r2)
+      decEq Int' Bool' = No $ \case Refl impossible
+      decEq Int' (Func' _ _) = No $ \case Refl impossible
+      decEq Bool' Int' = No $ \case Refl impossible
+      decEq Bool' (Func' _ _) = No $ \case Refl impossible
+      decEq (Func' _ _) Int' = No $ \case Refl impossible
+      decEq (Func' _ _) Bool' = No $ \case Refl impossible
 
-    -- export
-    -- DecEq Ty where
-    --   decEq Int' Int' = Yes Refl
-    --   decEq Bool' Bool' = Yes Refl
-    --   decEq (Func' t1) (Func' t2) = decEqCong (assert_total decEq t1 t2)
-    --   decEq Int' Bool' = No $ \case Refl impossible
-    --   decEq Int' (Func' _) = No $ \case Refl impossible
-    --   decEq Bool' Int' = No $ \case Refl impossible
-    --   decEq Bool' (Func' _) = No $ \case Refl impossible
-    --   decEq (Func' _) Int' = No $ \case Refl impossible
-    --   decEq (Func' _) Bool' = No $ \case Refl impossible
-
-    -- export
-    -- DecEq Types where
-    --   decEq Lin Lin = Yes Refl
-    --   decEq Lin (_ :< _) = No $ \case Refl impossible
-    --   decEq (_ :< _) Lin = No $ \case Refl impossible
-    --   decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
+    export
+    DecEq Types where
+      decEq Lin Lin = Yes Refl
+      decEq Lin (_ :< _) = No $ \case Refl impossible
+      decEq (_ :< _) Lin = No $ \case Refl impossible
+      decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
 
 
 namespace Definition
   public export
-  data Mutablity
-    = Mut
+  data Kind
+    = Var
     | Const
+    | Func
 
   public export
   record Definition where
     constructor Define
-    defMutability : Mutablity
-    defType : Ty
+    kind  : Kind
+    defTy : Ty
+    name  : Nat
+
+  %runElab derive "Kind" [Generic, DecEq]
+  %runElab derive "Definition" [Generic, DecEq]
+
+  export
+  Show Definition where
+    show (Define Var _ name) = "v" ++ show name
+    show (Define Const _ name) = "c" ++ show name
+    show (Define Func _ name) = "f" ++ show name
 
   public export
   data Definitions : Type where
@@ -116,23 +101,35 @@ namespace Definition
     (:<) : Definitions -> Definition -> Definitions
 
   public export
-  data IndexIn : Definitions -> Type where
-    Here  : IndexIn $ sx :< x
-    There : IndexIn sx -> IndexIn $ sx :< x
+  data Depth : Definitions -> Type where
+    Z : Depth $ sx :< x
+    S : Depth sx -> Depth $ sx :< x
+
+  public export
+  data AtDepth : (defs : Definitions) ->
+               (idx : Depth defs) ->
+               (dfn : Definition) ->
+               Type where
+    Here  : AtDepth (_ :< dfn) Z dfn
+    There : AtDepth rest idx dfn ->
+            AtDepth (rest :< _) (S idx) dfn
 
   export
-  toNat : IndexIn defs -> Nat
-  toNat Here = 0
-  toNat (There x) = S (toNat x)
+  dig : (defs : Definitions) -> (idx: Depth defs) -> Definition
+  dig (_ :< x) Z = x
+  dig (sx :< _) (S i) = dig sx i
 
   public export
-  index : (sx : Definitions) -> IndexIn sx -> Definition
-  index (_ :<x) Here      = x
-  index (sx:<_) (There i) = index sx i
+  data DefTypeIs : (defs : Definitions) ->
+                   (idx : Depth defs) ->
+                   (ty : Ty) ->
+                   Type where
+    -- Is : AtDepth defs idx (Define _ ty _) ->
+    --      DefTypeIs defs idx ty
+    Here'  : DefTypeIs (_ :< (Define _ ty _)) Z ty
+    There' : DefTypeIs rest idx ty ->
+             DefTypeIs (rest :< _) (S idx) ty
 
-  public export
-  VarTy : (defs : Definitions) -> IndexIn defs -> Ty
-  VarTy defs idx = defType $ index defs idx
 
 
 namespace Context
@@ -141,30 +138,28 @@ namespace Context
     constructor MkContext
     definitions : Definitions
     returnType : Types
+    serial : Nat
 
-  AddDef : (ctxt : Context) -> (mut : Mutablity) -> (newTy : Ty) -> Context
-  AddDef ctxt mut newTy = let
-      newDefs = ctxt.definitions :< Define mut newTy
-    in
-      { definitions := newDefs } ctxt
+  public export
+  data AddDefinition : (oldCtxt : Context) ->
+                       (kind : Kind) ->
+                       (ty : Ty) ->
+                       (newCtxt : Context) ->
+                       Type where
+    NewDeBruijn : AddDefinition oldCtxt kind ty (MkContext
+                    (oldCtxt.definitions :< Define kind newTy oldCtxt.serial)
+                    oldCtxt.returnType
+                    (S oldCtxt.serial))
 
 
 namespace Expr
   public export
-  data Literal : Ty -> Type where
-    MkInt : Nat -> Literal Int'
-    MkBool : Bool -> Literal Bool'
-
-  export
-  Show (Literal ty) where
-    show (MkInt x) = show x
-    show (MkBool True) = "true"
-    show (MkBool False) = "false"
-
-  public export
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    Const : (x : Literal ty) -> Expr ctxt [<ty]
-    GetVar : (idx : IndexIn ctxt.definitions) -> Expr ctxt [< VarTy ctxt.definitions idx ]
+    IntLiteral  : (x : Nat) -> Expr ctxt [<Int']
+    BoolLiteral : (x : Bool) -> Expr ctxt [<Bool']
+    GetVar : (idx : Depth ctxt.definitions) ->
+             DefTypeIs ctxt.definitions idx ty =>
+             Expr ctxt [<ty]
 
 
 namespace Block
@@ -173,7 +168,7 @@ namespace Block
                        (isTerminating : Bool) ->
                        Type where
     StopWhenNonTerminating : AllowJustStop _ False
-    StopWhenReturnNone : AllowJustStop (MkContext _ [<]) isTerminating
+    StopWhenReturnNone : AllowJustStop (MkContext _ [<] _) isTerminating
 
 
   public export
@@ -191,14 +186,14 @@ namespace Block
                  (isReturning : Bool) ->
                  Type where
 
-      JustStop : {_ : AllowJustStop ctxt isTerminating} ->
+      JustStop : AllowJustStop ctxt isTerminating =>
                  Block ctxt isTerminating
 
-      Return : (res : Expr (MkContext defs ret) ret) ->
-               Block (MkContext defs ret) True
+      Return : (res : Expr (MkContext defs ret ser) ret) ->
+               Block (MkContext defs ret ser) True
 
       InnerIf : (test : Expr ctxt [<Bool']) ->
-                {_ : AllowInnerIf isTerminatingThen isTerminatingElse} ->
+                AllowInnerIf isTerminatingThen isTerminatingElse =>
                 (th : Block ctxt isTerminatingThen) ->
                 (el : Block ctxt isTerminatingElse) ->
                 (cont : Block ctxt isTerminating) ->
@@ -209,11 +204,14 @@ namespace Block
                (el : Block ctxt True) ->
                Block ctxt True
 
-      InitVar : (newTy : Ty) ->
-                (mut : Mutablity) ->
-                (initVal : Expr ctxt [<newTy]) ->
-                (cont : Block (AddDef ctxt mut newTy) isRet) ->
-                Block ctxt isRet
+      -- Expr : (expr : Expr ctxt [<]) -> Block ctxt False
+
+      InitVar : {oldCtxt, newCtxt : Context} ->
+                (newTy : Ty) ->
+                (initVal : Expr oldCtxt [<newTy]) ->
+                {auto pr : AddDefinition oldCtxt Var newTy newCtxt} ->
+                (cont : Block newCtxt isRet) ->
+                Block oldCtxt isRet
 
   export
   isEmpty : Block _ _ -> Bool
