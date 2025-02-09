@@ -2,6 +2,7 @@ module Language.Go
 
 import Data.Fuel
 import Data.Nat
+import Data.Fin
 import Data.SOP
 
 import Decidable.Equality
@@ -26,25 +27,20 @@ namespace Ty
 
     public export
     data Types : Type where
-      Lin  : Types
-      (:<) : Types -> Ty -> Types
-
-  public export
-  snocListTyToList : Types -> List Ty
-  snocListTyToList Lin = []
-  snocListTyToList (xs :< x) = (snocListTyToList xs) ++ [x]
+      Nil  : Types
+      (::) : Ty -> Types -> Types
 
   public export
   length : Types -> Nat
-  length Lin = Z
-  length (sx :< _) = S $ length sx
+  length Nil = Z
+  length (_ :: sx) = S $ length sx
 
   public export %inline
   (.length) : Types -> Nat
   (.length) = length
 
   export
-  Biinjective Ty.(:<) where
+  Biinjective Ty.(::) where
     biinjective Refl = (Refl, Refl)
 
   export
@@ -66,10 +62,10 @@ namespace Ty
 
     export
     DecEq Types where
-      decEq Lin Lin = Yes Refl
-      decEq Lin (_ :< _) = No $ \case Refl impossible
-      decEq (_ :< _) Lin = No $ \case Refl impossible
-      decEq (xs :< x) (xs' :< x') = decEqCong2 (decEq xs xs') (decEq x x')
+      decEq Nil Nil = Yes Refl
+      decEq Nil (_ :: _) = No $ \case Refl impossible
+      decEq (_ :: _) Nil = No $ \case Refl impossible
+      decEq (xs :: x) (xs' :: x') = decEqCong2 (decEq xs xs') (decEq x x')
 
 
 namespace Definition
@@ -79,145 +75,136 @@ namespace Definition
     | Const
     | Func
 
+  export
+  Show Kind where
+    show Var = "v"
+    show Const = "c"
+    show Func = "f"
+
   public export
   record Definition where
     constructor Define
-    kind  : Kind
+    defKind  : Kind
     defTy : Ty
-    name  : Nat
 
   %runElab derive "Kind" [Generic, DecEq]
   %runElab derive "Definition" [Generic, DecEq]
 
-  export
-  Show Definition where
-    show (Define Var _ name) = "v" ++ show name
-    show (Define Const _ name) = "c" ++ show name
-    show (Define Func _ name) = "f" ++ show name
-
   public export
-  data Definitions : Type where
-    Lin  : Definitions
-    (:<) : Definitions -> Definition -> Definitions
-
-  public export
-  data Depth : Definitions -> Type where
-    Z : Depth $ sx :< x
-    S : Depth sx -> Depth $ sx :< x
-
-  public export
-  data AtDepth : (defs : Definitions) ->
-               (idx : Depth defs) ->
-               (dfn : Definition) ->
-               Type where
-    Here  : AtDepth (_ :< dfn) Z dfn
-    There : AtDepth rest idx dfn ->
-            AtDepth (rest :< _) (S idx) dfn
+  data Definitions : (size : Nat) -> Type where
+    Nil  : Definitions Z
+    (::) : Definition -> Definitions n -> Definitions (S n)
 
   export
-  dig : (defs : Definitions) -> (idx: Depth defs) -> Definition
-  dig (_ :< x) Z = x
-  dig (sx :< _) (S i) = dig sx i
+  dig : (defs : Definitions n) -> (idx: Fin n) -> Definition
+  dig (x :: _) FZ = x
+  dig (_ :: ds) (FS i) = dig ds i
 
   public export
-  data DefTypeIs : (defs : Definitions) ->
-                   (idx : Depth defs) ->
+  data DefTypeIs : (defs : Definitions n) ->
+                   (idx : Fin n) ->
                    (ty : Ty) ->
                    Type where
-    -- Is : AtDepth defs idx (Define _ ty _) ->
-    --      DefTypeIs defs idx ty
-    Here'  : DefTypeIs (_ :< (Define _ ty _)) Z ty
+    Here'  : DefTypeIs (Define _ ty :: _) FZ ty
     There' : DefTypeIs rest idx ty ->
-             DefTypeIs (rest :< _) (S idx) ty
-
+             DefTypeIs (_ :: rest) (FS idx) ty
 
 
 namespace Context
   public export
-  record Context where
-    constructor MkContext
-    definitions : Definitions
-    returnType : Types
-    serial : Nat
+  data Vars : Type where
+    Nil : Vars
+    (::) : Nat -> Vars -> Vars
 
   public export
-  data AddDefinition : (oldCtxt : Context) ->
+  record Context where
+    constructor MkContext
+    depth : Nat
+    definitions : Definitions depth
+    returns : Types
+    shouldReturn : Bool
+
+  public export
+  data AddDefinition : (ctxt : Context) ->
                        (kind : Kind) ->
                        (ty : Ty) ->
                        (newCtxt : Context) ->
                        Type where
-    NewDeBruijn : AddDefinition oldCtxt kind ty (MkContext
-                    (oldCtxt.definitions :< Define kind newTy oldCtxt.serial)
-                    oldCtxt.returnType
-                    (S oldCtxt.serial))
+    MkAddDefinition : AddDefinition ctxt kind ty
+                                    (MkContext
+                                      (S ctxt.depth)
+                                      (Define kind newTy :: ctxt.definitions)
+                                      ctxt.returns
+                                      ctxt.shouldReturn)
 
 
 namespace Expr
   public export
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    IntLiteral  : (x : Nat) -> Expr ctxt [<Int']
-    BoolLiteral : (x : Bool) -> Expr ctxt [<Bool']
-    GetVar : (idx : Depth ctxt.definitions) ->
+    IntLiteral  : (x : Nat) -> Expr ctxt [Int']
+    BoolLiteral : (x : Bool) -> Expr ctxt [Bool']
+    GetVar : (idx : Fin ctxt.depth) ->
              DefTypeIs ctxt.definitions idx ty =>
-             Expr ctxt [<ty]
+             Expr ctxt [ty]
 
 
 namespace Block
   public export
-  data AllowJustStop : (ctxt : Context) ->
-                       (isTerminating : Bool) ->
-                       Type where
-    StopWhenNonTerminating : AllowJustStop _ False
-    StopWhenReturnNone : AllowJustStop (MkContext _ [<] _) isTerminating
-
+  data AllowJustStop : Context -> Type where
+    StopUnlessShouldReturn : AllowJustStop (MkContext _ _ _ False)
+    StopWhenReturnNone : AllowJustStop (MkContext _ _ [] _)
 
   public export
-  data AllowInnerIf : (isTerminatingThen : Bool) ->
-                      (isTerminatingElse : Bool) ->
-                      Type where
-    InnerIfCC : AllowInnerIf False False
-    InnerIfCT : AllowInnerIf False True
-    InnerIfTC : AllowInnerIf True False
+  data AllowReturn : Context -> Types -> Type where
+    AllowReturnWhenShould : AllowReturn (MkContext _ _ types True) types
 
+  public export
+  data AllowInnerIf : (ctxt, ctxtThen, ctxtElse : Context) ->
+                      Type where
+    MkAllowInnerIf : AllowInnerIf (MkContext n d r False)
+                                  (MkContext n d r _)
+                                  (MkContext n d r _)
+
+  public export
+  data ShouldReturn : Context -> Type where
+    MkShouldReturn : ShouldReturn (MkContext _ _ _ True)
 
   mutual
     public export
-    data Block : (ctxt : Context) ->
-                 (isReturning : Bool) ->
-                 Type where
+    data Block : (ctxt : Context) -> Type where
 
-      JustStop : AllowJustStop ctxt isTerminating =>
-                 Block ctxt isTerminating
+      JustStop : AllowJustStop ctxt =>
+                 Block ctxt
 
-      Return : (res : Expr (MkContext defs ret ser) ret) ->
-               Block (MkContext defs ret ser) True
+      Return : AllowReturn ctxt rets =>
+               (res : Expr ctxt rets) ->
+               Block ctxt
 
-      InnerIf : (test : Expr ctxt [<Bool']) ->
-                AllowInnerIf isTerminatingThen isTerminatingElse =>
-                (th : Block ctxt isTerminatingThen) ->
-                (el : Block ctxt isTerminatingElse) ->
-                (cont : Block ctxt isTerminating) ->
-                Block ctxt isTerminating
+      InnerIf : (test : Expr ctxt [Bool']) ->
+                {ctxtThen, ctxtElse : Context} ->
+                AllowInnerIf ctxt ctxtThen ctxtElse =>
+                (th : Block ctxtThen) ->
+                (el : Block ctxtElse) ->
+                (cont : Block ctxt) ->
+                Block ctxt
 
-      TermIf : (test : Expr ctxt [<Bool']) ->
-               (th : Block ctxt True) ->
-               (el : Block ctxt True) ->
-               Block ctxt True
+      TermIf : ShouldReturn ctxt =>
+               (test : Expr ctxt [Bool']) ->
+               (th : Block ctxt) ->
+               (el : Block ctxt) ->
+               Block ctxt
 
-      -- Expr : (expr : Expr ctxt [<]) -> Block ctxt False
-
-      InitVar : {oldCtxt, newCtxt : Context} ->
+      InitVar : {ctxt, newCtxt : Context} ->
                 (newTy : Ty) ->
-                (initVal : Expr oldCtxt [<newTy]) ->
-                {auto pr : AddDefinition oldCtxt Var newTy newCtxt} ->
-                (cont : Block newCtxt isRet) ->
-                Block oldCtxt isRet
+                (initVal : Expr ctxt [newTy]) ->
+                {auto pr : AddDefinition ctxt Var newTy newCtxt} ->
+                (cont : Block newCtxt) ->
+                Block ctxt
 
   export
-  isEmpty : Block _ _ -> Bool
+  isEmpty : Block _ -> Bool
   isEmpty JustStop = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (isTerminating : Bool) ->
-            Gen MaybeEmpty $ Block ctxt isTerminating
+genBlocks : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Block ctxt

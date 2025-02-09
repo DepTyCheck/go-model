@@ -152,8 +152,13 @@ import System.Random.Pure.StdGen
 --   pure $ "return" <++> !(printExpr fuel Nothing res)
 
 printVar :  {ctxt : Context} -> {opts : _} ->
-            (depth : Depth ctxt.definitions) -> Gen0 $ Doc opts
-printVar depth = pure $ line $ show $ dig ctxt.definitions depth
+            (depth : Fin ctxt.depth) -> Gen0 $ Doc opts
+printVar depth = let
+                   dfn = dig ctxt.definitions depth
+                   pref = show dfn.defKind
+                   idx = (natToInteger ctxt.depth - finToInteger depth)
+                 in
+                   pure $ line $ pref ++ show idx
 
 mutual
   printExpr :  (fuel :  Fuel) ->
@@ -168,13 +173,11 @@ mutual
   printExpr fuel (GetVar depth) = printVar depth
 
   printIf : (fuel : Fuel) ->
-            {ctxt : Context} ->
+            {ctxt, ctxtThen, ctxtElse : Context} ->
             {opts : _} ->
-            -- (names : UniqNames ctxt) =>
-            -- (newNames : Gen0 String) =>
-            (test : Expr ctxt [<Bool']) ->
-            (th : Block ctxt _) ->
-            (el : Block ctxt _) ->
+            (test : Expr ctxt [Bool']) ->
+            (th : Block ctxtThen) ->
+            (el : Block ctxtElse) ->
             Gen0 $ Doc opts
 
   printIf fuel test th el = do
@@ -198,7 +201,7 @@ mutual
                {ctxt : Context} -> {opts : _} ->
                -- (names : UniqNames ctxt) =>
                -- (newNames : Gen0 String) =>
-               Block ctxt _ -> Gen0 $ Doc opts
+               Block ctxt -> Gen0 $ Doc opts
 
   printBlock fuel JustStop = pure ""
 
@@ -206,7 +209,7 @@ mutual
     resText <- printExpr fuel res
     pure $ "return" <++> resText
 
-  printBlock fuel (InnerIf test th el cont) = do
+  printBlock fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
     ifText <- printIf fuel test th el
     contText <- printBlock fuel cont
     pure $ ifText `vappend` contText
@@ -216,9 +219,9 @@ mutual
     pure ifText
 
   printBlock fuel (InitVar {newCtxt} {pr} newTy initVal cont) = do
-    let NewDeBruijn = pr
+    let MkAddDefinition = pr
     initValText <- printExpr fuel initVal
-    varText <- printVar {ctxt = newCtxt} Z
+    varText <- printVar {ctxt = newCtxt} FZ
     let lineText = "var" <++> varText <++> "=" <++> initValText
     contText <- printBlock fuel cont
     pure $ lineText `vappend` contText
@@ -228,5 +231,5 @@ public export
 printGo : (fuel : Fuel) ->
           {ctxt : Context} -> {opts : _} ->
           -- (names : UniqNames ctxt) =>
-          Block ctxt True -> Gen0 $ Doc opts
+          Block ctxt -> Gen0 $ Doc opts
 printGo fuel = printBlock fuel -- {names} {newNames = goNamesGen}
