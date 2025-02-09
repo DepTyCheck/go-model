@@ -151,16 +151,14 @@ import System.Random.Pure.StdGen
 -- printStmts fuel (Ret res) =
 --   pure $ "return" <++> !(printExpr fuel Nothing res)
 
-printVar :  {ctxt : Context} -> {opts : _} ->
-            (depth : Depth ctxt.definitions) -> Gen0 $ Doc opts
-printVar depth = pure $ line $ show $ dig ctxt.definitions depth
+printVar :  {defs : Definitions} -> {opts : _} ->
+            (depth : Depth defs) -> Gen0 $ Doc opts
+printVar depth = pure $ line $ show $ dig defs depth
 
 mutual
   printExpr :  (fuel :  Fuel) ->
-               {ctxt : Context} -> {opts : _} ->
-               -- (names : UniqNames ctxt) =>
-               -- (newNames : Gen0 String) =>
-               Expr ctxt ret -> Gen0 $ Doc opts
+               {defs : Definitions} -> {opts : _} ->
+               Expr defs ret -> Gen0 $ Doc opts
 
   printExpr fuel (IntLiteral x) = pure $ line $ show x
   printExpr fuel (BoolLiteral True) = pure $ line "true"
@@ -168,13 +166,11 @@ mutual
   printExpr fuel (GetVar depth) = printVar depth
 
   printIf : (fuel : Fuel) ->
-            {ctxt : Context} ->
+            {defs : Definitions} ->
             {opts : _} ->
-            -- (names : UniqNames ctxt) =>
-            -- (newNames : Gen0 String) =>
-            (test : Expr ctxt [<Bool']) ->
-            (th : Block ctxt _) ->
-            (el : Block ctxt _) ->
+            (test : Expr defs [<Bool']) ->
+            (th : Block defs _ _ _) ->
+            (el : Block defs _ _ _) ->
             Gen0 $ Doc opts
 
   printIf fuel test th el = do
@@ -195,10 +191,8 @@ mutual
 
   export
   printBlock : (fuel : Fuel) ->
-               {ctxt : Context} -> {opts : _} ->
-               -- (names : UniqNames ctxt) =>
-               -- (newNames : Gen0 String) =>
-               Block ctxt _ -> Gen0 $ Doc opts
+               {defs : Definitions} -> {opts : _} ->
+               Block defs rets ser isTerm -> Gen0 $ Doc opts
 
   printBlock fuel JustStop = pure ""
 
@@ -215,10 +209,9 @@ mutual
     ifText <- printIf fuel test th el
     pure ifText
 
-  printBlock fuel (InitVar {newCtxt} {pr} newTy initVal cont) = do
-    let NewDeBruijn = pr
+  printBlock fuel (InitVar newTy initVal {ser} cont) = do
     initValText <- printExpr fuel initVal
-    varText <- printVar {ctxt = newCtxt} Z
+    let varText = line $ show ser
     let lineText = "var" <++> varText <++> "=" <++> initValText
     contText <- printBlock fuel cont
     pure $ lineText `vappend` contText
@@ -226,7 +219,6 @@ mutual
 
 public export
 printGo : (fuel : Fuel) ->
-          {ctxt : Context} -> {opts : _} ->
-          -- (names : UniqNames ctxt) =>
-          Block ctxt True -> Gen0 $ Doc opts
-printGo fuel = printBlock fuel -- {names} {newNames = goNamesGen}
+          {defs : Definitions} -> {opts : _} ->
+          Block defs _ _ _ -> Gen0 $ Doc opts
+printGo fuel = printBlock fuel

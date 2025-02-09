@@ -107,9 +107,9 @@ namespace Definition
 
   public export
   data AtDepth : (defs : Definitions) ->
-               (idx : Depth defs) ->
-               (dfn : Definition) ->
-               Type where
+                 (idx : Depth defs) ->
+                 (dfn : Definition) ->
+                 Type where
     Here  : AtDepth (_ :< dfn) Z dfn
     There : AtDepth rest idx dfn ->
             AtDepth (rest :< _) (S idx) dfn
@@ -132,43 +132,23 @@ namespace Definition
 
 
 
-namespace Context
-  public export
-  record Context where
-    constructor MkContext
-    definitions : Definitions
-    returnType : Types
-    serial : Nat
-
-  public export
-  data AddDefinition : (oldCtxt : Context) ->
-                       (kind : Kind) ->
-                       (ty : Ty) ->
-                       (newCtxt : Context) ->
-                       Type where
-    NewDeBruijn : AddDefinition oldCtxt kind ty (MkContext
-                    (oldCtxt.definitions :< Define kind newTy oldCtxt.serial)
-                    oldCtxt.returnType
-                    (S oldCtxt.serial))
-
-
 namespace Expr
   public export
-  data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    IntLiteral  : (x : Nat) -> Expr ctxt [<Int']
-    BoolLiteral : (x : Bool) -> Expr ctxt [<Bool']
-    GetVar : (idx : Depth ctxt.definitions) ->
-             DefTypeIs ctxt.definitions idx ty =>
-             Expr ctxt [<ty]
+  data Expr : (defs : Definitions) -> (res : Types) -> Type where
+    IntLiteral  : (x : Nat) -> Expr defs [<Int']
+    BoolLiteral : (x : Bool) -> Expr defs [<Bool']
+    GetVar : (idx : Depth defs) ->
+             DefTypeIs defs idx ty =>
+             Expr defs [<ty]
 
 
 namespace Block
   public export
-  data AllowJustStop : (ctxt : Context) ->
+  data AllowJustStop : (rets : Types) ->
                        (isTerminating : Bool) ->
                        Type where
     StopWhenNonTerminating : AllowJustStop _ False
-    StopWhenReturnNone : AllowJustStop (MkContext _ [<] _) isTerminating
+    StopWhenReturnNone : AllowJustStop [<] isTerminating
 
 
   public export
@@ -182,42 +162,41 @@ namespace Block
 
   mutual
     public export
-    data Block : (ctxt : Context) ->
+    data Block : (defs : Definitions) ->
+                 (rets : Types) ->
+                 (ser : Nat) ->
                  (isReturning : Bool) ->
                  Type where
 
-      JustStop : AllowJustStop ctxt isTerminating =>
-                 Block ctxt isTerminating
+      JustStop : AllowJustStop rets isTerminating =>
+                 Block defs rets ser isTerminating
 
-      Return : (res : Expr (MkContext defs ret ser) ret) ->
-               Block (MkContext defs ret ser) True
+      Return : (res : Expr defs rets) ->
+               Block defs rets ser True
 
-      InnerIf : (test : Expr ctxt [<Bool']) ->
+      InnerIf : (test : Expr defs [<Bool']) ->
                 AllowInnerIf isTerminatingThen isTerminatingElse =>
-                (th : Block ctxt isTerminatingThen) ->
-                (el : Block ctxt isTerminatingElse) ->
-                (cont : Block ctxt isTerminating) ->
-                Block ctxt isTerminating
+                (th : Block defs rets ser isTerminatingThen) ->
+                (el : Block defs rets ser isTerminatingElse) ->
+                (cont : Block defs rets ser isTerminating) ->
+                Block defs rets ser isTerminating
 
-      TermIf : (test : Expr ctxt [<Bool']) ->
-               (th : Block ctxt True) ->
-               (el : Block ctxt True) ->
-               Block ctxt True
+      TermIf : (test : Expr defs [<Bool']) ->
+               (th : Block defs rets ser True) ->
+               (el : Block defs rets ser True) ->
+               Block defs rets ser True
 
-      -- Expr : (expr : Expr ctxt [<]) -> Block ctxt False
-
-      InitVar : {oldCtxt, newCtxt : Context} ->
-                (newTy : Ty) ->
-                (initVal : Expr oldCtxt [<newTy]) ->
-                {auto pr : AddDefinition oldCtxt Var newTy newCtxt} ->
-                (cont : Block newCtxt isRet) ->
-                Block oldCtxt isRet
+      InitVar : (newTy : Ty) ->
+                (initVal : Expr oldDefs [<newTy]) ->
+                {ser : Nat} ->
+                (cont : Block (oldDefs :< Define Var newTy ser) rets (S ser) isTerminating) ->
+                Block oldDefs rets ser isTerminating
 
   export
-  isEmpty : Block _ _ -> Bool
+  isEmpty : Block _ _ _ _ -> Bool
   isEmpty JustStop = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (isTerminating : Bool) ->
-            Gen MaybeEmpty $ Block ctxt isTerminating
+genBlocks : Fuel -> (defs : Definitions) -> (rets : Types) -> (ser : Nat) -> (isTerminating : Bool) ->
+            Gen MaybeEmpty $ Block defs rets ser isTerminating
