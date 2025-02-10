@@ -28,82 +28,16 @@ defaults:
 
 jobs:
 
-  ################
-  # Preparations #
-  ################
-
-  prepare-env:
-    name: Prepare environment
+  build-and-test:
+    name: Build and test
     runs-on: ubuntu-latest
     container: ghcr.io/stefan-hoeck/idris2-pack:latest
     steps:
       - uses: actions/checkout@v4
 
-      - run: pack update-db
-
-      - name: Switch to lastest `pack` collection
-        run: pack switch latest
-
-      - name: Install dependencies
-        run: pack install-deps
-
-      - name: Show wtf is going on
-        run: "find ~/.pack -name '*'"
-
-      - name: Save state of `pack`
-        uses: actions/upload-artifact@v4
-        with:
-          name: pack-dir
-          path: ~/.pack/**
-
-  ###############################
-  # Build DepTyCheck Go library #
-  ###############################
-
-  deptycheck-go-build:
-    name: Build the app
-    needs:
-      - prepare-env
-    runs-on: ubuntu-latest
-    container: ghcr.io/stefan-hoeck/idris2-pack:latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Restore state of `pack`
-        uses: actions/download-artifact@v4
-        with:
-          name: pack-dir
-
-      - run: pack build go-model
-
-      - name: Save built DepTyCheck
-        uses: actions/upload-artifact@v4
-        with:
-          name: built-deptycheck-go
-          path: |
-            $PACK_DIR
-            ./**/*.ttc
-            ./**/*.ttm
-
-  ######################
-  # Test DepTyCheck Go #
-  ######################
-
-  deptycheck-go-test:
-    name: Test Deptycheck Go
-    needs:
-      - deptycheck-go-build
-    runs-on: ubuntu-latest
-    container: ghcr.io/stefan-hoeck/idris2-pack:latest
-    strategy:
-      fail-fast: false # all test cases are more or less independent
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Restore built DepTyCheck Go
-        uses: actions/download-artifact@v4
-        with:
-          name: built-deptycheck-go
+      - name: Rebuild from skratch
+        run: |
+          ./rebuild-from-skratch.sh
 
       - name: Install Python
         uses: actions/setup-python@v5
