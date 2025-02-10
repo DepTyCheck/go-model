@@ -86,6 +86,7 @@ namespace Definition
     constructor Define
     defKind  : Kind
     defTy : Ty
+    defName : Nat
 
   %runElab derive "Kind" [Generic, DecEq]
   %runElab derive "Definition" [Generic, DecEq]
@@ -105,17 +106,12 @@ namespace Definition
                    (idx : Fin n) ->
                    (ty : Ty) ->
                    Type where
-    Here'  : DefTypeIs (Define _ ty :: _) FZ ty
+    Here'  : DefTypeIs (Define _ ty _ :: _) FZ ty
     There' : DefTypeIs rest idx ty ->
              DefTypeIs (_ :: rest) (FS idx) ty
 
 
 namespace Context
-  public export
-  data Vars : Type where
-    Nil : Vars
-    (::) : Nat -> Vars -> Vars
-
   public export
   record Context where
     constructor MkContext
@@ -133,7 +129,8 @@ namespace Context
     MkAddDefinition : AddDefinition ctxt kind ty
                                     (MkContext
                                       (S ctxt.depth)
-                                      (Define kind newTy :: ctxt.definitions)
+                                      (Define kind newTy ctxt.depth
+                                        :: ctxt.definitions)
                                       ctxt.returns
                                       ctxt.shouldReturn)
 
@@ -168,37 +165,45 @@ namespace Block
   data ShouldReturn : Context -> Type where
     MkShouldReturn : ShouldReturn (MkContext _ _ _ True)
 
-  mutual
-    public export
-    data Block : (ctxt : Context) -> Type where
+  %unbound_implicits off
 
-      JustStop : AllowJustStop ctxt =>
-                 Block ctxt
+  public export
+  data Block : (ctxt : Context) -> Type where
 
-      Return : AllowReturn ctxt rets =>
-               (res : Expr ctxt rets) ->
+    JustStop : forall ctxt.
+               AllowJustStop ctxt =>
                Block ctxt
 
-      InnerIf : (test : Expr ctxt [Bool']) ->
-                {ctxtThen, ctxtElse : Context} ->
-                AllowInnerIf ctxt ctxtThen ctxtElse =>
-                (th : Block ctxtThen) ->
-                (el : Block ctxtElse) ->
-                (cont : Block ctxt) ->
-                Block ctxt
+    Return : forall ctxt, rets.
+             AllowReturn ctxt rets =>
+             (res : Expr ctxt rets) ->
+             Block ctxt
 
-      TermIf : ShouldReturn ctxt =>
-               (test : Expr ctxt [Bool']) ->
-               (th : Block ctxt) ->
-               (el : Block ctxt) ->
-               Block ctxt
+    InnerIf : forall ctxt.
+              (test : Expr ctxt [Bool']) ->
+              {ctxtThen, ctxtElse : Context} ->
+              AllowInnerIf ctxt ctxtThen ctxtElse =>
+              (th : Block ctxtThen) ->
+              (el : Block ctxtElse) ->
+              (cont : Block ctxt) ->
+              Block ctxt
 
-      InitVar : {ctxt, newCtxt : Context} ->
-                (newTy : Ty) ->
-                (initVal : Expr ctxt [newTy]) ->
-                {auto pr : AddDefinition ctxt Var newTy newCtxt} ->
-                (cont : Block newCtxt) ->
-                Block ctxt
+    TermIf : forall ctxt.
+             ShouldReturn ctxt =>
+             (test : Expr ctxt [Bool']) ->
+             (th : Block ctxt) ->
+             (el : Block ctxt) ->
+             Block ctxt
+
+    InitVar : forall ctxt.
+              (newTy : Ty) ->
+              (initVal : Expr ctxt [newTy]) ->
+              {newCtxt : Context} ->
+              (pr : AddDefinition ctxt Var newTy newCtxt) =>
+              (cont : Block newCtxt) ->
+              Block ctxt
+
+  %unbound_implicits on
 
   export
   isEmpty : Block _ -> Bool

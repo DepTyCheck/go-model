@@ -19,8 +19,8 @@ printVar :  {ctxt : Context} ->
             (depth : Fin ctxt.depth) -> Gen0 $ Doc opts
 printVar depth = let
                    dfn = dig ctxt.definitions depth
+                   idx = dfn.defName
                    pref = show dfn.defKind
-                   idx = minus (minus ctxt.depth (finToNat depth)) 1
                    text = case inBounds idx knownNames of
                                Yes _ => List.index idx knownNames
                                No _ => pref ++ show idx
@@ -90,8 +90,9 @@ mutual
     initValText <- printExpr fuel initVal
     varText <- printVar {ctxt = newCtxt} FZ
     let lineText = "var" <++> varText <++> "=" <++> initValText
+    let lineText2 = "_" <++> "=" <++> varText
     contText <- printBlock fuel cont
-    pure $ lineText `vappend` contText
+    pure $ (lineText `vappend` lineText2) `vappend` contText
 
 
 public export

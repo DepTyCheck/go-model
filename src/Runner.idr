@@ -100,7 +100,7 @@ cliOpts =
 run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
-  let goBuiltins : Definitions _ = [Define Var Int']
+  let goBuiltins : Definitions _ = [Define Var Int' Z]
   let goNames = ["someIntVar"]
   let vals = unGenTryN conf.testsCnt seed $ do
                let ctxt = MkContext _ goBuiltins [Int'] True
