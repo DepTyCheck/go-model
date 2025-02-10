@@ -80,6 +80,8 @@ def check_examples_par(
 def main():
     sp.run(("pack", "build"), check=True)
 
+    print("Start generating and checking examples")
+
     examples = generate_examples_par(256)
 
     n_ok = n_fail = 0
@@ -96,6 +98,9 @@ def main():
                 print()
     finally:
         print(f"OK: {n_ok}; Fail: {n_fail}")
+
+    if n_fail != 0:
+        exit(1)
 
 
 if __name__ == "__main__":

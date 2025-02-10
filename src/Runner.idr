@@ -121,10 +121,10 @@ main = do
   let exe_name : String  := fromMaybe "pil-fun" $ head' args
   let usage : Lazy String := usageInfo "Usage: \{exe_name} [options] <language>" cliOpts
   let MkResult options [] [] [] = getOpt Permute cliOpts $ drop 1 args
-    | MkResult _ nonOptions _ _ => die "unexpected non options: \{show nonOptions}"
     | MkResult {unrecognized=unrecOpts@(_::_), _} => if "help" `elem` unrecOpts
                                                        then putStrLn usage
                                                        else die "unrecodnised options \{show unrecOpts}\n\{usage}"
     | MkResult {errors=es@(_::_), _}              => die "arguments parse errors \{show es}\n\{usage}"
+    | MkResult _ nonOptions _ _ => die "unexpected non options: \{show nonOptions}"
   let config = foldl (flip apply) defaultConfig options
   run config

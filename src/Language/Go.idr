@@ -126,13 +126,11 @@ namespace Context
                        (ty : Ty) ->
                        (newCtxt : Context) ->
                        Type where
-    MkAddDefinition : AddDefinition ctxt kind ty
-                                    (MkContext
-                                      (S ctxt.depth)
-                                      (Define kind newTy ctxt.depth
-                                        :: ctxt.definitions)
-                                      ctxt.returns
-                                      ctxt.shouldReturn)
+    MkAddDefinition : AddDefinition ctxt kind newTy (MkContext
+                        (S ctxt.depth)
+                        (Define kind newTy ctxt.depth :: ctxt.definitions)
+                        ctxt.returns
+                        ctxt.shouldReturn)
 
 namespace Expr
   public export

@@ -13,6 +13,12 @@ import public Text.PrettyPrint.Bernardy
 import System.Random.Pure.StdGen
 
 
+printTy : Ty -> String
+printTy Int' = "int"
+printTy Bool' = "bool"
+printTy (Func' ss rs) = "func"
+
+
 printVar :  {ctxt : Context} ->
             (knownNames : List String) =>
             {opts : _} ->
@@ -24,7 +30,7 @@ printVar depth = let
                    text = case inBounds idx knownNames of
                                Yes _ => List.index idx knownNames
                                No _ => pref ++ show idx
-                 in pure $ line text
+                 in pure $ line text <++> line "/*" <++> line (printTy dfn.defTy) <++> line "*/"
 
 mutual
   printExpr :  (fuel :  Fuel) ->
