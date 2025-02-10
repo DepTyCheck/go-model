@@ -52,13 +52,18 @@ def check_example(example: bytes, testdir: str) -> Failure | None:
         tempfile.write(example)
         tempfile.close()
 
-        cmd = ("go", "build", "-o", f"{tempfile.name}.out", tempfile.name)
+        output = f"{tempfile.name}.out"
+        cmd = ("go", "build", "-o", output, tempfile.name)
 
         go_build = sp.run(cmd, stderr=sp.PIPE, cwd=testdir)
-        if go_build.returncode == 0:
-            return None
-        else:
+        if go_build.returncode != 0:
             return Failure(example, go_build.returncode, go_build.stderr)
+
+        go_run = sp.run((output,), stderr=sp.PIPE, cwd=testdir)
+        if go_run.returncode != 0:
+            return Failure(example, go_run.returncode, go_run.stderr)
+
+        return None
 
 
 def check_examples_par(
