@@ -47,11 +47,14 @@ jobs:
       - name: Install dependencies
         run: pack install-deps
 
+      - name: Show wtf is going on
+        run: "find ~/.pack -name '*'"
+
       - name: Save state of `pack`
         uses: actions/upload-artifact@v4
         with:
           name: pack-dir
-          path: ~/.pack/
+          path: ~/.pack/**
 
   ###############################
   # Build DepTyCheck Go library #
