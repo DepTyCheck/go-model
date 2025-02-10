@@ -37,7 +37,7 @@ defaultConfig : Config
 defaultConfig = MkConfig
   { usedSeed = initSeed
   , layoutOpts = Opts 152
-  , testsCnt   = 10
+  , testsCnt   = 5
   , modelFuel  = limit 3
   , ppFuel     = limit 1000000
   }
@@ -107,7 +107,7 @@ run conf = do
                stmt <- genBlocks conf.modelFuel ctxt
                printGo conf.ppFuel goNames stmt
   Lazy.for_ vals $ \val => do
-    putStrLn "-------------------\n"
+    putStrLn "// -------------------\n"
     putStr $ render conf.layoutOpts val
 
 ---------------

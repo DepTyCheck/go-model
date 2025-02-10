@@ -101,4 +101,15 @@ printGo : (fuel : Fuel) ->
           (knownNames : List String) ->
           {opts : _} ->
           Block ctxt -> Gen0 $ Doc opts
-printGo fuel knownNames block = printBlock fuel block
+printGo fuel knownNames block = do
+  content <- printBlock fuel block
+  pure $ vsep [ "package main"
+              , ""
+              , "func testFunc(someIntVar int) int {"
+              , indent' 4 content
+              , "}"
+              , ""
+              , "func main() {"
+              , "    testFunc(42)"
+              , "}"
+              ]
