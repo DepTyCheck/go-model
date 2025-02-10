@@ -80,7 +80,7 @@ def check_examples_par(
 def main():
     sp.run(("pack", "build"), check=True)
 
-    examples = generate_examples_par(100, max_workers=20)
+    examples = generate_examples_par(256)
 
     n_ok = n_fail = 0
     try:
