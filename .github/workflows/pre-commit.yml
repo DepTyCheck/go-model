@@ -1,0 +1,115 @@
+---
+name: DepTyCheck
+
+on:
+  push:
+    branches:
+      - master
+      - 'debug-ci/**'
+    tags:
+      - '**'
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    # We want to run in the beginning of the day, right after the `pack` collection is built at the end of the previous day.
+    - cron: '0 1 * * *'
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}@${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  ################
+  # Preparations #
+  ################
+
+  prepare-env:
+    name: Prepare environment
+    runs-on: ubuntu-latest
+    container: ghcr.io/stefan-hoeck/idris2-pack:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: pack update-db
+
+      - name: Switch to lastest `pack` collection
+        run: pack switch latest
+
+      - name: Install dependencies
+        run: pack install-deps
+
+      - name: Save state of `pack`
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pack-dir
+          path: path/to/artifact/ # or path/to/artifact
+          path: "$PACK_DIR"
+
+  ############################
+  # Build DepTyCheck library #
+  ############################
+
+  deptycheck-go-build:
+    name: Build the app
+    needs:
+      - prepare-env
+    runs-on: ubuntu-latest
+    container: ghcr.io/stefan-hoeck/idris2-pack:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore state of `pack`
+        uses: actions/download-artifact@v4
+        with:
+          name: pack-dir
+
+      - run: pack build go-model
+
+      - name: Tar the `pack` dir
+        run:  .github/tar -uvf "${{ env.pack_dir_file }}" --exclude=".cache" "$PACK_DIR"
+      - name: Tar built TTC files
+        run: find "$(pwd)" -name '*.tt[cm]' | .github/tar -uvf "${{ env.pack_dir_file }}" --files-from /dev/stdin
+      - name: Save built DepTyCheck
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-deptycheck-go
+          path: |
+            $PACK_DIR
+            ./**/*.ttc
+            ./**/*.ttm
+
+  ######################
+  # Test DepTyCheck Go #
+  ######################
+
+  deptycheck-go-test:
+    name: Test Deptycheck Go
+    needs:
+      - deptycheck-go-build
+    runs-on: ubuntu-latest
+    container: ghcr.io/stefan-hoeck/idris2-pack:latest
+    strategy:
+      fail-fast: false # all test cases are more or less independent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore built DepTyCheck Go
+        uses: actions/download-artifact@v4
+        with:
+          name: built-deptycheck-go
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python ./try_compile.py
