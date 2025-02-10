@@ -48,15 +48,14 @@ jobs:
         run: pack install-deps
 
       - name: Save state of `pack`
-      - uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
           name: pack-dir
-          path: path/to/artifact/ # or path/to/artifact
           path: "$PACK_DIR"
 
-  ############################
-  # Build DepTyCheck library #
-  ############################
+  ###############################
+  # Build DepTyCheck Go library #
+  ###############################
 
   deptycheck-go-build:
     name: Build the app
@@ -74,10 +73,6 @@ jobs:
 
       - run: pack build go-model
 
-      - name: Tar the `pack` dir
-        run:  .github/tar -uvf "${{ env.pack_dir_file }}" --exclude=".cache" "$PACK_DIR"
-      - name: Tar built TTC files
-        run: find "$(pwd)" -name '*.tt[cm]' | .github/tar -uvf "${{ env.pack_dir_file }}" --files-from /dev/stdin
       - name: Save built DepTyCheck
         uses: actions/upload-artifact@v4
         with:
