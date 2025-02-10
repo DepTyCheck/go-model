@@ -20,6 +20,4 @@ main = Runner
 modules = Language.Go
         , Language.Go.Derived
         , Language.Go.Pretty
-        , Language.Go.Pretty.Derived
-        , Language.Go.Pretty.Go
         , Utils.MkSnocList
