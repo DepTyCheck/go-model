@@ -30,9 +30,22 @@ printVar depth = let
                    text = case inBounds idx knownNames of
                                Yes _ => List.index idx knownNames
                                No _ => pref ++ show idx
-                 in pure $ line text <++> line "/*" <++> line (printTy dfn.defTy) <++> line "*/"
+                 in pure $ line text -- <++> line "/*" <++> line (printTy dfn.defTy) <++> line "*/"
 
 mutual
+  printInfix : (fuel : Fuel) ->
+               {ctxt : Context} ->
+               (knownNames : List String) =>
+               {opts : _} ->
+               (op : String) ->
+               (lhv : Expr ctxt _) ->
+               (rhv : Expr ctxt _) ->
+               Gen0 $ Doc opts
+  printInfix fuel op lhv rhv = do
+      lhv <- printExpr fuel lhv
+      rhv <- printExpr fuel rhv
+      pure $ "(" <+> lhv <++> line op <++> rhv <+> ")"
+
   printExpr :  (fuel :  Fuel) ->
                {ctxt : Context} ->
                (knownNames : List String) =>
@@ -47,6 +60,20 @@ mutual
     f <- printVar f
     args <- printExpr fuel args
     pure $ f <+> "(" <+> args <+> ")"
+
+  printExpr fuel (SpecForm $ Print arg) = do
+    arg <- printExpr fuel arg
+    pure $ "print(" <+> arg <+> ")"
+
+  printExpr fuel (SpecForm $ BoolNot arg) = do
+    arg <- printExpr fuel arg
+    pure $ "(!" <+> arg <+> ")"
+
+  printExpr fuel (SpecForm $ IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
+  printExpr fuel (SpecForm $ IntSub lhv rhv) = printInfix fuel "-" lhv rhv
+  printExpr fuel (SpecForm $ IntMul lhv rhv) = printInfix fuel "*" lhv rhv
+  printExpr fuel (SpecForm $ BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
+  printExpr fuel (SpecForm $ BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
 
   printIf : (fuel : Fuel) ->
             {ctxt, ctxtThen, ctxtElse : Context} ->

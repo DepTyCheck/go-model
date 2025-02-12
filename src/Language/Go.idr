@@ -145,25 +145,35 @@ namespace Context
                         ctxt.shouldReturn)
 
 namespace Expr
-  public export
-  data Expr : (ctxt : Context) -> (res : Types) -> Type where
-    IntLiteral  : (x : Nat) -> Expr ctxt [Int']
-    BoolLiteral : (x : Bool) -> Expr ctxt [Bool']
+  mutual
+    public export
+    data SpecialForm : (ctxt : Context) -> (res : Types) -> Type where
+      Print : (arg : Expr ctxt _) -> SpecialForm ctxt []
+      IntAdd, IntSub, IntMul : (lhv, rhv : Expr ctxt [Int']) -> SpecialForm ctxt [Int']
+      BoolAnd, BoolOr : (lhv, rhv : Expr ctxt [Bool']) -> SpecialForm ctxt [Bool']
+      BoolNot : (arg : Expr ctxt [Bool']) -> SpecialForm ctxt [Bool']
 
-    GetVar : (idx : Fin ctxt.depth) ->
-             DefTypeIs ctxt.definitions idx ty =>
-             Expr ctxt [ty]
+    public export
+    data Expr : (ctxt : Context) -> (res : Types) -> Type where
+      IntLiteral  : (x : Nat) -> Expr ctxt [Int']
+      BoolLiteral : (x : Bool) -> Expr ctxt [Bool']
 
-    -- CallExpr : forall ctxt, argTypes, retTypes.
-    --            (f : Expr ctxt [Func' argTypes retTypes]) ->
-    --            (args : Expr ctxt argTypes) ->
-    --            Expr ctxt retTypes
+      GetVar : (idx : Fin ctxt.depth) ->
+               DefTypeIs ctxt.definitions idx ty =>
+               Expr ctxt [ty]
 
-    CallNamed : forall ctxt, argTypes, retTypes.
-                (idx : Fin ctxt.depth) ->
-                DefTypeIs ctxt.definitions idx (Func' argTypes retTypes) =>
-                (args : Expr ctxt argTypes) ->
-                Expr ctxt retTypes
+      SpecForm : SpecialForm ctxt res -> Expr ctxt res
+
+      -- CallExpr : forall ctxt, argTypes, retTypes.
+      --            (f : Expr ctxt [Func' argTypes retTypes]) ->
+      --            (args : Expr ctxt argTypes) ->
+      --            Expr ctxt retTypes
+
+      CallNamed : forall ctxt, parTypes, retTypes.
+                  (idx : Fin ctxt.depth) ->
+                  DefTypeIs ctxt.definitions idx (Func' parTypes retTypes) =>
+                  (params : Expr ctxt parTypes) ->
+                  Expr ctxt retTypes
 
 
 namespace Block
