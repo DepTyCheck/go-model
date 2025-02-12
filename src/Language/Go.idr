@@ -24,6 +24,7 @@ namespace Ty
       = Int'
       | Bool'
       | Func' Types Types
+      | Any'
 
     public export
     data Types : Type where
@@ -40,6 +41,11 @@ namespace Ty
   (.length) = length
 
   export
+  asList : Types -> List Ty
+  asList [] = []
+  asList (t :: ts) = t :: asList ts
+
+  export
   Biinjective Ty.(::) where
     biinjective Refl = (Refl, Refl)
 
@@ -53,12 +59,19 @@ namespace Ty
       decEq Int' Int' = Yes Refl
       decEq Bool' Bool' = Yes Refl
       decEq (Func' t1 r1) (Func' t2 r2) = decEqCong2 (assert_total decEq t1 t2) (assert_total decEq r1 r2)
+      decEq Any' Any' = Yes Refl
       decEq Int' Bool' = No $ \case Refl impossible
       decEq Int' (Func' _ _) = No $ \case Refl impossible
+      decEq Int' Any' = No $ \case Refl impossible
       decEq Bool' Int' = No $ \case Refl impossible
       decEq Bool' (Func' _ _) = No $ \case Refl impossible
+      decEq Bool' Any' = No $ \case Refl impossible
       decEq (Func' _ _) Int' = No $ \case Refl impossible
       decEq (Func' _ _) Bool' = No $ \case Refl impossible
+      decEq (Func' _ _) Any' = No $ \case Refl impossible
+      decEq Any' Int' = No $ \case Refl impossible
+      decEq Any' Bool' = No $ \case Refl impossible
+      decEq Any' (Func' _ _) = No $ \case Refl impossible
 
     export
     DecEq Types where
@@ -69,15 +82,15 @@ namespace Ty
 
   public export
   data Assignable : (lhv : Types) -> (rhv : Types) -> Type where
-    AssignSame : forall ty .
-                 Assignable [ty] [ty]
-
     AssignEmpty : Assignable [] []
 
-    AssignEach : forall t1, t2, ts1, ts2.
-                 Assignable [t1] [t1] =>
+    AssignSame : forall t, ts1, ts2.
                  Assignable ts1 ts2 =>
-                 Assignable (t1 :: ts1) (t2 :: ts2)
+                 Assignable (t :: ts1) (t :: ts2)
+
+    AssignToAny : forall t, ts1, ts2.
+                  Assignable ts1 ts2 =>
+                  Assignable (Any' :: ts1) (t :: ts2)
 
 
 namespace Definition
@@ -131,6 +144,15 @@ namespace Context
     definitions : Definitions depth
     returns : Types
     shouldReturn : Bool
+
+  public export
+  emptyContext : Context
+  emptyContext = MkContext
+    { depth = _
+    , definitions = []
+    , returns = [Int']
+    , shouldReturn = True
+    }
 
   public export
   data AddDefinition : (ctxt : Context) ->
@@ -249,3 +271,7 @@ namespace Block
 
 export
 genBlocks : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Block ctxt
+
+export
+genExprs : Fuel -> (ctxt : Context) -> (rets : Types) ->
+                   Gen MaybeEmpty $ Expr ctxt rets

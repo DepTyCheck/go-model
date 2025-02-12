@@ -8,6 +8,7 @@ import Data.String
 
 import Language.Go
 import Language.Go.Derived
+import Language.Go.Derived.Expr
 import Language.Go.Pretty
 
 import Test.DepTyCheck.Gen
@@ -24,6 +25,10 @@ import System.Random.Pure.StdGen
 --- CLI options ---
 -------------------
 
+data SelectedGen
+  = Blocks
+  | Exprs Types
+
 record Config where
   constructor MkConfig
   usedSeed : IO StdGen
@@ -31,14 +36,20 @@ record Config where
   testsCnt   : Nat
   modelFuel  : Fuel
   ppFuel     : Fuel
+  context    : Context
+  goNames    : List String
+  generator  : SelectedGen
 
 defaultConfig : Config
 defaultConfig = MkConfig
   { usedSeed = initSeed
-  , layoutOpts = Opts 152
+  , layoutOpts = Opts 80
   , testsCnt   = 5
   , modelFuel  = limit 3
   , ppFuel     = limit 1000000
+  , context    = emptyContext
+  , goNames    = []
+  , generator  = Blocks
   }
 
 parseSeed : String -> Either String $ Config -> Config
@@ -73,6 +84,19 @@ parsePPFuel str = case parsePositive str of
   Just n  => Right {ppFuel := limit n}
   Nothing => Left "can't parse given pretty-printer fuel"
 
+-- parseType : String -> Either String $ Config -> Config
+-- parseType str = case str of
+--   "int" => Right {outputType := [Int']}
+--   "bool" => Right {outputType := [Bool']}
+--   _ => Left "Unsupported type \{str}."
+
+parseGen : String -> Either String $ Config -> Config
+parseGen str = case str of
+  "blocks" => Right {generator := Blocks}
+  "exprs" => Right {generator := Exprs [Int']}
+  _ => Left "Unknown generator <\{str}>"
+
+
 cliOpts : List $ OptDescr $ Config -> Config
 cliOpts =
   [ MkOpt [] ["seed"]
@@ -90,23 +114,34 @@ cliOpts =
   , MkOpt [] ["pp-fuel"]
       (ReqArg' parsePPFuel "<fuel>")
       "Sets how much fuel there is for pretty-printing."
+  , MkOpt ['g'] ["gen"]
+      (ReqArg' parseGen "<gen>")
+      "Which generator to run: 'blocks' or 'exprs'."
   ]
 
 ---------------
 --- Running ---
 ---------------
 
+runBlocksGen : {opts : _} -> Config -> IO (LazyList $ Doc opts)
+runBlocksGen conf = do
+  seed <- conf.usedSeed
+  pure $ unGenTryN conf.testsCnt seed $ do
+    stmt <- genBlocks conf.modelFuel conf.context
+    printGo conf.ppFuel conf.goNames stmt
+
+runExprsGen : {opts : _} -> Config -> (res : Types) -> IO (LazyList $ Doc opts)
+runExprsGen conf res = do
+  seed <- conf.usedSeed
+  pure $ unGenTryN conf.testsCnt seed $ do
+    expr <- genExprs conf.modelFuel conf.context res
+    printExpr conf.ppFuel @{conf.goNames} expr
+
 run : Config -> IO ()
 run conf = do
-  seed <- conf.usedSeed
-  let goBuiltins : Definitions _ = [ Define Var Int' 0
-                                   -- , Define Func (Func' [Int'] []) 1
-                                   ]
-  let goNames = ["someIntVar"]
-  let vals = unGenTryN conf.testsCnt seed $ do
-               let ctxt = MkContext _ goBuiltins [Int'] True
-               stmt <- genBlocks conf.modelFuel ctxt
-               printGo conf.ppFuel goNames stmt
+  vals <- case conf.generator of
+               Blocks => runBlocksGen conf
+               Exprs res => runExprsGen conf res
   Lazy.for_ vals $ \val => do
     putStrLn "// -------------------\n"
     putStr $ render conf.layoutOpts val

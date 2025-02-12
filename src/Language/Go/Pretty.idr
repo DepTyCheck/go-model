@@ -8,15 +8,25 @@ import Language.Go
 
 import Test.DepTyCheck.Gen
 
-import public Text.PrettyPrint.Bernardy
+import Text.PrettyPrint.Bernardy
+import Text.PrettyPrint.Bernardy
 
 import System.Random.Pure.StdGen
 
 
-printTy : Ty -> String
-printTy Int' = "int"
-printTy Bool' = "bool"
-printTy (Func' ss rs) = "func"
+mutual
+  printTy : {opts : _} -> Ty -> Doc opts
+  printTy Int' = "int"
+  printTy Bool' = "bool"
+  printTy (Func' ss rs) =
+    "func " <++> printTyOrTypes ss <++> printTyOrTypes rs
+  printTy Any' = "interface {}"
+
+  printTyOrTypes : {opts : _} -> Types -> Doc opts
+  printTyOrTypes [] = ""
+  printTyOrTypes [ty] = assert_total printTy ty
+  printTyOrTypes ts = assert_total $ tuple $ map printTy $ asList ts
+
 
 
 printVar :  {ctxt : Context} ->
@@ -46,6 +56,7 @@ mutual
       rhv <- printExpr fuel rhv
       pure $ "(" <+> lhv <++> line op <++> rhv <+> ")"
 
+  export
   printExpr :  (fuel :  Fuel) ->
                {ctxt : Context} ->
                (knownNames : List String) =>
@@ -137,21 +148,22 @@ mutual
     pure $ (lineText `vappend` lineText2) `vappend` contText
 
 
-public export
+export
 printGo : (fuel : Fuel) ->
           {ctxt : Context} ->
           (knownNames : List String) ->
           {opts : _} ->
           Block ctxt -> Gen0 $ Doc opts
-printGo fuel knownNames block = do
+printGo fuel {ctxt} knownNames block = do
   content <- printBlock fuel block
+  let ret = printTyOrTypes ctxt.returns
   pure $ vsep [ "package main"
               , ""
-              , "func testFunc(someIntVar int) int {"
+              , "func testFunc()" <++> ret <++> "{"
               , indent' 4 content
               , "}"
               , ""
               , "func main() {"
-              , "    testFunc(42)"
+              , "    testFunc()"
               , "}"
               ]

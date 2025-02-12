@@ -1,4 +1,4 @@
-module Language.Go.Derived
+module Language.Go.Derived.Blocks
 
 import public Language.Go
 
