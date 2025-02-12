@@ -43,6 +43,10 @@ mutual
   printExpr fuel (BoolLiteral True) = pure $ line "true"
   printExpr fuel (BoolLiteral False) = pure $ line "false"
   printExpr fuel (GetVar depth) = printVar depth
+  printExpr fuel (CallNamed f args) = do
+    f <- printVar f
+    args <- printExpr fuel args
+    pure $ f <+> "(" <+> args <+> ")"
 
   printIf : (fuel : Fuel) ->
             {ctxt, ctxtThen, ctxtElse : Context} ->
@@ -81,6 +85,11 @@ mutual
   printBlock fuel (Return res) = do
     resText <- printExpr fuel res
     pure $ "return" <++> resText
+
+  printBlock fuel (VoidExpr expr cont) = do
+    e <- printExpr fuel expr
+    contText <- printBlock fuel cont
+    pure $ e `vappend` contText
 
   printBlock fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
     ifText <- printIf fuel test th el

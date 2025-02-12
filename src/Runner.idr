@@ -99,8 +99,10 @@ cliOpts =
 run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
-  let goBuiltins : Definitions _ = [Define Var Int' Z]
-  let goNames = ["someIntVar"]
+  let goBuiltins : Definitions _ = [ Define Var Int' 0
+                                   , Define Func (Func' [Int'] []) 1
+                                   ]
+  let goNames = ["someIntVar", "print"]
   let vals = unGenTryN conf.testsCnt seed $ do
                let ctxt = MkContext _ goBuiltins [Int'] True
                stmt <- genBlocks conf.modelFuel ctxt

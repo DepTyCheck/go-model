@@ -67,6 +67,18 @@ namespace Ty
       decEq (_ :: _) Nil = No $ \case Refl impossible
       decEq (xs :: x) (xs' :: x') = decEqCong2 (decEq xs xs') (decEq x x')
 
+  public export
+  data Assignable : (lhv : Types) -> (rhv : Types) -> Type where
+    AssignSame : forall ty .
+                 Assignable [ty] [ty]
+
+    AssignEmpty : Assignable [] []
+
+    AssignEach : forall t1, t2, ts1, ts2.
+                 Assignable [t1] [t1] =>
+                 Assignable ts1 ts2 =>
+                 Assignable (t1 :: ts1) (t2 :: ts2)
+
 
 namespace Definition
   public export
@@ -137,9 +149,21 @@ namespace Expr
   data Expr : (ctxt : Context) -> (res : Types) -> Type where
     IntLiteral  : (x : Nat) -> Expr ctxt [Int']
     BoolLiteral : (x : Bool) -> Expr ctxt [Bool']
+
     GetVar : (idx : Fin ctxt.depth) ->
              DefTypeIs ctxt.definitions idx ty =>
              Expr ctxt [ty]
+
+    -- CallExpr : forall ctxt, argTypes, retTypes.
+    --            (f : Expr ctxt [Func' argTypes retTypes]) ->
+    --            (args : Expr ctxt argTypes) ->
+    --            Expr ctxt retTypes
+
+    CallNamed : forall ctxt, argTypes, retTypes.
+                (idx : Fin ctxt.depth) ->
+                DefTypeIs ctxt.definitions idx (Func' argTypes retTypes) =>
+                (args : Expr ctxt argTypes) ->
+                Expr ctxt retTypes
 
 
 namespace Block
@@ -176,6 +200,11 @@ namespace Block
              AllowReturn ctxt rets =>
              (res : Expr ctxt rets) ->
              Block ctxt
+
+    VoidExpr : forall ctxt.
+               (expr : Expr ctxt []) ->
+               (cont : Block ctxt) ->
+               Block ctxt
 
     InnerIf : forall ctxt.
               (test : Expr ctxt [Bool']) ->
