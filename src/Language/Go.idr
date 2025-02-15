@@ -54,31 +54,32 @@ namespace Ty
     biinjective Refl = (Refl, Refl)
 
   mutual
-    export
-    DecEq Ty where
-      decEq Int' Int' = Yes Refl
-      decEq Bool' Bool' = Yes Refl
-      decEq (Func' t1 r1) (Func' t2 r2) = decEqCong2 (assert_total decEq t1 t2) (assert_total decEq r1 r2)
-      decEq Any' Any' = Yes Refl
-      decEq Int' Bool' = No $ \case Refl impossible
-      decEq Int' (Func' _ _) = No $ \case Refl impossible
-      decEq Int' Any' = No $ \case Refl impossible
-      decEq Bool' Int' = No $ \case Refl impossible
-      decEq Bool' (Func' _ _) = No $ \case Refl impossible
-      decEq Bool' Any' = No $ \case Refl impossible
-      decEq (Func' _ _) Int' = No $ \case Refl impossible
-      decEq (Func' _ _) Bool' = No $ \case Refl impossible
-      decEq (Func' _ _) Any' = No $ \case Refl impossible
-      decEq Any' Int' = No $ \case Refl impossible
-      decEq Any' Bool' = No $ \case Refl impossible
-      decEq Any' (Func' _ _) = No $ \case Refl impossible
+    %runElab derive "Ty" [Generic, DecEq]
+    -- export
+    -- DecEq Ty where
+    --   decEq Int' Int' = Yes Refl
+    --   decEq Bool' Bool' = Yes Refl
+    --   decEq (Func' t1 r1) (Func' t2 r2) = decEqCong2 (assert_total decEq t1 t2) (assert_total decEq r1 r2)
+    --   decEq Any' Any' = Yes Refl
+    --   decEq Int' Bool' = No $ \case Refl impossible
+    --   decEq Int' (Func' _ _) = No $ \case Refl impossible
+    --   decEq Int' Any' = No $ \case Refl impossible
+    --   decEq Bool' Int' = No $ \case Refl impossible
+    --   decEq Bool' (Func' _ _) = No $ \case Refl impossible
+    --   decEq Bool' Any' = No $ \case Refl impossible
+    --   decEq (Func' _ _) Int' = No $ \case Refl impossible
+    --   decEq (Func' _ _) Bool' = No $ \case Refl impossible
+    --   decEq (Func' _ _) Any' = No $ \case Refl impossible
+    --   decEq Any' Int' = No $ \case Refl impossible
+    --   decEq Any' Bool' = No $ \case Refl impossible
+    --   decEq Any' (Func' _ _) = No $ \case Refl impossible
 
     export
     DecEq Types where
       decEq Nil Nil = Yes Refl
       decEq Nil (_ :: _) = No $ \case Refl impossible
       decEq (_ :: _) Nil = No $ \case Refl impossible
-      decEq (xs :: x) (xs' :: x') = decEqCong2 (decEq xs xs') (decEq x x')
+      decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
   public export
   data Assignable : (lhv : Types) -> (rhv : Types) -> Type where
