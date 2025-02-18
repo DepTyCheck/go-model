@@ -21,4 +21,4 @@ modules = Language.Go
         -- , Language.Go.Derived.Blocks
         , Language.Go.Derived.Expr
         , Language.Go.Pretty
-        , Utils.MkSnocList
+        , Utils.MkVect
