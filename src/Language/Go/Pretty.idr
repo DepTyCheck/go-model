@@ -18,7 +18,7 @@ mutual
   printTy : {opts : _} -> Ty -> Doc opts
   printTy Int' = "int"
   printTy Bool' = "bool"
-  printTy (Func' ss rs) =
+  printTy (Func' $ MkFuncTy ss rs) =
     "func " <++> printTyOrTypes ss <++> printTyOrTypes rs
   printTy Any' = "interface {}"
 

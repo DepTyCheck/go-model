@@ -13,8 +13,6 @@ import Generics.Derive
 
 import Test.DepTyCheck.Gen
 
-import Utils.MkSnocList
-
 %language ElabReflection
 
 namespace Ty
@@ -209,7 +207,7 @@ namespace Expr
 
       CallNamed : forall ctxt, parTypes, retTypes.
                   (idx : Fin ctxt.depth) ->
-                  DefTypeIs ctxt.definitions idx (Func' parTypes retTypes) =>
+                  DefTypeIs ctxt.definitions idx (Func' $ MkFuncTy parTypes retTypes) =>
                   (params : Expr ctxt parTypes) ->
                   Expr ctxt retTypes
 
