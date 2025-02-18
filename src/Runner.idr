@@ -7,7 +7,7 @@ import Data.SortedMap
 import Data.String
 
 import Language.Go
-import Language.Go.Derived
+-- import Language.Go.Derived.Blocks
 import Language.Go.Derived.Expr
 import Language.Go.Pretty
 
