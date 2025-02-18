@@ -20,10 +20,16 @@ import Utils.MkSnocList
 namespace Ty
   mutual
     public export
+    record FuncTy where
+      constructor MkFuncTy
+      arguments: Types
+      returns: Types
+
+    public export
     data Ty
       = Int'
       | Bool'
-      | Func' Types Types
+      | Func' FuncTy
       | Any'
 
     public export
@@ -50,7 +56,11 @@ namespace Ty
     biinjective Refl = (Refl, Refl)
 
   export
-  Biinjective Ty.Func' where
+  Injective Ty.Func' where
+    injective Refl = Refl
+
+  export
+  Biinjective Ty.MkFuncTy where
     biinjective Refl = (Refl, Refl)
 
   mutual
@@ -73,6 +83,11 @@ namespace Ty
     --   decEq Any' Int' = No $ \case Refl impossible
     --   decEq Any' Bool' = No $ \case Refl impossible
     --   decEq Any' (Func' _ _) = No $ \case Refl impossible
+
+    export
+    DecEq FuncTy where
+      decEq (MkFuncTy a1 r1) (MkFuncTy a2 r2) =
+        assert_total decEqCong2 (decEq a1 a2) (decEq r1 r2)
 
     export
     DecEq Types where
