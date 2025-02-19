@@ -233,7 +233,7 @@ namespace Expr
       --            Expr ctxt retTypes
 
 
-namespace Block
+namespace Statement
   public export
   data AllowJustStop : Context -> Type where
     StopUnlessShouldReturn : AllowJustStop (MkContext _ _ _ False)
@@ -257,55 +257,55 @@ namespace Block
   %unbound_implicits off
 
   public export
-  data Block : (ctxt : Context) -> Type where
+  data Statement : (ctxt : Context) -> Type where
 
     JustStop : forall ctxt.
                AllowJustStop ctxt =>
-               Block ctxt
+               Statement ctxt
 
     Return : forall ctxt, rets.
              AllowReturn ctxt rets =>
              (res : Expr ctxt rets) ->
-             Block ctxt
+             Statement ctxt
 
     VoidExpr : forall ctxt.
                (expr : Expr ctxt []) ->
-               (cont : Block ctxt) ->
-               Block ctxt
+               (cont : Statement ctxt) ->
+               Statement ctxt
 
     InnerIf : forall ctxt.
               (test : Expr ctxt [Bool']) ->
               {ctxtThen, ctxtElse : Context} ->
               AllowInnerIf ctxt ctxtThen ctxtElse =>
-              (th : Block ctxtThen) ->
-              (el : Block ctxtElse) ->
-              (cont : Block ctxt) ->
-              Block ctxt
+              (th : Statement ctxtThen) ->
+              (el : Statement ctxtElse) ->
+              (cont : Statement ctxt) ->
+              Statement ctxt
 
     TermIf : forall ctxt.
              ShouldReturn ctxt =>
              (test : Expr ctxt [Bool']) ->
-             (th : Block ctxt) ->
-             (el : Block ctxt) ->
-             Block ctxt
+             (th : Statement ctxt) ->
+             (el : Statement ctxt) ->
+             Statement ctxt
 
     InitVar : forall ctxt.
               (newTy : Ty) ->
               (initVal : Expr ctxt [newTy]) ->
               {newCtxt : Context} ->
               (pr : AddDefinition ctxt Var newTy newCtxt) =>
-              (cont : Block newCtxt) ->
-              Block ctxt
+              (cont : Statement newCtxt) ->
+              Statement ctxt
 
   %unbound_implicits on
 
   export
-  isEmpty : Block _ -> Bool
+  isEmpty : Statement _ -> Bool
   isEmpty JustStop = True
   isEmpty _ = False
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Block ctxt
+genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
 
 export
 genExprs : Fuel -> (ctxt : Context) -> (rets : Types) ->

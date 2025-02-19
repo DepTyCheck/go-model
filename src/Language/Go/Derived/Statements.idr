@@ -1,4 +1,4 @@
-module Language.Go.Derived.Blocks
+module Language.Go.Derived.Statements
 
 import public Language.Go
 
@@ -8,4 +8,4 @@ import Deriving.DepTyCheck.Gen
 
 %logging "deptycheck.derive" 15
 
-Language.Go.genBlocks = deriveGen
+Language.Go.genStatements = deriveGen

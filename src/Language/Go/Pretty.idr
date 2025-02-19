@@ -91,18 +91,18 @@ mutual
             (knownNames : List String) =>
             {opts : _} ->
             (test : Expr ctxt [Bool']) ->
-            (th : Block ctxtThen) ->
-            (el : Block ctxtElse) ->
+            (th : Statement ctxtThen) ->
+            (el : Statement ctxtElse) ->
             Gen0 $ Doc opts
 
   printIf fuel test th el = do
     test' <- printExpr fuel test
-    th' <- assert_total printBlock fuel th
+    th' <- assert_total printStatement fuel th
     let skipElse = isEmpty el && !(chooseAnyOf Bool)
     el' <- if skipElse
              then pure empty
              else do
-               body <- assert_total printBlock fuel el
+               body <- assert_total printStatement fuel el
                pure $ "} else {" `vappend` indent' 4 body
     let top = hangSep 0 ("if" <++> test') "{"
     pure $ vsep [ top
@@ -112,39 +112,39 @@ mutual
                 ]
 
   export
-  printBlock : (fuel : Fuel) ->
+  printStatement : (fuel : Fuel) ->
                {ctxt : Context} ->
                (knownNames : List String) =>
                {opts : _} ->
-               Block ctxt -> Gen0 $ Doc opts
+               Statement ctxt -> Gen0 $ Doc opts
 
-  printBlock fuel JustStop = pure ""
+  printStatement fuel JustStop = pure ""
 
-  printBlock fuel (Return res) = do
+  printStatement fuel (Return res) = do
     resText <- printExpr fuel res
     pure $ "return" <++> resText
 
-  printBlock fuel (VoidExpr expr cont) = do
+  printStatement fuel (VoidExpr expr cont) = do
     e <- printExpr fuel expr
-    contText <- printBlock fuel cont
+    contText <- printStatement fuel cont
     pure $ e `vappend` contText
 
-  printBlock fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
+  printStatement fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
     ifText <- printIf fuel test th el
-    contText <- printBlock fuel cont
+    contText <- printStatement fuel cont
     pure $ ifText `vappend` contText
 
-  printBlock fuel (TermIf test th el) = do
+  printStatement fuel (TermIf test th el) = do
     ifText <- printIf fuel test th el
     pure ifText
 
-  printBlock fuel (InitVar {newCtxt} {pr} newTy initVal cont) = do
+  printStatement fuel (InitVar {newCtxt} {pr} newTy initVal cont) = do
     let MkAddDefinition = pr
     initValText <- printExpr fuel initVal
     varText <- printVar {ctxt = newCtxt} FZ
     let lineText = "var" <++> varText <++> "=" <++> initValText
     let lineText2 = "_" <++> "=" <++> varText
-    contText <- printBlock fuel cont
+    contText <- printStatement fuel cont
     pure $ (lineText `vappend` lineText2) `vappend` contText
 
 
@@ -153,9 +153,9 @@ printGo : (fuel : Fuel) ->
           {ctxt : Context} ->
           (knownNames : List String) ->
           {opts : _} ->
-          Block ctxt -> Gen0 $ Doc opts
+          Statement ctxt -> Gen0 $ Doc opts
 printGo fuel {ctxt} knownNames block = do
-  content <- printBlock fuel block
+  content <- printStatement fuel block
   let ret = printTyOrTypes ctxt.returns
   pure $ vsep [ "package main"
               , ""

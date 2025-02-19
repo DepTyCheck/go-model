@@ -7,7 +7,7 @@ import Data.SortedMap
 import Data.String
 
 import Language.Go
--- import Language.Go.Derived.Blocks
+-- import Language.Go.Derived.Statements
 import Language.Go.Derived.Expr
 import Language.Go.Pretty
 
@@ -26,7 +26,7 @@ import System.Random.Pure.StdGen
 -------------------
 
 data SelectedGen
-  = Blocks
+  = Statements
   | Exprs Types
 
 record Config where
@@ -49,7 +49,7 @@ defaultConfig = MkConfig
   , ppFuel     = limit 1000000
   , context    = emptyContext
   , goNames    = []
-  , generator  = Blocks
+  , generator  = Statements
   }
 
 parseSeed : String -> Either String $ Config -> Config
@@ -92,7 +92,7 @@ parsePPFuel str = case parsePositive str of
 
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
-  "blocks" => Right {generator := Blocks}
+  "blocks" => Right {generator := Statements}
   "exprs" => Right {generator := Exprs [Int']}
   _ => Left "Unknown generator <\{str}>"
 
@@ -123,11 +123,11 @@ cliOpts =
 --- Running ---
 ---------------
 
-runBlocksGen : {opts : _} -> Config -> IO (LazyList $ Doc opts)
-runBlocksGen conf = do
+runStatementsGen : {opts : _} -> Config -> IO (LazyList $ Doc opts)
+runStatementsGen conf = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
-    stmt <- genBlocks conf.modelFuel conf.context
+    stmt <- genStatements conf.modelFuel conf.context
     printGo conf.ppFuel conf.goNames stmt
 
 runExprsGen : {opts : _} -> Config -> (res : Types) -> IO (LazyList $ Doc opts)
@@ -140,7 +140,7 @@ runExprsGen conf res = do
 run : Config -> IO ()
 run conf = do
   vals <- case conf.generator of
-               Blocks => runBlocksGen conf
+               Statements => runStatementsGen conf
                Exprs res => runExprsGen conf res
   Lazy.for_ vals $ \val => do
     putStrLn "// -------------------\n"
