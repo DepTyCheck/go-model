@@ -149,6 +149,26 @@ namespace Definition
     There' : DefTypeIs rest idx ty ->
              DefTypeIs (_ :: rest) (FS idx) ty
 
+  public export
+  data DefReturns : (defs : Definitions n) ->
+                    (idx : Fin n) ->
+                    (retTypes : Types) ->
+                    Type where
+    Here''  : DefReturns (Define _ (Func' $ MkFuncTy _ retTypes) _ :: _) FZ retTypes
+    There'' : DefReturns rest idx retTypes ->
+              DefReturns (_ :: rest) (FS idx) retTypes
+
+  public export
+  ParamTypes : forall n, retTypes.
+               (defs : Definitions n) ->
+               (idx : Fin n) ->
+               (isFunc : DefReturns defs idx retTypes) =>
+               Types
+  ParamTypes (_ :: rest) (FS next) {isFunc = There'' x} =
+    ParamTypes rest next {isFunc = x}
+  ParamTypes (Define _ (Func' $ MkFuncTy parTypes retTypes) _ :: _) FZ {isFunc = Here''} =
+    parTypes
+
 
 namespace Context
   public export
@@ -185,12 +205,19 @@ namespace Expr
     public export
     data SpecialForm : (ctxt : Context) -> (res : Types) -> Type where
       Print : (arg : Expr ctxt _) -> SpecialForm ctxt []
-      IntAdd, IntSub, IntMul : (lhv, rhv : Expr ctxt [Int']) -> SpecialForm ctxt [Int']
+      IntAdd : (lhv, rhv : Expr ctxt [Int']) -> SpecialForm ctxt [Int']
+      IntSub, IntMul : (lhv, rhv : Expr ctxt [Int']) -> SpecialForm ctxt [Int']
       BoolAnd, BoolOr : (lhv, rhv : Expr ctxt [Bool']) -> SpecialForm ctxt [Bool']
       BoolNot : (arg : Expr ctxt [Bool']) -> SpecialForm ctxt [Bool']
 
     public export
     data Expr : (ctxt : Context) -> (res : Types) -> Type where
+      CallNamed : forall ctxt, retTypes.
+                  (idx : Fin ctxt.depth) ->
+                  (isFunc : DefReturns ctxt.definitions idx retTypes) =>
+                  (params : Expr ctxt (ParamTypes ctxt.definitions idx {isFunc = isFunc})) ->
+                  Expr ctxt retTypes
+
       IntLiteral  : (x : Nat) -> Expr ctxt [Int']
       BoolLiteral : (x : Bool) -> Expr ctxt [Bool']
 
@@ -204,12 +231,6 @@ namespace Expr
       --            (f : Expr ctxt [Func' argTypes retTypes]) ->
       --            (args : Expr ctxt argTypes) ->
       --            Expr ctxt retTypes
-
-      CallNamed : forall ctxt, parTypes, retTypes.
-                  (idx : Fin ctxt.depth) ->
-                  DefTypeIs ctxt.definitions idx (Func' $ MkFuncTy parTypes retTypes) =>
-                  (params : Expr ctxt parTypes) ->
-                  Expr ctxt retTypes
 
 
 namespace Block
