@@ -8,7 +8,7 @@ import Data.String
 
 import Language.Go
 -- import Language.Go.Derived.Statements
-import Language.Go.Derived.Expr
+import Language.Go.Derived
 import Language.Go.Pretty
 
 import Test.DepTyCheck.Gen

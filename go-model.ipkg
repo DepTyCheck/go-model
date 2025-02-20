@@ -18,7 +18,6 @@ executable = "go-model"
 main = Runner
 
 modules = Language.Go
-        -- , Language.Go.Derived.Statements
-        , Language.Go.Derived.Expr
+        , Language.Go.Derived
         , Language.Go.Pretty
         , Utils.MkVect

@@ -1,4 +1,4 @@
-module Language.Go.Derived.Expr
+module Language.Go.Derived
 
 import public Language.Go
 
@@ -8,4 +8,6 @@ import Deriving.DepTyCheck.Gen
 
 %logging "deptycheck.derive" 15
 
-Language.Go.genExprs = deriveGen
+Language.Go.genStatements = deriveGen
+
+-- Language.Go.genExprs = deriveGen
