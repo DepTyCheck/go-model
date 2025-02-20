@@ -27,7 +27,7 @@ import System.Random.Pure.StdGen
 
 data SelectedGen
   = Statements
-  | Exprs Types
+  | Exprs GoTypes
 
 record Config where
   constructor MkConfig
@@ -86,14 +86,14 @@ parsePPFuel str = case parsePositive str of
 
 -- parseType : String -> Either String $ Config -> Config
 -- parseType str = case str of
---   "int" => Right {outputType := [Int']}
---   "bool" => Right {outputType := [Bool']}
+--   "int" => Right {outputType := [GoInt]}
+--   "bool" => Right {outputType := [GoBool]}
 --   _ => Left "Unsupported type \{str}."
 
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
   "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs [Int']}
+  "exprs" => Right {generator := Exprs [GoInt]}
   _ => Left "Unknown generator <\{str}>"
 
 
@@ -130,7 +130,7 @@ runStatementsGen conf = do
     stmt <- genStatements conf.modelFuel conf.context
     printGo conf.ppFuel conf.goNames stmt
 
-runExprsGen : {opts : _} -> Config -> (res : Types) -> IO (LazyList $ Doc opts)
+runExprsGen : {opts : _} -> Config -> (res : GoTypes) -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
