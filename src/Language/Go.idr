@@ -91,6 +91,13 @@ namespace GoType
 
 namespace Declaration
   public export
+  data GoName = MkName Nat
+
+  export
+  Show GoName where
+    show (MkName n) = show n
+
+  public export
   data Kind
     = Var
     | Const
@@ -103,108 +110,112 @@ namespace Declaration
     show Func = "f"
 
   public export
-  record Declaration where
-    constructor Define
-    declKind  : Kind
-    declTy : GoType
-    declName : Nat
+  data Declaration = Declare Kind GoName GoType
 
+  %runElab derive "GoName" [Generic, DecEq, DE.Eq]
   %runElab derive "Kind" [Generic, DecEq]
   %runElab derive "Declaration" [Generic, DecEq]
 
+  ||| Set of declarations with unique names
   public export
-  data Declarations : (size : Nat) -> Type where
-    Nil  : Declarations Z
-    (::) : Declaration -> Declarations n -> Declarations (S n)
-
-  export
-  dig : (decls : Declarations n) -> (idx: Fin n) -> Declaration
-  dig (x :: _) FZ = x
-  dig (_ :: ds) (FS i) = dig ds i
+  data Block
+    = Nil
+    | (::) Declaration Block
 
   public export
-  data DefTypeIs : (decls : Declarations n) ->
-                   (idx : Fin n) ->
-                   (ty : GoType) ->
-                   Type where
-    Here'  : DefTypeIs (Define _ ty _ :: _) FZ ty
-    There' : DefTypeIs rest idx ty ->
-             DefTypeIs (_ :: rest) (FS idx) ty
+  isNewName : Block -> GoName -> Bool
+  isNewName [] _ = True
+  isNewName (Declare _ headName _ :: tail) newName =
+    headName /= newName && isNewName tail newName
 
   public export
-  data DefReturns : (decls : Declarations n) ->
-                    (idx : Fin n) ->
-                    (retTypes : GoTypes) ->
-                    Type where
-    Here''  : DefReturns (Define _ (GoFunc $ MkFuncTy _ retTypes) _ :: _) FZ retTypes
-    There'' : DefReturns rest idx retTypes ->
-              DefReturns (_ :: rest) (FS idx) retTypes
+  data ByType : Block -> GoType -> Declaration -> Type where
+    Here : forall kind, name, ty, rest.
+           ByType (Declare kind name ty :: rest) ty (Declare kind name ty)
 
-  public export
-  ParamTypes : forall n, retTypes.
-               (decls : Declarations n) ->
-               (idx : Fin n) ->
-               (isFunc : DefReturns decls idx retTypes) =>
-               GoTypes
-  ParamTypes (_ :: rest) (FS next) {isFunc = There'' x} =
-    ParamTypes rest next {isFunc = x}
-  ParamTypes (Define _ (GoFunc $ MkFuncTy parTypes retTypes) _ :: _) FZ {isFunc = Here''} =
-    parTypes
+    There : forall decl, ty, head, rest.
+            ByType rest ty decl ->
+            ByType (head :: rest) ty decl
 
 
 namespace Context
   public export
   record Context where
     constructor MkContext
-    depth : Nat
-    declarations : Declarations depth
+    activeBlock : Block
     returns : GoTypes
     shouldReturn : Bool
 
   public export
   emptyContext : Context
   emptyContext = MkContext
-    { depth = _
-    , declarations = []
+    { activeBlock = [Declare Var (MkName 10) GoInt]
     , returns = [GoInt]
     , shouldReturn = True
     }
 
+  -- public export
+  -- data AddDeclaration : (ctxt : Context) ->
+  --                       (decl : Declaration) ->
+  --                       (newCtxt : Context) ->
+  --                      Type where
+  --   AddUnchecked : AddDeclaration ctxt decl (MkContext
+  --                       (decl :: ctxt.activeBlock)
+  --                       ctxt.returns
+  --                       ctxt.shouldReturn)
+
   public export
   data AddDeclaration : (ctxt : Context) ->
-                       (kind : Kind) ->
-                       (ty : GoType) ->
-                       (newCtxt : Context) ->
-                       Type where
-    MkAddDeclaration : AddDeclaration ctxt kind newTy (MkContext
-                        (S ctxt.depth)
-                        (Define kind newTy ctxt.depth :: ctxt.declarations)
-                        ctxt.returns
-                        ctxt.shouldReturn)
+                        (decl : Declaration) ->
+                        (newCtxt : Context) ->
+                        Type where
+    AddUnchecked : AddDeclaration
+                    (MkContext oldBlock rets sr)
+                    decl
+                    (MkContext (decl :: oldBlock) rets sr)
+
+  public export
+  AddDeclaration1 : Context -> Declaration -> Context
+  AddDeclaration1 ctxt decl = { activeBlock $= (::) decl } ctxt
+
 
 namespace Expr
   mutual
     public export
     data SpecialForm : (ctxt : Context) -> (res : GoTypes) -> Type where
       Print : (arg : Expr ctxt _) -> SpecialForm ctxt []
-      IntAdd : (lhv, rhv : Expr ctxt [GoInt]) -> SpecialForm ctxt [GoInt]
+      -- IntAdd : (lhv, rhv : Expr ctxt [GoInt]) -> SpecialForm ctxt [GoInt]
       -- IntSub, IntMul : (lhv, rhv : Expr ctxt [GoInt]) -> SpecialForm ctxt [GoInt]
       -- BoolAnd, BoolOr : (lhv, rhv : Expr ctxt [GoBool]) -> SpecialForm ctxt [GoBool]
       -- BoolNot : (arg : Expr ctxt [GoBool]) -> SpecialForm ctxt [GoBool]
 
     public export
+    data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
+      IntAdd : InfixOp GoInt GoInt GoInt
+      IntSub, IntMul : InfixOp GoInt GoInt GoInt
+      BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+
+
+    public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      CallNamed : forall ctxt, retTypes.
-                  (idx : Fin ctxt.depth) ->
-                  (isFunc : DefReturns ctxt.declarations idx retTypes) =>
-                  (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
-                  Expr ctxt retTypes
+      -- CallNamed : forall ctxt, retTypes.
+      --             (idx : Fin ctxt.depth) ->
+      --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
+      --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
+      --             Expr ctxt retTypes
+
+      ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
+                   (op : InfixOp lhvTy rhvTy resTy) ->
+                   (lhv : Expr ctxt [lhvTy]) ->
+                   (rhv : Expr ctxt [rhvTy]) ->
+                   Expr ctxt [resTy]
 
       IntLiteral  : (x : Nat) -> Expr ctxt [GoInt]
       BoolLiteral : (x : Bool) -> Expr ctxt [GoBool]
 
-      GetVar : (idx : Fin ctxt.depth) ->
-               DefTypeIs ctxt.declarations idx ty =>
+      GetVar : forall ctxt, ty.
+               (decl : Declaration) ->
+               ByType ctxt.activeBlock ty decl =>
                Expr ctxt [ty]
 
       SpecForm : SpecialForm ctxt res -> Expr ctxt res
@@ -218,28 +229,37 @@ namespace Expr
 namespace Statement
   public export
   data AllowJustStop : Context -> Type where
-    StopUnlessShouldReturn : AllowJustStop (MkContext _ _ _ False)
-    StopWhenReturnNone : AllowJustStop (MkContext _ _ [] _)
+    StopUnlessShouldReturn : AllowJustStop (MkContext { shouldReturn = True, _ })
+    StopWhenReturnNone : AllowJustStop (MkContext { returns = [], _ })
 
   public export
   data AllowReturn : Context -> GoTypes -> Type where
-    AllowReturnWhenShould : AllowReturn (MkContext _ _ types True) types
+    AllowReturnWhenShould : AllowReturn (MkContext _ types True) types
 
   public export
   data AllowInnerIf : (ctxt, ctxtThen, ctxtElse : Context) ->
                       Type where
-    MkAllowInnerIf : AllowInnerIf (MkContext n d r False)
-                                  (MkContext n d r _)
-                                  (MkContext n d r _)
+    MkAllowInnerIf : AllowInnerIf (MkContext d r False)
+                                  (MkContext d r _)
+                                  (MkContext d r _)
 
   public export
   data ShouldReturn : Context -> Type where
-    MkShouldReturn : ShouldReturn (MkContext _ _ _ True)
+    MkShouldReturn : ShouldReturn (MkContext _ _ True)
 
   %unbound_implicits off
 
   public export
   data Statement : (ctxt : Context) -> Type where
+    DeclareVar : forall ctxt.
+                 (name : GoName) ->
+                 (new : So $ isNewName ctxt.activeBlock name) =>
+                 (ty : GoType) ->
+                 (initial : Expr ctxt [ty]) ->
+                 {newCtxt : Context} ->
+                 (AddDeclaration ctxt (Declare Var name ty) newCtxt) =>
+                 (cont : Statement newCtxt) ->
+                 Statement ctxt
 
     JustStop : forall ctxt.
                AllowJustStop ctxt =>
@@ -270,14 +290,6 @@ namespace Statement
              (th : Statement ctxt) ->
              (el : Statement ctxt) ->
              Statement ctxt
-
-    InitVar : forall ctxt.
-              (newTy : GoType) ->
-              (initVal : Expr ctxt [newTy]) ->
-              {newCtxt : Context} ->
-              (pr : AddDeclaration ctxt Var newTy newCtxt) =>
-              (cont : Statement newCtxt) ->
-              Statement ctxt
 
   %unbound_implicits on
 
