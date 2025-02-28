@@ -86,7 +86,7 @@ namespace Assignable
   public export
   data Assignable1 : (lhv, rhv : GoType) -> Type where
     AssignSame : forall t. Assignable1 t t
-    AssignToAny :  forall t. Assignable1 GoAny t
+    -- AssignToAny :  forall t. Assignable1 GoAny t
 
   public export
   data Assignable : (lhv, rhv : GoTypes) -> Type where
