@@ -2,15 +2,19 @@ module Utils.MkVect
 
 import Decidable.Equality
 
-import Language.Reflection
-import Language.Reflection.Syntax
-import Language.Reflection.Syntax.Ops
+import public Language.Reflection
+import public Language.Reflection.Syntax
+import public Language.Reflection.Syntax.Ops
 
 
 export
-mkListType : Elaboration m => (of_ : TTImp) -> (name : String) -> m ()
+mkListType : Elaboration m =>
+             (of_ : String) ->
+             (name : String) ->
+             m ()
 mkListType of_ name = do
   let newType = varStr name
+  let of_ = varStr of_
   let ns = MkNS [name]
   let cons = var $ NS ns `{(::)}
   declare $ [ INamespace emptyFC ns $
@@ -34,6 +38,15 @@ mkListType of_ name = do
     , def `{biinjectiveHint}
       [ `(biinjectiveHint) .= `(MkBiinjective $ \case Refl => (Refl, Refl))
       ]
+
+    -- , iData Public `{Elem}
+    --   (arg newType .-> arg of_ .-> type)
+    --   []
+    --   [ mkTy "Here" $ erasedImplicit `{x} .->
+    --                   erasedImplicit `{head} .->
+    --                   erasedImplicit `{tail} .->
+    --                   `(Elem (x :: head) tail)
+    --   ]
     ]
   ]
 
@@ -59,4 +72,3 @@ deriveDecEq name = do
       [ `(decEqHint) .= `(mkDecEq ~(var decEqImpl))
       ]
     ]
-
