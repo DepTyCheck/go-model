@@ -197,17 +197,19 @@ namespace Expr
   public export
   data PrefixOp : (argTy, resTy : GoType) -> Type where
     BoolNot : PrefixOp GoBool GoBool
+    IntNeg : PrefixOp GoInt GoInt
 
   public export
   data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
     IntAdd : InfixOp GoInt GoInt GoInt
     IntSub, IntMul : InfixOp GoInt GoInt GoInt
     BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+    IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
 
   public export
   data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
     Print : BuiltinFunc [GoInt] []
-    Max : BuiltinFunc [GoInt, GoInt] [GoInt]
+    Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
 
   mutual
     public export
@@ -224,16 +226,16 @@ namespace Expr
                    (lit : Literal resTy) ->
                    Expr ctxt [resTy]
 
-      -- ApplyPrefix : forall ctxt, resTy, argTy.
-      --               (op : PrefixOp argTy resTy) ->
-      --               (arg : Expr ctxt [argTy]) ->
-      --               Expr ctxt [resTy]
+      ApplyPrefix : forall ctxt, resTy, argTy.
+                    (op : PrefixOp argTy resTy) ->
+                    (arg : Expr ctxt [argTy]) ->
+                    Expr ctxt [resTy]
 
-      -- ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
-      --              (op : InfixOp lhvTy rhvTy resTy) ->
-      --              (lhv : Expr ctxt [lhvTy]) ->
-      --              (rhv : Expr ctxt [rhvTy]) ->
-      --              Expr ctxt [resTy]
+      ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
+                   (op : InfixOp lhvTy rhvTy resTy) ->
+                   (lhv : Expr ctxt [lhvTy]) ->
+                   (rhv : Expr ctxt [rhvTy]) ->
+                   Expr ctxt [resTy]
 
       CallBuiltin : forall ctxt, paramTypes, argTypes, retTypes.
                     (f : BuiltinFunc paramTypes retTypes) ->

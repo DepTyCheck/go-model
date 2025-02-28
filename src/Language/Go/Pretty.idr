@@ -35,6 +35,7 @@ printVar (Declare kind name _) = pure $ line "\{show kind}\{show name}"
 Show (BuiltinFunc _ _) where
   show Print = "print"
   show Max = "max"
+  show Min = "min"
 
 mutual
   printValues : (fuel : Fuel) ->
@@ -88,15 +89,24 @@ mutual
   printExpr fuel (GetLiteral $ MkBool True) = pure $ line "true"
   printExpr fuel (GetLiteral $ MkBool False) = pure $ line "false"
 
-  -- printExpr fuel (ApplyPrefix BoolNot arg) = do
-  --   arg <- printExpr fuel arg
-  --   pure $ "(!" <+> arg <+> ")"
+  printExpr fuel (ApplyPrefix BoolNot arg) = do
+    arg <- printExpr fuel arg
+    pure $ "(!" <+> arg <+> ")"
+  printExpr fuel (ApplyPrefix IntNeg arg) = do
+    arg <- printExpr fuel arg
+    pure $ "(-" <+> arg <+> ")"
 
-  -- printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
-  -- printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
-  -- printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
-  -- printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
-  -- printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
+  printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
+  printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
+  printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
+  printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
+  printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
+  printExpr fuel (ApplyInfix IntEq lhv rhv) = printInfix fuel "==" lhv rhv
+  printExpr fuel (ApplyInfix IntNE lhv rhv) = printInfix fuel "!=" lhv rhv
+  printExpr fuel (ApplyInfix IntLt lhv rhv) = printInfix fuel "<" lhv rhv
+  printExpr fuel (ApplyInfix IntLE lhv rhv) = printInfix fuel "<=" lhv rhv
+  printExpr fuel (ApplyInfix IntGt lhv rhv) = printInfix fuel ">" lhv rhv
+  printExpr fuel (ApplyInfix IntGE lhv rhv) = printInfix fuel ">=" lhv rhv
 
   printExpr fuel (CallBuiltin f arg) = do
     printFuncCall fuel (line $ show f) arg
