@@ -14,6 +14,7 @@ import Generics.Derive
 import Test.DepTyCheck.Gen
 
 %language ElabReflection
+%unbound_implicits on
 
 namespace GoType
   mutual
@@ -23,6 +24,11 @@ namespace GoType
       arguments: GoTypes
       returns: GoTypes
 
+    ||| Types from Go Language
+    |||
+    ||| GoInt <-> int
+    ||| GoAny <-> interface {}
+    ||| Note: GoAny can slow down generation if there are any non constructible types
     public export
     data GoType
       = GoInt
@@ -76,17 +82,20 @@ namespace GoType
       decEq (_ :: _) Nil = No $ \case Refl impossible
       decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
+namespace Assignable
   public export
-  data Assignable : (lhv : GoTypes) -> (rhv : GoTypes) -> Type where
-    AssignEmpty : Assignable [] []
+  data Assignable1 : (lhv, rhv : GoType) -> Type where
+    AssignSame : forall t. Assignable1 t t
+    AssignToAny :  forall t. Assignable1 GoAny t
 
-    AssignSame : forall t, ts1, ts2.
-                 Assignable ts1 ts2 =>
-                 Assignable (t :: ts1) (t :: ts2)
+  public export
+  data Assignable : (lhv, rhv : GoTypes) -> Type where
+    Nil : Assignable [] []
 
-    AssignToAny : forall t, ts1, ts2.
-                  Assignable ts1 ts2 =>
-                  Assignable (GoAny :: ts1) (t :: ts2)
+    (::) : forall t1, t2, ts1, ts2.
+           (head : Assignable1 t1 t2) ->
+           (tail : Assignable ts1 ts2) ->
+           Assignable (t1 :: ts1) (t2 :: ts2)
 
 
 namespace Declaration
@@ -196,11 +205,9 @@ namespace Expr
     BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
 
   public export
-  data  BuiltinFunc : (args, rets : GoTypes) -> Type where
+  data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
     Print : BuiltinFunc [GoInt] []
     Max : BuiltinFunc [GoInt, GoInt] [GoInt]
-
-  %unbound_implicits on
 
   mutual
     public export
@@ -213,11 +220,6 @@ namespace Expr
 
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      MultiVal : forall ctxt.
-                 {rets : GoTypes} ->
-                 (vals : ExprList ctxt rets) ->
-                 Expr ctxt rets
-
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->
                    Expr ctxt [resTy]
@@ -233,8 +235,9 @@ namespace Expr
       --              (rhv : Expr ctxt [rhvTy]) ->
       --              Expr ctxt [resTy]
 
-      CallBuiltin : forall ctxt, argTypes, retTypes.
-                    (f : BuiltinFunc argTypes retTypes) ->
+      CallBuiltin : forall ctxt, paramTypes, argTypes, retTypes.
+                    (f : BuiltinFunc paramTypes retTypes) ->
+                    (a : Assignable paramTypes argTypes) =>
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
@@ -254,7 +257,10 @@ namespace Expr
       --            (args : Expr ctxt argTypes) ->
       --            Expr ctxt retTypes
 
-  %unbound_implicits on
+      MultiVal : forall ctxt.
+                 {rets : GoTypes} ->
+                 (vals : ExprList ctxt rets) ->
+                 Expr ctxt rets
 
 
 namespace Statement
@@ -277,8 +283,6 @@ namespace Statement
   public export
   data ShouldReturn : Context -> Type where
     MkShouldReturn : ShouldReturn (MkContext _ _ True)
-
-  %unbound_implicits off
 
   public export
   data Statement : (ctxt : Context) -> Type where
@@ -322,10 +326,8 @@ namespace Statement
              (el : Statement ctxt) ->
              Statement ctxt
 
-  %unbound_implicits on
-
   export
-  isEmpty : Statement _ -> Bool
+  isEmpty : forall ctxt. Statement ctxt -> Bool
   isEmpty JustStop = True
   isEmpty _ = False
 

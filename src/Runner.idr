@@ -7,7 +7,6 @@ import Data.SortedMap
 import Data.String
 
 import Language.Go
--- import Language.Go.Derived.Statements
 import Language.Go.Derived
 import Language.Go.Pretty
 
@@ -93,7 +92,7 @@ parsePPFuel str = case parsePositive str of
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
   "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs [GoInt]}
+  "exprs" => Right {generator := Exprs []}
   _ => Left "Unknown generator <\{str}>"
 
 
