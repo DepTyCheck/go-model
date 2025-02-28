@@ -13,7 +13,6 @@ import Text.PrettyPrint.Bernardy
 
 import System.Random.Pure.StdGen
 
-
 mutual
   printTy : {opts : _} -> GoType -> Doc opts
   printTy GoInt = "int"
@@ -26,7 +25,6 @@ mutual
   printTyOrTypes [] = ""
   printTyOrTypes [ty] = assert_total printTy ty
   printTyOrTypes ts = assert_total $ tuple $ map printTy $ asList ts
-
 
 
 printVar :  {opts : _} ->
@@ -55,28 +53,32 @@ mutual
                {opts : _} ->
                Expr ctxt ret -> Gen0 $ Doc opts
 
-  printExpr fuel (IntLiteral x) = pure $ line $ show x
-  printExpr fuel (BoolLiteral True) = pure $ line "true"
-  printExpr fuel (BoolLiteral False) = pure $ line "false"
-  printExpr fuel (GetVar decl) = printVar decl
-  -- printExpr fuel (CallNamed f args) = do
-  --   f <- printVar f
-  --   args <- printExpr fuel args
-  --   pure $ f <+> "(" <+> args <+> ")"
+  printExpr fuel (GetLiteral $ MkInt x) = pure $ line $ show x
 
-  printExpr fuel (SpecForm $ Print arg) = do
+  printExpr fuel (GetLiteral $ MkBool True) = pure $ line "true"
+  printExpr fuel (GetLiteral $ MkBool False) = pure $ line "false"
+
+  printExpr fuel (ApplyPrefix BoolNot arg) = do
     arg <- printExpr fuel arg
-    pure $ "print(" <+> arg <+> ")"
-
-  -- printExpr fuel (SpecForm $ BoolNot arg) = do
-  --   arg <- printExpr fuel arg
-  --   pure $ "(!" <+> arg <+> ")"
+    pure $ "(!" <+> arg <+> ")"
 
   printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
   printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
   printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
   printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
   printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
+
+  printExpr fuel (CallBuiltin Print arg) = do
+    arg <- printExpr fuel arg
+    pure $ "print(" <+> arg <+> ")"
+
+  printExpr fuel (GetVar decl) = printVar decl
+
+  -- printExpr fuel (CallNamed f args) = do
+  --   f <- printVar f
+  --   args <- printExpr fuel args
+  --   pure $ f <+> "(" <+> args <+> ")"
+
 
   printIf : (fuel : Fuel) ->
             {ctxt, ctxtThen, ctxtElse : Context} ->

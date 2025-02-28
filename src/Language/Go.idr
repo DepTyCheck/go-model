@@ -180,50 +180,62 @@ namespace Context
 
 
 namespace Expr
-  mutual
-    public export
-    data SpecialForm : (ctxt : Context) -> (res : GoTypes) -> Type where
-      Print : (arg : Expr ctxt _) -> SpecialForm ctxt []
-      -- IntAdd : (lhv, rhv : Expr ctxt [GoInt]) -> SpecialForm ctxt [GoInt]
-      -- IntSub, IntMul : (lhv, rhv : Expr ctxt [GoInt]) -> SpecialForm ctxt [GoInt]
-      -- BoolAnd, BoolOr : (lhv, rhv : Expr ctxt [GoBool]) -> SpecialForm ctxt [GoBool]
-      -- BoolNot : (arg : Expr ctxt [GoBool]) -> SpecialForm ctxt [GoBool]
+  public export
+  data Literal : (ty : GoType) -> Type where
+    MkInt : Nat -> Literal GoInt
+    MkBool : Bool -> Literal GoBool
 
-    public export
-    data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
-      IntAdd : InfixOp GoInt GoInt GoInt
-      IntSub, IntMul : InfixOp GoInt GoInt GoInt
-      BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+  public export
+  data PrefixOp : (argTy, resTy : GoType) -> Type where
+    BoolNot : PrefixOp GoBool GoBool
 
+  public export
+  data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
+    IntAdd : InfixOp GoInt GoInt GoInt
+    IntSub, IntMul : InfixOp GoInt GoInt GoInt
+    BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
 
-    public export
-    data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      -- CallNamed : forall ctxt, retTypes.
-      --             (idx : Fin ctxt.depth) ->
-      --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
-      --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
-      --             Expr ctxt retTypes
+  public export
+  data  BuiltinFunc : (args, rets : GoTypes) -> Type where
+    Print : BuiltinFunc [GoInt] []
 
-      ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
-                   (op : InfixOp lhvTy rhvTy resTy) ->
-                   (lhv : Expr ctxt [lhvTy]) ->
-                   (rhv : Expr ctxt [rhvTy]) ->
-                   Expr ctxt [resTy]
+  public export
+  data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
+    GetLiteral : forall ctxt, resTy.
+                 (lit : Literal resTy) ->
+                 Expr ctxt [resTy]
 
-      IntLiteral  : (x : Nat) -> Expr ctxt [GoInt]
-      BoolLiteral : (x : Bool) -> Expr ctxt [GoBool]
+    ApplyPrefix : forall ctxt, resTy, argTy.
+                  (op : PrefixOp argTy resTy) ->
+                  (arg : Expr ctxt [argTy]) ->
+                  Expr ctxt [resTy]
 
-      GetVar : forall ctxt, ty.
-               (decl : Declaration) ->
-               ByType ctxt.activeBlock ty decl =>
-               Expr ctxt [ty]
+    ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
+                 (op : InfixOp lhvTy rhvTy resTy) ->
+                 (lhv : Expr ctxt [lhvTy]) ->
+                 (rhv : Expr ctxt [rhvTy]) ->
+                 Expr ctxt [resTy]
 
-      SpecForm : SpecialForm ctxt res -> Expr ctxt res
+    CallBuiltin : forall ctxt, argTypes, retTypes.
+                  (f : BuiltinFunc argTypes retTypes) ->
+                  (args : Expr ctxt argTypes) ->
+                  Expr ctxt retTypes
 
-      -- CallExpr : forall ctxt, argTypes, retTypes.
-      --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
-      --            (args : Expr ctxt argTypes) ->
-      --            Expr ctxt retTypes
+    -- CallNamed : forall ctxt, retTypes.
+    --             (idx : Fin ctxt.depth) ->
+    --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
+    --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
+    --             Expr ctxt retTypes
+
+    GetVar : forall ctxt, ty.
+             (decl : Declaration) ->
+             ByType ctxt.activeBlock ty decl =>
+             Expr ctxt [ty]
+
+    -- CallExpr : forall ctxt, argTypes, retTypes.
+    --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
+    --            (args : Expr ctxt argTypes) ->
+    --            Expr ctxt retTypes
 
 
 namespace Statement
