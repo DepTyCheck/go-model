@@ -39,6 +39,40 @@ record Config where
   goNames    : List String
   generator  : SelectedGen
 
+defaultBuiltins : Builtins
+defaultBuiltins = MkBuiltins
+  { prefixOps =
+    [ MkPrefixOp "!" GoBool GoBool
+    , MkPrefixOp "-" GoInt GoInt
+    ]
+  , infixOps =
+    [ MkInfixOp "+" GoInt  GoInt GoInt
+    , MkInfixOp "-" GoInt  GoInt GoInt
+    , MkInfixOp "*" GoInt  GoInt GoInt
+    , MkInfixOp "&&" GoBool GoBool GoBool
+    , MkInfixOp "||" GoBool GoBool GoBool
+    , MkInfixOp "==" GoInt GoInt GoBool
+    , MkInfixOp "!=" GoInt GoInt GoBool
+    , MkInfixOp "<" GoInt GoInt GoBool
+    , MkInfixOp "<=" GoInt GoInt GoBool
+    , MkInfixOp ">" GoInt GoInt GoBool
+    , MkInfixOp ">=" GoInt GoInt GoBool
+    ]
+  , builtinFuncs =
+    [ MkBuiltinFunc "print" [GoInt] []
+    , MkBuiltinFunc "max" [GoInt, GoInt] [GoInt]
+    , MkBuiltinFunc "min" [GoInt, GoInt] [GoInt]
+    ]
+  }
+
+defaultContext : Context
+defaultContext = MkContext
+  { builtins = defaultBuiltins
+  , activeBlock = [Declare Var (MkName 10) GoInt]
+  , returns = [GoInt]
+  , shouldReturn = True
+  }
+
 defaultConfig : Config
 defaultConfig = MkConfig
   { usedSeed = initSeed
@@ -46,7 +80,7 @@ defaultConfig = MkConfig
   , testsCnt   = 5
   , modelFuel  = limit 3
   , ppFuel     = limit 1000000
-  , context    = emptyContext
+  , context    = defaultContext
   , goNames    = []
   , generator  = Statements
   }
@@ -92,7 +126,7 @@ parsePPFuel str = case parsePositive str of
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
   "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs []}
+  "exprs" => Right {generator := Exprs [GoBool]}
   _ => Left "Unknown generator <\{str}>"
 
 

@@ -11,10 +11,12 @@ import Derive.Eq as DE
 
 import Generics.Derive
 
+import Utils.MkVect
+
 import Test.DepTyCheck.Gen
 
 %language ElabReflection
-%unbound_implicits on
+%unbound_implicits off
 
 namespace GoType
   mutual
@@ -147,21 +149,87 @@ namespace Declaration
             ByType (head :: rest) ty decl
 
 
+namespace Builtins
+  public export
+  record PrefixOp where
+    constructor MkPrefixOp
+    name : String
+    argumentType : GoType
+    returnType : GoType
+
+  %runElab mkListType "PrefixOp" "PrefixOpList"
+  %runElab derive "PrefixOp" [Generic, DecEq]
+
+  namespace PrefixOp
+    public export
+    data ByType : PrefixOpList -> GoType -> PrefixOp -> Type where
+      Here : forall n, a, ret, rest.
+             ByType (MkPrefixOp n a ret :: rest) ret
+                    (MkPrefixOp n a ret)
+
+      There : forall x, rest, ty, op.
+              (next : ByType rest ty op) ->
+              ByType (x :: rest) ty op
+
+  public export
+  record InfixOp where
+    constructor MkInfixOp
+    name : String
+    lhvType : GoType
+    rhvType : GoType
+    returnType : GoType
+
+  %runElab mkListType "InfixOp" "InfixOpList"
+  %runElab derive "InfixOp" [Generic, DecEq]
+
+  namespace InfixOp
+    public export
+    data ByType : InfixOpList -> GoType -> InfixOp -> Type where
+      Here : forall n, lt, rt, ret, rest.
+             ByType (MkInfixOp n lt rt ret :: rest) ret
+                    (MkInfixOp n lt rt ret)
+
+      There : forall x, rest, ty, op.
+              (next : ByType rest ty op) ->
+              ByType (x :: rest) ty op
+
+
+  public export
+  record BuiltinFunc where
+    constructor MkBuiltinFunc
+    name : String
+    paramTypes : GoTypes
+    returnTypes : GoTypes
+
+  %runElab mkListType "BuiltinFunc" "BuiltinFuncList"
+  %runElab derive "BuiltinFunc" [Generic, DecEq]
+
+  namespace BuiltinFunc
+    public export
+    data ByType : BuiltinFuncList -> GoTypes -> BuiltinFunc -> Type where
+      Here : forall n, args, ret, rest.
+             ByType (MkBuiltinFunc n args ret :: rest) ret
+                    (MkBuiltinFunc n args ret)
+
+      There : forall x, rest, ty, op.
+              (next : ByType rest ty op) ->
+              ByType (x :: rest) ty op
+
+  public export
+  record Builtins where
+    constructor MkBuiltins
+    prefixOps : PrefixOpList
+    infixOps : InfixOpList
+    builtinFuncs : BuiltinFuncList
+
 namespace Context
   public export
   record Context where
     constructor MkContext
+    builtins : Builtins
     activeBlock : Block
     returns : GoTypes
     shouldReturn : Bool
-
-  public export
-  emptyContext : Context
-  emptyContext = MkContext
-    { activeBlock = [Declare Var (MkName 10) GoInt]
-    , returns = [GoInt]
-    , shouldReturn = True
-    }
 
   -- public export
   -- data AddDeclaration : (ctxt : Context) ->
@@ -173,15 +241,15 @@ namespace Context
   --                       ctxt.returns
   --                       ctxt.shouldReturn)
 
-  public export
-  data AddDeclaration : (ctxt : Context) ->
-                        (decl : Declaration) ->
-                        (newCtxt : Context) ->
-                        Type where
-    AddUnchecked : AddDeclaration
-                    (MkContext oldBlock rets sr)
-                    decl
-                    (MkContext (decl :: oldBlock) rets sr)
+  -- public export
+  -- data AddDeclaration : (ctxt : Context) ->
+  --                       (decl : Declaration) ->
+  --                       (newCtxt : Context) ->
+  --                       Type where
+  --   AddUnchecked : AddDeclaration
+  --                   (MkContext oldBlock rets sr)
+  --                   decl
+  --                   (MkContext (decl :: oldBlock) rets sr)
 
   public export
   AddDeclaration1 : Context -> Declaration -> Context
@@ -194,26 +262,11 @@ namespace Expr
     MkInt : Nat -> Literal GoInt
     MkBool : Bool -> Literal GoBool
 
-  public export
-  data PrefixOp : (argTy, resTy : GoType) -> Type where
-    BoolNot : PrefixOp GoBool GoBool
-
-  public export
-  data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
-    IntAdd : InfixOp GoInt GoInt GoInt
-    IntSub, IntMul : InfixOp GoInt GoInt GoInt
-    BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
-
-  public export
-  data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
-    Print : BuiltinFunc [GoInt] []
-    Max : BuiltinFunc [GoInt, GoInt] [GoInt]
-
   mutual
     public export
     data ExprList : (ctxt : Context) -> (rets : GoTypes) -> Type where
       Nil : forall ctxt. ExprList ctxt []
-      (::) : forall ctxt.
+      (::) : forall ctxt, headTy, tailTypes.
              (head : Expr ctxt [headTy]) ->
              (tail : ExprList ctxt tailTypes) ->
              ExprList ctxt (headTy :: tailTypes)
@@ -224,20 +277,23 @@ namespace Expr
                    (lit : Literal resTy) ->
                    Expr ctxt [resTy]
 
-      -- ApplyPrefix : forall ctxt, resTy, argTy.
-      --               (op : PrefixOp argTy resTy) ->
-      --               (arg : Expr ctxt [argTy]) ->
-      --               Expr ctxt [resTy]
+      ApplyPrefix : forall ctxt, resTy.
+                    (op : PrefixOp) ->
+                    (findOp : ByType ctxt.builtins.prefixOps resTy op) =>
+                    (arg : Expr ctxt [op.argumentType]) ->
+                    Expr ctxt [resTy]
 
-      -- ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
-      --              (op : InfixOp lhvTy rhvTy resTy) ->
-      --              (lhv : Expr ctxt [lhvTy]) ->
-      --              (rhv : Expr ctxt [rhvTy]) ->
-      --              Expr ctxt [resTy]
+      ApplyInfix : forall ctxt, resTy.
+                   (op : InfixOp) ->
+                   (findOp : ByType ctxt.builtins.infixOps resTy op) =>
+                   (lhv : Expr ctxt [op.lhvType]) ->
+                   (rhv : Expr ctxt [op.rhvType]) ->
+                   Expr ctxt [resTy]
 
-      CallBuiltin : forall ctxt, paramTypes, argTypes, retTypes.
-                    (f : BuiltinFunc paramTypes retTypes) ->
-                    (a : Assignable paramTypes argTypes) =>
+      CallBuiltin : forall ctxt, argTypes, retTypes.
+                    (f : BuiltinFunc) ->
+                    (findOp : ByType ctxt.builtins.builtinFuncs retTypes f) =>
+                    (a : Assignable f.paramTypes argTypes) =>
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
@@ -271,18 +327,20 @@ namespace Statement
 
   public export
   data AllowReturn : Context -> GoTypes -> Type where
-    AllowReturnWhenShould : AllowReturn (MkContext _ types True) types
+    AllowReturnWhenShould : forall a, b, types.
+                            AllowReturn (MkContext a b types True) types
 
   public export
   data AllowInnerIf : (ctxt, ctxtThen, ctxtElse : Context) ->
                       Type where
-    MkAllowInnerIf : AllowInnerIf (MkContext d r False)
-                                  (MkContext d r _)
-                                  (MkContext d r _)
+    MkAllowInnerIf : forall b, d, r, t1, t2.
+                     AllowInnerIf (MkContext b d r False)
+                                  (MkContext b d r t1)
+                                  (MkContext b d r t2)
 
   public export
   data ShouldReturn : Context -> Type where
-    MkShouldReturn : ShouldReturn (MkContext _ _ True)
+    MkShouldReturn : ShouldReturn (MkContext _ _ _ True)
 
   public export
   data Statement : (ctxt : Context) -> Type where
@@ -292,7 +350,7 @@ namespace Statement
                  (ty : GoType) ->
                  (initial : Expr ctxt [ty]) ->
                  {newCtxt : Context} ->
-                 (AddDeclaration ctxt (Declare Var name ty) newCtxt) =>
+                 -- (AddDeclaration ctxt (Declare Var name ty) newCtxt) =>
                  (cont : Statement newCtxt) ->
                  Statement ctxt
 

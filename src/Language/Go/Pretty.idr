@@ -32,10 +32,6 @@ printVar :  {opts : _} ->
             Gen0 $ Doc opts
 printVar (Declare kind name _) = pure $ line "\{show kind}\{show name}"
 
-Show (BuiltinFunc _ _) where
-  show Print = "print"
-  show Max = "max"
-
 mutual
   printValues : (fuel : Fuel) ->
                 {ctxt : Context} ->
@@ -88,18 +84,14 @@ mutual
   printExpr fuel (GetLiteral $ MkBool True) = pure $ line "true"
   printExpr fuel (GetLiteral $ MkBool False) = pure $ line "false"
 
-  -- printExpr fuel (ApplyPrefix BoolNot arg) = do
-  --   arg <- printExpr fuel arg
-  --   pure $ "(!" <+> arg <+> ")"
+  printExpr fuel (ApplyPrefix op arg) = do
+    arg <- printExpr fuel arg
+    pure $ "(" <+> line op.name <+> arg <+> ")"
 
-  -- printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
-  -- printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
-  -- printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
-  -- printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
-  -- printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
+  printExpr fuel (ApplyInfix op lhv rhv) = printInfix fuel op.name lhv rhv
 
   printExpr fuel (CallBuiltin f arg) = do
-    printFuncCall fuel (line $ show f) arg
+    printFuncCall fuel (line f.name) arg
 
   -- printExpr fuel (GetVar decl) = printVar decl
 
