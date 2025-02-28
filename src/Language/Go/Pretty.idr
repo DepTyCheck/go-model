@@ -32,7 +32,37 @@ printVar :  {opts : _} ->
             Gen0 $ Doc opts
 printVar (Declare kind name _) = pure $ line "\{show kind}\{show name}"
 
+Show (BuiltinFunc _ _) where
+  show Print = "print"
+  show Max = "max"
+
 mutual
+  printValues : (fuel : Fuel) ->
+                {ctxt : Context} ->
+                (knownNames : List String) =>
+                {opts : _} ->
+                {types : GoTypes} ->
+                (values : ExprList ctxt types) ->
+                Gen0 $ Doc opts
+  printValues fuel Nil = pure ""
+  printValues fuel [x] = printExpr fuel x
+  printValues fuel (x::xs) = do
+    x <- printExpr fuel x
+    xs <- printValues fuel xs
+    pure $ x <+> "," <++> xs
+
+
+  printFuncCall : (fuel : Fuel) ->
+                  {ctxt : Context} ->
+                  (knownNames : List String) =>
+                  {opts : _} ->
+                  (f : Doc opts) ->
+                  (args : Expr ctxt _) ->
+                  Gen0 $ Doc opts
+  printFuncCall fuel f args = do
+    args <- printExpr fuel args
+    pure $ f <+> "(" <+> args <+> ")"
+
   printInfix : (fuel : Fuel) ->
                {ctxt : Context} ->
                (knownNames : List String) =>
@@ -58,27 +88,27 @@ mutual
   printExpr fuel (GetLiteral $ MkBool True) = pure $ line "true"
   printExpr fuel (GetLiteral $ MkBool False) = pure $ line "false"
 
-  printExpr fuel (ApplyPrefix BoolNot arg) = do
-    arg <- printExpr fuel arg
-    pure $ "(!" <+> arg <+> ")"
+  -- printExpr fuel (ApplyPrefix BoolNot arg) = do
+  --   arg <- printExpr fuel arg
+  --   pure $ "(!" <+> arg <+> ")"
 
-  printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
-  printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
-  printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
-  printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
-  printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
+  -- printExpr fuel (ApplyInfix IntAdd lhv rhv) = printInfix fuel "+" lhv rhv
+  -- printExpr fuel (ApplyInfix IntSub lhv rhv) = printInfix fuel "-" lhv rhv
+  -- printExpr fuel (ApplyInfix IntMul lhv rhv) = printInfix fuel "*" lhv rhv
+  -- printExpr fuel (ApplyInfix BoolAnd lhv rhv) = printInfix fuel "&&" lhv rhv
+  -- printExpr fuel (ApplyInfix BoolOr lhv rhv) = printInfix fuel "||" lhv rhv
 
-  printExpr fuel (CallBuiltin Print arg) = do
-    arg <- printExpr fuel arg
-    pure $ "print(" <+> arg <+> ")"
+  printExpr fuel (CallBuiltin f arg) = do
+    printFuncCall fuel (line $ show f) arg
 
-  printExpr fuel (GetVar decl) = printVar decl
+  -- printExpr fuel (GetVar decl) = printVar decl
 
   -- printExpr fuel (CallNamed f args) = do
   --   f <- printVar f
   --   args <- printExpr fuel args
   --   pure $ f <+> "(" <+> args <+> ")"
 
+  printExpr fuel (MultiVal vals) = printValues fuel vals
 
   printIf : (fuel : Fuel) ->
             {ctxt, ctxtThen, ctxtElse : Context} ->

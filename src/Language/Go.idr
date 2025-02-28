@@ -198,44 +198,63 @@ namespace Expr
   public export
   data  BuiltinFunc : (args, rets : GoTypes) -> Type where
     Print : BuiltinFunc [GoInt] []
+    Max : BuiltinFunc [GoInt, GoInt] [GoInt]
 
-  public export
-  data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-    GetLiteral : forall ctxt, resTy.
-                 (lit : Literal resTy) ->
-                 Expr ctxt [resTy]
+  %unbound_implicits on
 
-    ApplyPrefix : forall ctxt, resTy, argTy.
-                  (op : PrefixOp argTy resTy) ->
-                  (arg : Expr ctxt [argTy]) ->
-                  Expr ctxt [resTy]
+  mutual
+    public export
+    data ExprList : (ctxt : Context) -> (rets : GoTypes) -> Type where
+      Nil : forall ctxt. ExprList ctxt []
+      (::) : forall ctxt.
+             (head : Expr ctxt [headTy]) ->
+             (tail : ExprList ctxt tailTypes) ->
+             ExprList ctxt (headTy :: tailTypes)
 
-    ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
-                 (op : InfixOp lhvTy rhvTy resTy) ->
-                 (lhv : Expr ctxt [lhvTy]) ->
-                 (rhv : Expr ctxt [rhvTy]) ->
-                 Expr ctxt [resTy]
+    public export
+    data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
+      MultiVal : forall ctxt.
+                 {rets : GoTypes} ->
+                 (vals : ExprList ctxt rets) ->
+                 Expr ctxt rets
 
-    CallBuiltin : forall ctxt, argTypes, retTypes.
-                  (f : BuiltinFunc argTypes retTypes) ->
-                  (args : Expr ctxt argTypes) ->
-                  Expr ctxt retTypes
+      GetLiteral : forall ctxt, resTy.
+                   (lit : Literal resTy) ->
+                   Expr ctxt [resTy]
 
-    -- CallNamed : forall ctxt, retTypes.
-    --             (idx : Fin ctxt.depth) ->
-    --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
-    --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
-    --             Expr ctxt retTypes
+      -- ApplyPrefix : forall ctxt, resTy, argTy.
+      --               (op : PrefixOp argTy resTy) ->
+      --               (arg : Expr ctxt [argTy]) ->
+      --               Expr ctxt [resTy]
 
-    GetVar : forall ctxt, ty.
-             (decl : Declaration) ->
-             ByType ctxt.activeBlock ty decl =>
-             Expr ctxt [ty]
+      -- ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
+      --              (op : InfixOp lhvTy rhvTy resTy) ->
+      --              (lhv : Expr ctxt [lhvTy]) ->
+      --              (rhv : Expr ctxt [rhvTy]) ->
+      --              Expr ctxt [resTy]
 
-    -- CallExpr : forall ctxt, argTypes, retTypes.
-    --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
-    --            (args : Expr ctxt argTypes) ->
-    --            Expr ctxt retTypes
+      CallBuiltin : forall ctxt, argTypes, retTypes.
+                    (f : BuiltinFunc argTypes retTypes) ->
+                    (args : Expr ctxt argTypes) ->
+                    Expr ctxt retTypes
+
+      -- CallNamed : forall ctxt, retTypes.
+      --             (idx : Fin ctxt.depth) ->
+      --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
+      --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
+      --             Expr ctxt retTypes
+
+      -- GetVar : forall ctxt, ty.
+      --          (decl : Declaration) ->
+      --          ByType ctxt.activeBlock ty decl =>
+      --          Expr ctxt [ty]
+
+      -- CallExpr : forall ctxt, argTypes, retTypes.
+      --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
+      --            (args : Expr ctxt argTypes) ->
+      --            Expr ctxt retTypes
+
+  %unbound_implicits on
 
 
 namespace Statement
