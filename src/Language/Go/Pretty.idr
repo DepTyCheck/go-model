@@ -9,7 +9,6 @@ import Language.Go
 import Test.DepTyCheck.Gen
 
 import Text.PrettyPrint.Bernardy
-import Text.PrettyPrint.Bernardy
 
 import System.Random.Pure.StdGen
 
@@ -19,7 +18,9 @@ mutual
   printTy GoBool = "bool"
   printTy (GoFunc $ MkFuncTy ss rs) =
     "func " <++> printTyOrTypes ss <++> printTyOrTypes rs
-  printTy GoAny = "interface {}"
+  -- @WHEN ASSIGNABLE_ANY
+  -- @ printTy GoAny = "interface {}"
+  -- @END ASSIGNABLE_ANY
 
   printTyOrTypes : {opts : _} -> GoTypes -> Doc opts
   printTyOrTypes [] = ""

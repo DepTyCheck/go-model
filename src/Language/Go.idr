@@ -34,7 +34,9 @@ namespace GoType
       = GoInt
       | GoBool
       | GoFunc FuncTy
-      | GoAny
+      -- @WHEN ASSIGNABLE_ANY
+      -- @ | GoAny
+      -- @END ASSIGNABLE_ANY
 
     public export
     data GoTypes : Type where
@@ -86,7 +88,10 @@ namespace Assignable
   public export
   data Assignable1 : (lhv, rhv : GoType) -> Type where
     AssignSame : forall t. Assignable1 t t
-    -- AssignToAny :  forall t. Assignable1 GoAny t
+
+    -- @WHEN ASSIGNABLE_ANY
+    -- @ AssignToAny :  forall t. Assignable1 GoAny t
+    -- @END ASSIGNABLE_ANY
 
   public export
   data Assignable : (lhv, rhv : GoTypes) -> Type where
@@ -208,7 +213,11 @@ namespace Expr
 
   public export
   data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
+    -- @WHEN ASSIGNABLE_ANY
+    -- @ Print : BuiltinFunc [GoAny] []
+    -- @UNLESS ASSIGNABLE_ANY
     Print : BuiltinFunc [GoInt] []
+    -- @END ASSIGNABLE_ANY
     Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
 
   mutual
