@@ -1,0 +1,4 @@
+-- Use Assignable with interface {}
+-- Unless we don't have a way to construct a value of any type
+-- it will be slow for fuel >= 6
+- ASSIGNABLE_ANY
