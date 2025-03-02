@@ -32,9 +32,7 @@ record Config where
   layoutOpts : LayoutOpts
   testsCnt   : Nat
   modelFuel  : Fuel
-  ppFuel     : Fuel
   context    : Context
-  goNames    : List String
   generator  : SelectedGen
 
 defaultConfig : Config
@@ -42,11 +40,9 @@ defaultConfig = MkConfig
   { usedSeed = initSeed
   , layoutOpts = Opts 80
   , testsCnt   = 5
-  , modelFuel  = limit 3
-  , ppFuel     = limit 1000000
-  , context    = emptyContext
-  , goNames    = []
-  , generator  = Statements
+  , modelFuel  = limit 6
+  , context    = defaultContext
+  , generator  = Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]
   }
 
 parseSeed : String -> Either String $ Config -> Config
@@ -76,11 +72,6 @@ parseModelFuel str = case parsePositive str of
   Just n  => Right {modelFuel := limit n}
   Nothing => Left "can't parse given model fuel"
 
-parsePPFuel : String -> Either String $ Config -> Config
-parsePPFuel str = case parsePositive str of
-  Just n  => Right {ppFuel := limit n}
-  Nothing => Left "can't parse given pretty-printer fuel"
-
 -- parseType : String -> Either String $ Config -> Config
 -- parseType str = case str of
 --   "int" => Right {outputType := [GoInt]}
@@ -108,9 +99,6 @@ cliOpts =
   , MkOpt [] ["model-fuel"]
       (ReqArg' parseModelFuel "<fuel>")
       "Sets how much fuel there is for generation of the model."
-  , MkOpt [] ["pp-fuel"]
-      (ReqArg' parsePPFuel "<fuel>")
-      "Sets how much fuel there is for pretty-printing."
   , MkOpt ['g'] ["gen"]
       (ReqArg' parseGen "<gen>")
       "Which generator to run: 'blocks' or 'exprs'."
@@ -125,14 +113,14 @@ runStatementsGen conf = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
     stmt <- genStatements conf.modelFuel conf.context
-    printGo conf.ppFuel conf.goNames stmt
+    wrapStatement stmt
 
 runExprsGen : {opts : _} -> Config -> (res : GoTypes) -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
     expr <- genExprs conf.modelFuel conf.context res
-    printExpr conf.ppFuel @{conf.goNames} expr
+    wrapExpr expr
 
 run : Config -> IO ()
 run conf = do
