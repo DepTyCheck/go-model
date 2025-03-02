@@ -24,4 +24,4 @@ GenOrderTuning "AnonFunc".dataCon where
 export
 GenOrderTuning "DeclareVar".dataCon where
   isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{newName}, `{na}, `{ty}, `{initial}]
+  deriveFirst _ _ = [`{na}, `{ty}, `{initial}]
