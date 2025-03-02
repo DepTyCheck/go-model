@@ -35,7 +35,7 @@ namespace GoType
       | GoBool
       | GoFunc FuncTy
       -- @WHEN ASSIGNABLE_ANY
-      | GoAny
+      -- @ | GoAny
       -- @END ASSIGNABLE_ANY
 
     public export
@@ -90,7 +90,7 @@ namespace Assignable
     AssignSame : forall t. Assignable1 t t
 
     -- @WHEN ASSIGNABLE_ANY
-    AssignToAny :  forall t. Assignable1 GoAny t
+    -- @ AssignToAny :  forall t. Assignable1 GoAny t
     -- @END ASSIGNABLE_ANY
 
   public export
@@ -235,10 +235,10 @@ namespace Expr
     MkBool : Bool -> Literal GoBool
 
   -- @WHEN EXTRA_BUILTINS
-  public export
-  data PrefixOp : (argTy, resTy : GoType) -> Type where
-    BoolNot : PrefixOp GoBool GoBool
-    IntNeg : PrefixOp GoInt GoInt
+  -- @ public export
+  -- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
+    -- @ BoolNot : PrefixOp GoBool GoBool
+    -- @ IntNeg : PrefixOp GoInt GoInt
   -- @END EXTRA_BUILTINS
 
   public export
@@ -246,21 +246,21 @@ namespace Expr
     IntAdd : InfixOp GoInt GoInt GoInt
 
     -- @WHEN EXTRA_BUILTINS
-    IntSub, IntMul : InfixOp GoInt GoInt GoInt
-    BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
-    IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+    -- @ IntSub, IntMul : InfixOp GoInt GoInt GoInt
+    -- @ BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+    -- @ IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
     -- @END EXTRA_BUILTINS
 
   public export
   data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
     -- @WHEN ASSIGNABLE_ANY
-    Print : BuiltinFunc [GoAny] []
+    -- @ Print : BuiltinFunc [GoAny] []
     -- @UNLESS ASSIGNABLE_ANY
-    -- @ Print : BuiltinFunc [GoInt] []
+    Print : BuiltinFunc [GoInt] []
     -- @END ASSIGNABLE_ANY
 
     -- @WHEN EXTRA_BUILTINS
-    Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
+    -- @ Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
     -- @END EXTRA_BUILTINS
 
   mutual
@@ -287,10 +287,10 @@ namespace Expr
                    Expr ctxt [resTy]
 
       -- @WHEN EXTRA_BUILTINS
-      ApplyPrefix : forall ctxt, resTy, argTy.
-                    (op : PrefixOp argTy resTy) ->
-                    (arg : Expr ctxt [argTy]) ->
-                    Expr ctxt [resTy]
+      -- @ ApplyPrefix : forall ctxt, resTy, argTy.
+                    -- @ (op : PrefixOp argTy resTy) ->
+                    -- @ (arg : Expr ctxt [argTy]) ->
+                    -- @ Expr ctxt [resTy]
       -- @END EXTRA_BUILTINS
 
       ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.

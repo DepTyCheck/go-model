@@ -109,7 +109,7 @@ printType (GoFunc $ MkFuncTy params rets) {opts} = do
   pure $ "func" <+> params <++> rets
 
 -- @WHEN ASSIGNABLE_ANY
-printType GoAny = pure "interface {}"
+-- @ printType GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
 
 
@@ -144,42 +144,42 @@ Show (Literal _) where
 
 
 -- @WHEN EXTRA_BUILTINS
-Show (PrefixOp _ _) where
-  show BoolNot = "!"
-  show IntNeg = "-"
+-- @ Show (PrefixOp _ _) where
+  -- @ show BoolNot = "!"
+  -- @ show IntNeg = "-"
 -- @END EXTRA_BUILTINS
 
 
 Show (InfixOp _ _ _) where
   show IntAdd = "+"
   -- @WHEN EXTRA_BUILTINS
-  show IntSub = "-"
-  show IntMul = "*"
-  show BoolAnd = "&&"
-  show BoolOr = "||"
-  show IntEq = "=="
-  show IntNE = "!="
-  show IntLt = "<"
-  show IntLE = "<="
-  show IntGt = ">"
-  show IntGE = ">="
+  -- @ show IntSub = "-"
+  -- @ show IntMul = "*"
+  -- @ show BoolAnd = "&&"
+  -- @ show BoolOr = "||"
+  -- @ show IntEq = "=="
+  -- @ show IntNE = "!="
+  -- @ show IntLt = "<"
+  -- @ show IntLE = "<="
+  -- @ show IntGt = ">"
+  -- @ show IntGE = ">="
   -- @END EXTRA_BUILTINS
 
 
 Show (BuiltinFunc _ _) where
   show Print = "print"
   -- @WHEN EXTRA_BUILTINS
-  show Max = "max"
-  show Min = "min"
+  -- @ show Max = "max"
+  -- @ show Min = "min"
   -- @END EXTRA_BUILTINS
 
 
 printExpr (GetLiteral lit) = pure $ line $ show lit
 
 -- @WHEN EXTRA_BUILTINS
-printExpr (ApplyPrefix op arg) = do
-  arg <- printExpr arg
-  pure $ "(" <+> line (show op) <+> arg <+> ")"
+-- @ printExpr (ApplyPrefix op arg) = do
+  -- @ arg <- printExpr arg
+  -- @ pure $ "(" <+> line (show op) <+> arg <+> ")"
 -- @END EXTRA_BUILTINS
 
 printExpr (ApplyInfix op lhv rhv) = do
