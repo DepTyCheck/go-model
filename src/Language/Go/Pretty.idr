@@ -54,6 +54,15 @@ printExpr : forall rets.
             Expr ctxt rets ->
             Printer
 
+-- @WHEN IF_STMTS
+export
+printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
+          (test : Expr ctxtTest [GoBool]) ->
+          (thenBranch : Statement ctxtThen) ->
+          (elseBranch : Statement ctxtElse) ->
+          Printer
+-- @END IF_STMTS
+
 export
 printStatement : {ctxt : Context} ->
                  Statement ctxt ->
@@ -90,8 +99,8 @@ printNoneOneOrList pp xs = do
   pure $ enclose "(" ")" items
 
 
-printType GoInt = pure $ line "int"
-printType GoBool = pure $ line "bool"
+printType GoInt = pure "int"
+printType GoBool = pure "bool"
 
 printType (GoFunc $ MkFuncTy params rets) {opts} = do
   params <- printTypeList params
@@ -100,7 +109,7 @@ printType (GoFunc $ MkFuncTy params rets) {opts} = do
   pure $ "func" <+> params <++> rets
 
 -- @WHEN ASSIGNABLE_ANY
--- @ printType GoAny = "interface {}"
+printType GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
 
 
@@ -135,42 +144,42 @@ Show (Literal _) where
 
 
 -- @WHEN EXTRA_BUILTINS
--- @ Show (PrefixOp _ _) where
-  -- @ show BoolNot = "!"
-  -- @ show IntNeg = "-"
+Show (PrefixOp _ _) where
+  show BoolNot = "!"
+  show IntNeg = "-"
 -- @END EXTRA_BUILTINS
 
 
 Show (InfixOp _ _ _) where
   show IntAdd = "+"
   -- @WHEN EXTRA_BUILTINS
-  -- @ show IntSub = "-"
-  -- @ show IntMul = "*"
-  -- @ show BoolAnd = "&&"
-  -- @ show BoolOr = "||"
-  -- @ show IntEq = "=="
-  -- @ show IntNE = "!="
-  -- @ show IntLt = "<"
-  -- @ show IntLE = "<="
-  -- @ show IntGt = ">"
-  -- @ show IntGE = ">="
+  show IntSub = "-"
+  show IntMul = "*"
+  show BoolAnd = "&&"
+  show BoolOr = "||"
+  show IntEq = "=="
+  show IntNE = "!="
+  show IntLt = "<"
+  show IntLE = "<="
+  show IntGt = ">"
+  show IntGE = ">="
   -- @END EXTRA_BUILTINS
 
 
 Show (BuiltinFunc _ _) where
   show Print = "print"
   -- @WHEN EXTRA_BUILTINS
-  -- @ show Max = "max"
-  -- @ show Min = "min"
+  show Max = "max"
+  show Min = "min"
   -- @END EXTRA_BUILTINS
 
 
 printExpr (GetLiteral lit) = pure $ line $ show lit
 
 -- @WHEN EXTRA_BUILTINS
--- @ printExpr (ApplyPrefix op arg) = do
-  -- @ arg <- printExpr arg
-  -- @ pure $ "(" <+> line (show op) <+> arg <+> ")"
+printExpr (ApplyPrefix op arg) = do
+  arg <- printExpr arg
+  pure $ "(" <+> line (show op) <+> arg <+> ")"
 -- @END EXTRA_BUILTINS
 
 printExpr (ApplyInfix op lhv rhv) = do
@@ -199,42 +208,32 @@ printExpr (AnonFunc {retTypes} paramBlock body) = do
               , "}"
               ]
 
--- printExpr fuel (GetVar decl) = printVar decl
-
--- printExpr fuel (CallNamed f args) = do
---   f <- printVar f
---   args <- printExpr fuel args
---   pure $ f <+> "(" <+> args <+> ")"
 
 printExpr (MultiVal vals) =
   printList (\(Evidence _ x) => assert_total printExpr x) (asList vals)
 
-  -- @WHEN IF_STMTS
-  -- @ printIf : (fuel : Fuel) ->
-            -- @ {ctxt, ctxtThen, ctxtElse : Context} ->
-            -- @ (knownNames : List String) =>
-            -- @ {opts : _} ->
-            -- @ (test : Expr ctxt [GoBool]) ->
-            -- @ (th : Statement ctxtThen) ->
-            -- @ (el : Statement ctxtElse) ->
-            -- @ Gen0 $ Doc opts
 
-  -- @ printIf fuel test th el = do
-    -- @ test' <- printExpr fuel test
-    -- @ th' <- assert_total printStatement fuel th
-    -- @ let skipElse = isEmpty el && !(chooseAnyOf Bool)
-    -- @ el' <- if skipElse
-             -- @ then pure empty
-             -- @ else do
-               -- @ body <- assert_total printStatement fuel el
-               -- @ pure $ "} else {" `vappend` indent' 4 body
-    -- @ let top = hangSep 0 ("if" <++> test') "{"
-    -- @ pure $ vsep [ top
-                -- @ , indent' 4 th'
-                -- @ , el'
-                -- @ , "}"
-                -- @ ]
-  -- @END IF_STMTS
+-- @WHEN IF_STMTS
+printIf test thenBranch elseBranch = do
+  test <- printExpr test
+  thenBranch <- assert_total printStatement thenBranch
+  let top = hangSep 0 ("if" <++> test) "{"
+  let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
+  if skipElse
+     then pure $ vsep [ top
+                      , indent' 4 thenBranch
+                      , "}"
+                      ]
+     else do
+       elseBranch <- assert_total printStatement elseBranch
+       pure $ vsep [ top
+                   , indent' 4 thenBranch
+                   , "} else {"
+                   , indent' 4 elseBranch
+                   , "}"
+                   ]
+-- @END IF_STMTS
+
 
 printStatement JustStop = pure ""
 
@@ -248,14 +247,14 @@ printStatement (VoidExpr expr cont) = do
   pure $ e `vappend` contText
 
 -- @WHEN IF_STMTS
--- @ printStatement fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
-  -- @ ifText <- printIf fuel test th el
-  -- @ contText <- printStatement fuel cont
-  -- @ pure $ ifText `vappend` contText
+printStatement (InnerIf test {isTermThen} {isTermElse} th el cont) = do
+  ifText <- printIf test th el
+  contText <- printStatement cont
+  pure $ ifText `vappend` contText
 
--- @ printStatement fuel (TermIf test th el) = do
-  -- @ ifText <- printIf fuel test th el
-  -- @ pure ifText
+printStatement (TermIf test th el) = do
+  ifText <- printIf test th el
+  pure ifText
 -- @END IF_STMTS
 
 printStatement (DeclareVar newName ty initial cont) = do

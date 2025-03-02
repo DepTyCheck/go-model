@@ -33,3 +33,9 @@ namespace Expr
            List (Exists $ Expr ctxt)
   asList {rets=[]} [] = []
   asList {rets=(t :: ts)} (e :: es) = (Evidence [t] e) :: asList es
+
+namespace Statement
+  export
+  isEmpty : forall ctxt. Statement ctxt -> Bool
+  isEmpty JustStop = True
+  isEmpty _ = False

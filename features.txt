@@ -1,10 +1,10 @@
 -- Use Assignable with interface {}
 -- Unless we don't have a way to construct a value of any type
 -- it will be slow for fuel >= 6
-- ASSIGNABLE_ANY
++ ASSIGNABLE_ANY
 
 -- Additional operators
-- EXTRA_BUILTINS
++ EXTRA_BUILTINS
 
 -- TermIf, InnerIf
-- IF_STMTS
++ IF_STMTS
