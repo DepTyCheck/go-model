@@ -42,7 +42,11 @@ defaultConfig = MkConfig
   , testsCnt   = 5
   , modelFuel  = limit 6
   , context    = defaultContext
-  , generator  = Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]
+  -- @WHEN GEN_STMT
+  , generator  = Exprs Statements
+  -- @UNLESS GEN_STMT
+  -- @ , generator  = Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]
+  -- @END GEN_STMT
   }
 
 parseSeed : String -> Either String $ Config -> Config

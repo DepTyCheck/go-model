@@ -8,3 +8,6 @@
 
 -- TermIf, InnerIf
 + IF_STMTS
+
+-- Generate whole statements
++ GEN_STMT

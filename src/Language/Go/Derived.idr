@@ -9,6 +9,8 @@ import Deriving.DepTyCheck.Gen
 
 %logging "deptycheck.derive" 15
 
--- Language.Go.genStatements = deriveGen
-
-Language.Go.Model.genExprs = deriveGen
+-- @WHEN GEN_STMT
+Language.Go.Model.genStatements = deriveGen
+-- @UNLESS GEN_STMT
+-- @ Language.Go.Model.genExprs = deriveGen
+-- @END GEN_STMT
