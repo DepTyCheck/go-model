@@ -170,20 +170,6 @@ namespace Declaration
             (na : NameAbsent rest head.name) =>
             ByType (head :: rest) ty decl
 
-  public export
-  data DeclareIn : (block : Block) ->
-                   (kind : Kind) ->
-                   (ty : GoType) ->
-                   (newName : GoName) ->
-                   (newBlock : Block) ->
-                   Type where
-    MkDeclareIn : forall block, kind, ty, newName.
-                  (na : NameAbsent block newName) =>
-                  DeclareIn block kind ty newName
-                            (Declare kind newName ty :: block)
-
-
-
 namespace Context
   public export
   record Context where
@@ -201,16 +187,11 @@ namespace Context
     }
 
   public export
-  data DeclareIn : (ctxt : Context) ->
-                   (kind : Kind) ->
-                   (ty : GoType) ->
-                   (newName : GoName) ->
-                   (newCtxt : Context) ->
-                   Type where
-    MkDeclareIn : forall ctxt, kind, ty, newName, newBlock.
-                  (di : DeclareIn ctxt.activeBlock kind ty newName newBlock) =>
-                  DeclareIn ctxt kind ty newName
-                            (MkContext newBlock ctxt.returns ctxt.shouldReturn)
+  PutDeclaration : (ctxt : Context) ->
+                   (decl : Declaration) ->
+                   (na : NameAbsent ctxt.activeBlock decl.name) =>
+                   Context
+  PutDeclaration ctxt decl = { activeBlock $= (::) decl } ctxt
 
 
 namespace Expr
@@ -328,12 +309,12 @@ namespace Statement
   public export
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.
+                 (newName : GoName) ->
+                 (na : NameAbsent ctxt.activeBlock newName) =>
                  (ty : GoType) ->
                  (initial : Expr ctxt [ty]) ->
-                 (newName : GoName) ->
-                 {newCtxt : Context} ->
-                 (d : DeclareIn ctxt Var ty newName newCtxt) =>
-                 (cont : Statement newCtxt) ->
+                 (cont : Statement $
+                         PutDeclaration ctxt (Declare Var newName ty)) ->
                  Statement ctxt
 
     JustStop : forall ctxt.

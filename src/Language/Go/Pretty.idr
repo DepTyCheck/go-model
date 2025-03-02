@@ -183,12 +183,12 @@ mutual
     -- @ pure ifText
   -- @END IF_STMTS
 
-  printStatement fuel (DeclareVar name ty initial {newCtxt} cont) = do
-    initValText <- pure "WTF" -- printExpr fuel initial
-    varText <- printVar (Declare Var name ty)
+  printStatement fuel (DeclareVar newName ty initial cont) = do
+    varText <- printVar (Declare Var newName ty)
+    initValText <- printExpr fuel initial
     let lineText = "var" <++> varText <++> "=" <++> initValText
     let lineText2 = "_" <++> "=" <++> varText
-    contText <- printStatement {ctxt = newCtxt} fuel cont
+    contText <- printStatement fuel cont
     pure $ (lineText `vappend` lineText2) `vappend` contText
 
 
