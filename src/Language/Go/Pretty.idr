@@ -208,6 +208,7 @@ printExpr (AnonFunc {retTypes} paramBlock body) = do
               , "}"
               ]
 
+printExpr (GetVar decl) = printVar decl
 
 printExpr (MultiVal vals) =
   printList (\(Evidence _ x) => assert_total printExpr x) (asList vals)
