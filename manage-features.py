@@ -32,8 +32,7 @@ line_pat = re.compile(r"(\s*)(\-\- @ )?(.*)")
 
 def parse_error(path: Path, line_no: int, msg: str) -> Never:
     raise RuntimeError(
-            f"Parse error at {path.as_posix()}, line {line_no}:\n"
-            f"    {msg}\n"
+        f"Parse error at {path.as_posix()}, line {line_no}:\n" f"    {msg}\n"
     )
 
 
@@ -59,9 +58,9 @@ def read_config(path: Path) -> Features:
 
 def update_error(path: Path, line_no: int, msg: str) -> Never:
     raise RuntimeError(
-            f"Error while updating {path.as_posix()}, line {line_no}:\n"
-            f"    {msg}\n"
+        f"Error while updating {path.as_posix()}, line {line_no}:\n" f"    {msg}\n"
     )
+
 
 @dataclass
 class Directive:
@@ -72,7 +71,7 @@ class Directive:
 def parse_line(line: str) -> Directive | None:
     if (m := directive_pat.fullmatch(line)) is not None:
         keyword_str, name = m.groups()
-        keyword: Literal["WHEN", "UNLESS", "END"] = keyword_str # type: ignore
+        keyword: Literal["WHEN", "UNLESS", "END"] = keyword_str  # type: ignore
         return Directive(keyword, name)
     return None
 
@@ -150,15 +149,14 @@ def traverse(root: Path, features: Features):
             file = dir / file
             update_file(Path(file), features)
 
+
 def main():
     here = Path.cwd()
     config = here / "features.txt"
     try:
         features = read_config(config)
     except FileNotFoundError:
-        raise RuntimeError(
-            "Can't find features.txt in the current directory"
-        ) from None
+        raise RuntimeError("Can't find features.txt in the current directory") from None
 
     if (src := here / "src").exists():
         traverse(src, features)
@@ -168,6 +166,7 @@ def main():
         update_file(ipkg, features)
     for toml in here.glob("*.toml"):
         update_file(toml, features)
+
 
 if __name__ == "__main__":
     main()
