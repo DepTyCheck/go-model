@@ -4,7 +4,7 @@ import Data.Alternative
 import Data.Fuel
 import Data.List
 
-import Language.Go
+import Language.Go.Model
 
 import Test.DepTyCheck.Gen
 

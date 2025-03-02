@@ -1,6 +1,6 @@
 module Language.Go.Derived.Tuning
 
-import Language.Go
+import Language.Go.Model
 
 import Deriving.DepTyCheck.Gen
 

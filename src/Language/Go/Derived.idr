@@ -1,6 +1,6 @@
 module Language.Go.Derived
 
-import public Language.Go
+import public Language.Go.Model
 import public Language.Go.Derived.Tuning
 
 import Deriving.DepTyCheck.Gen
@@ -11,4 +11,4 @@ import Deriving.DepTyCheck.Gen
 
 -- Language.Go.genStatements = deriveGen
 
-Language.Go.genExprs = deriveGen
+Language.Go.Model.genExprs = deriveGen
