@@ -92,7 +92,7 @@ parsePPFuel str = case parsePositive str of
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
   "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs [GoInt]}
+  "exprs" => Right {generator := Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]}
   _ => Left "Unknown generator <\{str}>"
 
 

@@ -33,6 +33,19 @@ printVar :  {opts : _} ->
             Gen0 $ Doc opts
 printVar (Declare kind name _) = pure $ line "\{show kind}\{show name}"
 
+printVarTy :  {opts : _} ->
+              (decl : Declaration) ->
+              Gen0 $ Doc opts
+printVarTy decl = pure $ !(printVar decl) <++> printTy decl.type
+
+printParams : {opts : _} ->
+              Block ->
+              Gen0 $ Doc opts
+printParams [] = pure ""
+printParams [p] = printVarTy p
+printParams (p :: ps) = pure $
+                 !(printVarTy p) <+> "," <++> !(printParams ps)
+
 Show (BuiltinFunc _ _) where
   show Print = "print"
   -- @WHEN EXTRA_BUILTINS
@@ -118,6 +131,15 @@ mutual
   printExpr fuel (CallBuiltin f arg) = do
     printFuncCall fuel (line $ show f) arg
 
+  printExpr fuel (AnonFunc {retTypes} paramBlock body) = do
+    params <- printParams paramBlock
+    body <- printStatement fuel body
+    let rets = printTyOrTypes retTypes
+    pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
+                , indent' 4 body
+                , "}"
+                ]
+
   -- printExpr fuel (GetVar decl) = printVar decl
 
   -- printExpr fuel (CallNamed f args) = do
@@ -156,10 +178,10 @@ mutual
 
   export
   printStatement : (fuel : Fuel) ->
-               {ctxt : Context} ->
-               (knownNames : List String) =>
-               {opts : _} ->
-               Statement ctxt -> Gen0 $ Doc opts
+                   {opts : _} ->
+                   {ctxt : Context} ->
+                   (knownNames : List String) =>
+                   Statement ctxt -> Gen0 $ Doc opts
 
   printStatement fuel JustStop = pure ""
 

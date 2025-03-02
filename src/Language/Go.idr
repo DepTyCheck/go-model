@@ -221,6 +221,15 @@ namespace Context
   PutBlock : Block -> Context -> Context
   PutBlock blk = { blocks $= MkBlockStack blk . Just }
 
+  public export
+  SetReturns : GoTypes -> Context -> Context
+  SetReturns rets = { shouldReturn := True, returns := rets }
+
+
+namespace Statement
+  public export
+  data Statement : (ctxt : Context) -> Type
+
 
 namespace Expr
   public export
@@ -268,6 +277,14 @@ namespace Expr
 
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
+      AnonFunc : forall ctxt, paramTypes.
+                 {retTypes : GoTypes} ->
+                 (paramBlock : Block) ->
+                 (pb : BlockOf paramTypes paramBlock) =>
+                 (body : Statement (SetReturns retTypes $
+                                    PutBlock paramBlock ctxt)) ->
+                 Expr ctxt [GoFunc $ MkFuncTy paramTypes retTypes]
+
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->
                    Expr ctxt [resTy]
@@ -334,7 +351,6 @@ namespace Statement
   data ShouldReturn : Context -> Type where
     MkShouldReturn : ShouldReturn (MkContext _ _ True)
 
-  public export
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.
                  (newName : GoName) ->

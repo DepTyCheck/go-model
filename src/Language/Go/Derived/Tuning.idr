@@ -17,6 +17,11 @@ GenOrderTuning "ApplyInfix".dataCon where
   deriveFirst _ _ = [`{op}]
 
 export
+GenOrderTuning "AnonFunc".dataCon where
+  isConstructor = itIsConstructor
+  deriveFirst _ _ = [`{pb}]
+
+export
 GenOrderTuning "DeclareVar".dataCon where
   isConstructor = itIsConstructor
   deriveFirst _ _ = [`{newName}, `{na}, `{ty}, `{initial}]
