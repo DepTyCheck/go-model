@@ -107,21 +107,11 @@ namespace Declaration
   public export
   data GoName = MkName Nat
 
-  export
-  Show GoName where
-    show (MkName n) = show n
-
   public export
   data Kind
     = Var
     | Const
     | Func
-
-  export
-  Show Kind where
-    show Var = "v"
-    show Const = "c"
-    show Func = "f"
 
   public export
   record Declaration where
