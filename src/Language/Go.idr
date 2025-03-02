@@ -331,21 +331,23 @@ namespace Statement
                (cont : Statement ctxt) ->
                Statement ctxt
 
-    InnerIf : forall ctxt.
-              (test : Expr ctxt [GoBool]) ->
-              {ctxtThen, ctxtElse : Context} ->
-              AllowInnerIf ctxt ctxtThen ctxtElse =>
-              (th : Statement ctxtThen) ->
-              (el : Statement ctxtElse) ->
-              (cont : Statement ctxt) ->
-              Statement ctxt
+    -- @WHEN IF_STMTS
+    -- @ InnerIf : forall ctxt.
+              -- @ (test : Expr ctxt [GoBool]) ->
+              -- @ {ctxtThen, ctxtElse : Context} ->
+              -- @ AllowInnerIf ctxt ctxtThen ctxtElse =>
+              -- @ (th : Statement ctxtThen) ->
+              -- @ (el : Statement ctxtElse) ->
+              -- @ (cont : Statement ctxt) ->
+              -- @ Statement ctxt
 
-    TermIf : forall ctxt.
-             ShouldReturn ctxt =>
-             (test : Expr ctxt [GoBool]) ->
-             (th : Statement ctxt) ->
-             (el : Statement ctxt) ->
-             Statement ctxt
+    -- @ TermIf : forall ctxt.
+             -- @ ShouldReturn ctxt =>
+             -- @ (test : Expr ctxt [GoBool]) ->
+             -- @ (th : Statement ctxt) ->
+             -- @ (el : Statement ctxt) ->
+             -- @ Statement ctxt
+    -- @END IF_STMTS
 
   export
   isEmpty : forall ctxt. Statement ctxt -> Bool

@@ -93,7 +93,10 @@ def update_line(line: str, new_status: Status) -> str:
         return f"{spaces}{text}"
     else:
         print("Comment out:", line)
-        return f"{spaces}-- @ {text}"
+        if text == "":
+            return line
+        else:
+            return f"{spaces}-- @ {text}"
 
 
 def update_file(path: Path, features: Features):

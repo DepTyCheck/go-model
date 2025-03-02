@@ -127,30 +127,32 @@ mutual
 
   printExpr fuel (MultiVal vals) = printValues fuel vals
 
-  printIf : (fuel : Fuel) ->
-            {ctxt, ctxtThen, ctxtElse : Context} ->
-            (knownNames : List String) =>
-            {opts : _} ->
-            (test : Expr ctxt [GoBool]) ->
-            (th : Statement ctxtThen) ->
-            (el : Statement ctxtElse) ->
-            Gen0 $ Doc opts
+  -- @WHEN IF_STMTS
+  -- @ printIf : (fuel : Fuel) ->
+            -- @ {ctxt, ctxtThen, ctxtElse : Context} ->
+            -- @ (knownNames : List String) =>
+            -- @ {opts : _} ->
+            -- @ (test : Expr ctxt [GoBool]) ->
+            -- @ (th : Statement ctxtThen) ->
+            -- @ (el : Statement ctxtElse) ->
+            -- @ Gen0 $ Doc opts
 
-  printIf fuel test th el = do
-    test' <- printExpr fuel test
-    th' <- assert_total printStatement fuel th
-    let skipElse = isEmpty el && !(chooseAnyOf Bool)
-    el' <- if skipElse
-             then pure empty
-             else do
-               body <- assert_total printStatement fuel el
-               pure $ "} else {" `vappend` indent' 4 body
-    let top = hangSep 0 ("if" <++> test') "{"
-    pure $ vsep [ top
-                , indent' 4 th'
-                , el'
-                , "}"
-                ]
+  -- @ printIf fuel test th el = do
+    -- @ test' <- printExpr fuel test
+    -- @ th' <- assert_total printStatement fuel th
+    -- @ let skipElse = isEmpty el && !(chooseAnyOf Bool)
+    -- @ el' <- if skipElse
+             -- @ then pure empty
+             -- @ else do
+               -- @ body <- assert_total printStatement fuel el
+               -- @ pure $ "} else {" `vappend` indent' 4 body
+    -- @ let top = hangSep 0 ("if" <++> test') "{"
+    -- @ pure $ vsep [ top
+                -- @ , indent' 4 th'
+                -- @ , el'
+                -- @ , "}"
+                -- @ ]
+  -- @END IF_STMTS
 
   export
   printStatement : (fuel : Fuel) ->
@@ -170,14 +172,16 @@ mutual
     contText <- printStatement fuel cont
     pure $ e `vappend` contText
 
-  printStatement fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
-    ifText <- printIf fuel test th el
-    contText <- printStatement fuel cont
-    pure $ ifText `vappend` contText
+  -- @WHEN IF_STMTS
+  -- @ printStatement fuel (InnerIf {ctxtThen} {ctxtElse} test th el cont) = do
+    -- @ ifText <- printIf fuel test th el
+    -- @ contText <- printStatement fuel cont
+    -- @ pure $ ifText `vappend` contText
 
-  printStatement fuel (TermIf test th el) = do
-    ifText <- printIf fuel test th el
-    pure ifText
+  -- @ printStatement fuel (TermIf test th el) = do
+    -- @ ifText <- printIf fuel test th el
+    -- @ pure ifText
+  -- @END IF_STMTS
 
   printStatement fuel (DeclareVar name ty initial {newCtxt} cont) = do
     initValText <- pure "WTF" -- printExpr fuel initial
