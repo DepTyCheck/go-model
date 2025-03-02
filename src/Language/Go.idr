@@ -170,6 +170,17 @@ namespace Declaration
             (na : NameAbsent rest head.name) =>
             ByType (head :: rest) ty decl
 
+  public export
+  data BlockOf : GoTypes -> Block -> Type where
+
+    BlockOfNil : BlockOf [] []
+
+    BlockOfCons : forall t, ts, tail.
+                  (tailCond : BlockOf ts tail) =>
+                  (newName : GoName) ->
+                  (na : NameAbsent tail newName) =>
+                  BlockOf (t :: ts) (Declare Var newName t :: tail)
+
 
 namespace BlockStack
   mutual
