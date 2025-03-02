@@ -199,17 +199,22 @@ namespace Expr
     MkInt : Nat -> Literal GoInt
     MkBool : Bool -> Literal GoBool
 
-  public export
-  data PrefixOp : (argTy, resTy : GoType) -> Type where
-    BoolNot : PrefixOp GoBool GoBool
-    IntNeg : PrefixOp GoInt GoInt
+  -- @WHEN EXTRA_BUILTINS
+  -- @ public export
+  -- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
+    -- @ BoolNot : PrefixOp GoBool GoBool
+    -- @ IntNeg : PrefixOp GoInt GoInt
+  -- @END EXTRA_BUILTINS
 
   public export
   data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
     IntAdd : InfixOp GoInt GoInt GoInt
-    IntSub, IntMul : InfixOp GoInt GoInt GoInt
-    BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
-    IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+
+    -- @WHEN EXTRA_BUILTINS
+    -- @ IntSub, IntMul : InfixOp GoInt GoInt GoInt
+    -- @ BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+    -- @ IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+    -- @END EXTRA_BUILTINS
 
   public export
   data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
@@ -218,7 +223,10 @@ namespace Expr
     -- @UNLESS ASSIGNABLE_ANY
     Print : BuiltinFunc [GoInt] []
     -- @END ASSIGNABLE_ANY
-    Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
+
+    -- @WHEN EXTRA_BUILTINS
+    -- @ Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
+    -- @END EXTRA_BUILTINS
 
   mutual
     public export
@@ -235,10 +243,12 @@ namespace Expr
                    (lit : Literal resTy) ->
                    Expr ctxt [resTy]
 
-      ApplyPrefix : forall ctxt, resTy, argTy.
-                    (op : PrefixOp argTy resTy) ->
-                    (arg : Expr ctxt [argTy]) ->
-                    Expr ctxt [resTy]
+      -- @WHEN EXTRA_BUILTINS
+      -- @ ApplyPrefix : forall ctxt, resTy, argTy.
+                    -- @ (op : PrefixOp argTy resTy) ->
+                    -- @ (arg : Expr ctxt [argTy]) ->
+                    -- @ Expr ctxt [resTy]
+      -- @END EXTRA_BUILTINS
 
       ApplyInfix : forall ctxt, resTy, lhvTy, rhvTy.
                    (op : InfixOp lhvTy rhvTy resTy) ->

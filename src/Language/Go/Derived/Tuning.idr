@@ -4,13 +4,14 @@ import Language.Go
 
 import Deriving.DepTyCheck.Gen
 
-export
-GenOrderTuning "ApplyPrefix".dataCon where
-  isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{op}]
+-- @WHEN EXTRA_BUILTINS
+-- @ export
+-- @ GenOrderTuning "ApplyPrefix".dataCon where
+  -- @ isConstructor = itIsConstructor
+  -- @ deriveFirst _ _ = [`{op}]
+-- @END EXTRA_BUILTINS
 
 export
 GenOrderTuning "ApplyInfix".dataCon where
   isConstructor = itIsConstructor
   deriveFirst _ _ = [`{op}]
-
