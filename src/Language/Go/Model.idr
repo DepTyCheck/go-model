@@ -183,6 +183,17 @@ namespace BlockStack
       top : Block
       rest : MaybeBlockStack
 
+  public export
+  data ByType : BlockStack -> GoType -> Declaration -> Type where
+    Here : forall blocks, ty, decl.
+           (bt : ByType blocks.top ty decl) =>
+           ByType blocks ty decl
+
+    There : forall top, rest, ty, decl.
+            (there : ByType rest ty decl) ->
+            (na : NameAbsent top decl.name) =>
+            ByType (MkBlockStack top (Just rest)) ty decl
+
 
 namespace Context
   public export
@@ -300,10 +311,10 @@ namespace Expr
       --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
       --             Expr ctxt retTypes
 
-      -- GetVar : forall ctxt, ty.
-      --          (decl : Declaration) ->
-      --          ByType ctxt.blocks ty decl =>
-      --          Expr ctxt [ty]
+      GetVar : forall ctxt, ty.
+               (decl : Declaration) ->
+               ByType ctxt.blocks ty decl =>
+               Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.
       --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
