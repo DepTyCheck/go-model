@@ -170,18 +170,31 @@ namespace Declaration
             (na : NameAbsent rest head.name) =>
             ByType (head :: rest) ty decl
 
+
+namespace BlockStack
+  mutual
+    public export
+    data MaybeBlockStack = Just BlockStack | Nothing
+
+    public export
+    record BlockStack where
+      constructor MkBlockStack
+      top : Block
+      rest : MaybeBlockStack
+
+
 namespace Context
   public export
   record Context where
     constructor MkContext
-    activeBlock : Block
+    blocks : BlockStack
     returns : GoTypes
     shouldReturn : Bool
 
   public export
   emptyContext : Context
   emptyContext = MkContext
-    { activeBlock = [Declare Var (MkName 10) GoInt]
+    { blocks = MkBlockStack [Declare Var (MkName 10) GoInt] Nothing
     , returns = [GoInt]
     , shouldReturn = True
     }
@@ -189,9 +202,13 @@ namespace Context
   public export
   PutDeclaration : (ctxt : Context) ->
                    (decl : Declaration) ->
-                   (na : NameAbsent ctxt.activeBlock decl.name) =>
+                   (na : NameAbsent ctxt.blocks.top decl.name) =>
                    Context
-  PutDeclaration ctxt decl = { activeBlock $= (::) decl } ctxt
+  PutDeclaration ctxt decl = { blocks.top $= (::) decl } ctxt
+
+  public export
+  PutBlock : Block -> Context -> Context
+  PutBlock blk = { blocks $= MkBlockStack blk . Just }
 
 
 namespace Expr
@@ -271,7 +288,7 @@ namespace Expr
 
       -- GetVar : forall ctxt, ty.
       --          (decl : Declaration) ->
-      --          ByType ctxt.activeBlock ty decl =>
+      --          ByType ctxt.blocks ty decl =>
       --          Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.
@@ -310,7 +327,7 @@ namespace Statement
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.
                  (newName : GoName) ->
-                 (na : NameAbsent ctxt.activeBlock newName) =>
+                 (na : NameAbsent ctxt.blocks.top newName) =>
                  (ty : GoType) ->
                  (initial : Expr ctxt [ty]) ->
                  (cont : Statement $
