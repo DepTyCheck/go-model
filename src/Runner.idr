@@ -40,10 +40,10 @@ defaultConfig = MkConfig
   { usedSeed = initSeed
   , layoutOpts = Opts 80
   , testsCnt   = 5
-  , modelFuel  = limit 6
+  , modelFuel  = limit 4
   , context    = defaultContext
   -- @WHEN GEN_STMT
-  , generator  = Exprs Statements
+  , generator  = Statements
   -- @UNLESS GEN_STMT
   -- @ , generator  = Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]
   -- @END GEN_STMT
