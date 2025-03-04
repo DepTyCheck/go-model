@@ -55,12 +55,12 @@ printExpr : forall rets.
             Printer
 
 -- @WHEN IF_STMTS
-export
-printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
-          (test : Expr ctxtTest [GoBool]) ->
-          (thenBranch : Statement ctxtThen) ->
-          (elseBranch : Statement ctxtElse) ->
-          Printer
+-- @ export
+-- @ printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
+          -- @ (test : Expr ctxtTest [GoBool]) ->
+          -- @ (thenBranch : Statement ctxtThen) ->
+          -- @ (elseBranch : Statement ctxtElse) ->
+          -- @ Printer
 -- @END IF_STMTS
 
 export
@@ -215,24 +215,24 @@ printExpr (MultiVal vals) =
 
 
 -- @WHEN IF_STMTS
-printIf test thenBranch elseBranch = do
-  test <- printExpr test
-  thenBranch <- assert_total printStatement thenBranch
-  let top = hangSep 0 ("if" <++> test) "{"
-  let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
-  if skipElse
-     then pure $ vsep [ top
-                      , indent' 4 thenBranch
-                      , "}"
-                      ]
-     else do
-       elseBranch <- assert_total printStatement elseBranch
-       pure $ vsep [ top
-                   , indent' 4 thenBranch
-                   , "} else {"
-                   , indent' 4 elseBranch
-                   , "}"
-                   ]
+-- @ printIf test thenBranch elseBranch = do
+  -- @ test <- printExpr test
+  -- @ thenBranch <- assert_total printStatement thenBranch
+  -- @ let top = hangSep 0 ("if" <++> test) "{"
+  -- @ let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
+  -- @ if skipElse
+     -- @ then pure $ vsep [ top
+                      -- @ , indent' 4 thenBranch
+                      -- @ , "}"
+                      -- @ ]
+     -- @ else do
+       -- @ elseBranch <- assert_total printStatement elseBranch
+       -- @ pure $ vsep [ top
+                   -- @ , indent' 4 thenBranch
+                   -- @ , "} else {"
+                   -- @ , indent' 4 elseBranch
+                   -- @ , "}"
+                   -- @ ]
 -- @END IF_STMTS
 
 
@@ -248,14 +248,14 @@ printStatement (VoidExpr expr cont) = do
   pure $ e `vappend` contText
 
 -- @WHEN IF_STMTS
-printStatement (InnerIf test {isTermThen} {isTermElse} th el cont) = do
-  ifText <- printIf test th el
-  contText <- printStatement cont
-  pure $ ifText `vappend` contText
+-- @ printStatement (InnerIf test {isTermThen} {isTermElse} th el cont) = do
+  -- @ ifText <- printIf test th el
+  -- @ contText <- printStatement cont
+  -- @ pure $ ifText `vappend` contText
 
-printStatement (TermIf test th el) = do
-  ifText <- printIf test th el
-  pure ifText
+-- @ printStatement (TermIf test th el) = do
+  -- @ ifText <- printIf test th el
+  -- @ pure ifText
 -- @END IF_STMTS
 
 printStatement (DeclareVar newName ty initial cont) = do

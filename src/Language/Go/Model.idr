@@ -85,22 +85,26 @@ namespace GoType
       decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
 namespace Assignable
-  public export
-  data Assignable1 : (lhv, rhv : GoType) -> Type where
-    AssignSame : forall t. Assignable1 t t
+  -- @WHEN ASSIGNABLE_ANY
+  -- @ public export
+  -- @ data Assignable1 : (lhv, rhv : GoType) -> Type where
+    -- @ AssignSame : forall t. Assignable1 t t
 
-    -- @WHEN ASSIGNABLE_ANY
     -- @ AssignToAny :  forall t. Assignable1 GoAny t
-    -- @END ASSIGNABLE_ANY
 
+  -- @ public export
+  -- @ data Assignable : (lhv, rhv : GoTypes) -> Type where
+    -- @ Nil : Assignable [] []
+
+    -- @ (::) : forall t1, t2, ts1, ts2.
+           -- @ (head : Assignable1 t1 t2) ->
+           -- @ (tail : Assignable ts1 ts2) ->
+           -- @ Assignable (t1 :: ts1) (t2 :: ts2)
+  -- @UNLESS ASSIGNABLE_ANY
   public export
   data Assignable : (lhv, rhv : GoTypes) -> Type where
-    Nil : Assignable [] []
-
-    (::) : forall t1, t2, ts1, ts2.
-           (head : Assignable1 t1 t2) ->
-           (tail : Assignable ts1 ts2) ->
-           Assignable (t1 :: ts1) (t2 :: ts2)
+    Refl : forall ts. Assignable ts ts
+  -- @END ASSIGNABLE_ANY
 
 
 namespace Declaration
@@ -343,13 +347,13 @@ namespace Statement
                                         types
 
   -- @WHEN IF_STMTS
-  public export
-  data AllowInnerIf : (isTermThen : Bool) ->
-                      (isTermElse : Bool) ->
-                      Type where
-    AllowInnerIfTT : AllowInnerIf True True
-    AllowInnerIfTF : AllowInnerIf True False
-    AllowInnerIfFT : AllowInnerIf False True
+  -- @ public export
+  -- @ data AllowInnerIf : (isTermThen : Bool) ->
+                      -- @ (isTermElse : Bool) ->
+                      -- @ Type where
+    -- @ AllowInnerIfTT : AllowInnerIf True True
+    -- @ AllowInnerIfTF : AllowInnerIf True False
+    -- @ AllowInnerIfFT : AllowInnerIf False True
   -- @END IF_STMTS
 
 
@@ -382,21 +386,21 @@ namespace Statement
                Statement ctxt
 
     -- @WHEN IF_STMTS
-    InnerIf : forall ctxt.
-              (test : Expr ctxt [GoBool]) ->
-              {isTermThen, isTermElse: Bool} ->
-              (ai : AllowInnerIf isTermThen isTermElse) =>
-              (th : Statement $ SetIsTerminating isTermThen ctxt) ->
-              (el : Statement $ SetIsTerminating isTermElse ctxt) ->
-              (cont : Statement ctxt) ->
-              Statement ctxt
+    -- @ InnerIf : forall ctxt.
+              -- @ (test : Expr ctxt [GoBool]) ->
+              -- @ {isTermThen, isTermElse: Bool} ->
+              -- @ (ai : AllowInnerIf isTermThen isTermElse) =>
+              -- @ (th : Statement $ SetIsTerminating isTermThen ctxt) ->
+              -- @ (el : Statement $ SetIsTerminating isTermElse ctxt) ->
+              -- @ (cont : Statement ctxt) ->
+              -- @ Statement ctxt
 
-    TermIf : forall ctxt.
-             IsTerminating ctxt =>
-             (test : Expr ctxt [GoBool]) ->
-             (th : Statement ctxt) ->
-             (el : Statement ctxt) ->
-             Statement ctxt
+    -- @ TermIf : forall ctxt.
+             -- @ IsTerminating ctxt =>
+             -- @ (test : Expr ctxt [GoBool]) ->
+             -- @ (th : Statement ctxt) ->
+             -- @ (el : Statement ctxt) ->
+             -- @ Statement ctxt
     -- @END IF_STMTS
 
 export
