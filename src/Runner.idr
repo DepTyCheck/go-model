@@ -45,7 +45,7 @@ defaultConfig = MkConfig
   -- @WHEN GEN_STMT
   , generator  = Statements
   -- @UNLESS GEN_STMT
-  -- @ , generator  = Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]
+  -- @ , generator  = Exprs [GoFunc [GoInt, GoInt] [GoBool]]
   -- @END GEN_STMT
   }
 
@@ -85,7 +85,7 @@ parseModelFuel str = case parsePositive str of
 parseGen : String -> Either String $ Config -> Config
 parseGen str = case str of
   "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs [GoFunc $ MkFuncTy [GoInt, GoInt] [GoBool]]}
+  "exprs" => Right {generator := Exprs [GoFunc [GoInt, GoInt] [GoBool]]}
   _ => Left "Unknown generator <\{str}>"
 
 

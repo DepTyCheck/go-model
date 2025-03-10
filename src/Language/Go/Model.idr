@@ -18,12 +18,6 @@ import Test.DepTyCheck.Gen
 
 namespace GoType
   mutual
-    public export
-    record FuncTy where
-      constructor MkFuncTy
-      arguments: GoTypes
-      returns: GoTypes
-
     ||| Types from Go Language
     |||
     ||| GoInt <-> int
@@ -33,7 +27,7 @@ namespace GoType
     data GoType
       = GoInt
       | GoBool
-      | GoFunc FuncTy
+      | GoFunc GoTypes GoTypes
       -- @WHEN ASSIGNABLE_ANY
       -- @ | GoAny
       -- @END ASSIGNABLE_ANY
@@ -65,17 +59,8 @@ namespace GoType
   Injective GoType.GoFunc where
     injective Refl = Refl
 
-  export
-  Biinjective GoType.MkFuncTy where
-    biinjective Refl = (Refl, Refl)
-
   mutual
     %runElab derive "GoType" [Generic, DecEq]
-
-    export
-    DecEq FuncTy where
-      decEq (MkFuncTy a1 r1) (MkFuncTy a2 r2) =
-        assert_total decEqCong2 (decEq a1 a2) (decEq r1 r2)
 
     export
     DecEq GoTypes where
@@ -167,7 +152,7 @@ namespace Declaration
   data ByRet : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
     Here' : forall kind, name, args, rets, rest.
             (na : NameAbsent rest name) =>
-            ByRet (Declare kind name (GoFunc $ MkFuncTy args rets) :: rest)
+            ByRet (Declare kind name (GoFunc args rets) :: rest)
                   kind name args rets
 
     There' : forall kind, name, args, rets, rest, hKind, hName, hTy.
@@ -306,7 +291,7 @@ namespace Expr
                  (pb : BlockOf paramTypes paramBlock) =>
                  (body : Statement (SetReturns retTypes $
                                     PutBlock paramBlock ctxt)) ->
-                 Expr ctxt [GoFunc $ MkFuncTy paramTypes retTypes]
+                 Expr ctxt [GoFunc paramTypes retTypes]
 
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->

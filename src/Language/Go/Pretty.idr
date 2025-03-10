@@ -108,7 +108,7 @@ printNoneOneOrList pp xs = do
 printType GoInt = pure "int"
 printType GoBool = pure "bool"
 
-printType (GoFunc $ MkFuncTy params rets) {opts} = do
+printType (GoFunc params rets) {opts} = do
   params <- printTypeList params
   let params = enclose "(" ")" params
   rets <- printNoneOneOrList (assert_total printType) (asList rets)
