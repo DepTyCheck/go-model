@@ -352,13 +352,12 @@ namespace Statement
     StopWhenReturnNone : AllowJustStop (MkContext { returns = [], _ })
 
   public export
-  data AllowReturn : Context -> GoTypes -> Type where
-    ReturnFromTerminating : forall types.
-                            AllowReturn (MkContext { isTerminating = True
-                                                   , returns = types
-                                                   , _
-                                                   })
-                                        types
+  data IsTerminating : Context -> (ret : GoTypes) -> Type where
+    MkIsTerminating : forall ret.
+                      IsTerminating (MkContext { isTerminating = True
+                                               , returns = ret
+                                               , _ })
+                                    ret
 
   -- @WHEN IF_STMTS
   -- @ public export
@@ -369,11 +368,6 @@ namespace Statement
     -- @ AllowInnerIfTF : AllowInnerIf True False
     -- @ AllowInnerIfFT : AllowInnerIf False True
   -- @END IF_STMTS
-
-
-  public export
-  data IsTerminating : Context -> Type where
-    MkIsTerminating : IsTerminating (MkContext { isTerminating = True, _ })
 
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.
@@ -389,10 +383,14 @@ namespace Statement
                AllowJustStop ctxt =>
                Statement ctxt
 
-    Return : forall ctxt, rets.
-             AllowReturn ctxt rets =>
-             (res : Expr ctxt rets) ->
-             Statement ctxt
+    ReturnValue : forall ctxt, ret, rets.
+                  IsTerminating ctxt (ret :: rets) =>
+                  (res : Expr ctxt (ret :: rets)) ->
+                  Statement ctxt
+
+    ReturnNone : forall ctxt.
+                 IsTerminating ctxt [] =>
+                 Statement ctxt
 
     VoidExpr : forall ctxt.
                (expr : Expr ctxt []) ->
@@ -409,8 +407,8 @@ namespace Statement
               -- @ (cont : Statement ctxt) ->
               -- @ Statement ctxt
 
-    -- @ TermIf : forall ctxt.
-             -- @ IsTerminating ctxt =>
+    -- @ TermIf : forall ctxt, ret.
+             -- @ IsTerminating ctxt ret =>
              -- @ (test : Expr ctxt [GoBool]) ->
              -- @ (th : Statement ctxt) ->
              -- @ (el : Statement ctxt) ->

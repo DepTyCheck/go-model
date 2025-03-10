@@ -256,9 +256,12 @@ printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 
 printStatement JustStop = pure ""
 
-printStatement (Return res) = do
+printStatement (ReturnValue res) = do
   resText <- printExpr res
   pure $ "return" <++> resText
+
+printStatement ReturnNone = do
+  pure $ "return"
 
 printStatement (VoidExpr expr cont) = do
   e <- printExpr expr
