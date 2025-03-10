@@ -9,8 +9,8 @@ type = "local"
 path = "test"
 ipkg = "test.ipkg"
 
-# [custom.all.deptycheck]
-# type = "github"
-# url = "https://github.com/buzden/deptycheck"
-# commit = "latest:order-experim"
-# ipkg = "deptycheck.ipkg"
+[custom.all.deptycheck]
+type = "github"
+url = "https://github.com/buzden/deptycheck"
+commit = "latest:master"
+ipkg = "deptycheck.ipkg"

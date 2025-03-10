@@ -152,17 +152,16 @@ namespace Declaration
       headName /= newName && isNameAbsent tail newName
 
   public export
-  data ByType : Block -> GoType -> Declaration -> Type where
+  data Query : Block -> Kind -> GoName -> GoType -> Type where
     Here : forall kind, name, ty, rest.
            (na : NameAbsent rest name) =>
-           ByType (Declare kind name ty :: rest)
-                  ty
-                  (Declare kind name ty)
+           Query (Declare kind name ty :: rest)
+                 kind name ty
 
-    There : forall decl, ty, head, rest.
-            (there : ByType rest ty decl) ->
-            (na : NameAbsent rest head.name) =>
-            ByType (head :: rest) ty decl
+    There : forall kind, name, ty, rest, hKind, hName, hTy.
+            (there : Query rest kind name ty) ->
+            (na : NameAbsent rest hName) =>
+            Query (Declare hKind hName hTy :: rest) kind name ty
 
   public export
   data BlockOf : GoTypes -> Block -> Type where
@@ -188,15 +187,15 @@ namespace BlockStack
       rest : MaybeBlockStack
 
   public export
-  data ByType : BlockStack -> GoType -> Declaration -> Type where
-    Here : forall blocks, ty, decl.
-           (bt : ByType blocks.top ty decl) =>
-           ByType blocks ty decl
+  data Query : BlockStack -> Kind -> GoName -> GoType -> Type where
+    Here : forall blocks, kind, name, ty.
+           (bt : Query blocks.top kind name ty) =>
+           Query blocks kind name ty
 
-    There : forall top, rest, ty, decl.
-            (there : ByType rest ty decl) ->
-            (na : NameAbsent top decl.name) =>
-            ByType (MkBlockStack top (Just rest)) ty decl
+    There : forall top, rest, kind, name, ty.
+            (there : Query rest kind name ty) ->
+            (na : NameAbsent top name) =>
+            Query (MkBlockStack top (Just rest)) kind name ty
 
 
 namespace Context
@@ -315,10 +314,12 @@ namespace Expr
       --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
       --             Expr ctxt retTypes
 
-      GetVar : forall ctxt, ty.
-               (decl : Declaration) ->
-               ByType ctxt.blocks ty decl =>
-               Expr ctxt [ty]
+      GetDecl : forall ctxt.
+                (kind : Kind) ->
+                (name : GoName) ->
+                (ty : GoType) ->
+                Query ctxt.blocks kind name ty =>
+                Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.
       --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
