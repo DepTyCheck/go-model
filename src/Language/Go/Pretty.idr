@@ -210,8 +210,9 @@ printExpr (AnonFunc {retTypes} paramBlock body) = do
 
 printExpr (GetDecl kind name ty) = printVar (Declare kind name ty)
 
-printExpr (MultiVal vals) =
-  printList (\(Evidence _ x) => assert_total printExpr x) (asList vals)
+printExpr (Comma a b rest) =
+  printList (\(Evidence _ x) => assert_total printExpr x)
+            (Evidence _ a :: Evidence _ b :: asList rest)
 
 
 -- @WHEN IF_STMTS

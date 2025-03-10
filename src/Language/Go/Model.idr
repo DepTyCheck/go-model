@@ -326,10 +326,13 @@ namespace Expr
       --            (args : Expr ctxt argTypes) ->
       --            Expr ctxt retTypes
 
-      MultiVal : forall ctxt.
-                 {rets : GoTypes} ->
-                 (vals : ExprList ctxt rets) ->
-                 Expr ctxt rets
+      Comma : forall ctxt.
+              {aTy, bTy : GoType} ->
+              {restTypes : GoTypes} ->
+              (a : Expr ctxt [aTy]) ->
+              (b : Expr ctxt [bTy]) ->
+              (rest : ExprList ctxt restTypes) ->
+              Expr ctxt (aTy :: bTy :: restTypes)
 
 
 namespace Statement
