@@ -152,16 +152,28 @@ namespace Declaration
       headName /= newName && isNameAbsent tail newName
 
   public export
-  data Query : Block -> Kind -> GoName -> GoType -> Type where
+  data ByType : Block -> Kind -> GoName -> GoType -> Type where
     Here : forall kind, name, ty, rest.
            (na : NameAbsent rest name) =>
-           Query (Declare kind name ty :: rest)
+           ByType (Declare kind name ty :: rest)
                  kind name ty
 
     There : forall kind, name, ty, rest, hKind, hName, hTy.
-            (there : Query rest kind name ty) ->
+            (there : ByType rest kind name ty) ->
             (na : NameAbsent rest hName) =>
-            Query (Declare hKind hName hTy :: rest) kind name ty
+            ByType (Declare hKind hName hTy :: rest) kind name ty
+
+  public export
+  data ByRet : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
+    Here' : forall kind, name, args, rets, rest.
+            (na : NameAbsent rest name) =>
+            ByRet (Declare kind name (GoFunc $ MkFuncTy args rets) :: rest)
+                  kind name args rets
+
+    There' : forall kind, name, args, rets, rest, hKind, hName, hTy.
+             (there : ByRet rest kind name args rets) ->
+             (na : NameAbsent rest hName) =>
+             ByRet (Declare hKind hName hTy :: rest) kind name args rets
 
   public export
   data BlockOf : GoTypes -> Block -> Type where
@@ -187,15 +199,26 @@ namespace BlockStack
       rest : MaybeBlockStack
 
   public export
-  data Query : BlockStack -> Kind -> GoName -> GoType -> Type where
+  data ByType : BlockStack -> Kind -> GoName -> GoType -> Type where
     Here : forall blocks, kind, name, ty.
-           (bt : Query blocks.top kind name ty) =>
-           Query blocks kind name ty
+           (bt : ByType blocks.top kind name ty) =>
+           ByType blocks kind name ty
 
     There : forall top, rest, kind, name, ty.
-            (there : Query rest kind name ty) ->
+            (there : ByType rest kind name ty) ->
             (na : NameAbsent top name) =>
-            Query (MkBlockStack top (Just rest)) kind name ty
+            ByType (MkBlockStack top (Just rest)) kind name ty
+
+  public export
+  data ByRet : BlockStack -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
+    Here' : forall blocks, kind, name, args, rets.
+            (bt : ByRet blocks.top kind name args rets) =>
+            ByRet blocks kind name args rets
+
+    There' : forall top, rest, kind, name, args, rets.
+             (there : ByRet rest kind name args rets) ->
+             (na : NameAbsent top name) =>
+             ByRet (MkBlockStack top (Just rest)) kind name args rets
 
 
 namespace Context
@@ -308,17 +331,19 @@ namespace Expr
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
-      -- CallNamed : forall ctxt, retTypes.
-      --             (idx : Fin ctxt.depth) ->
-      --             (isFunc : DefReturns ctxt.declarations idx retTypes) =>
-      --             (params : Expr ctxt (ParamTypes ctxt.declarations idx {isFunc = isFunc})) ->
-      --             Expr ctxt retTypes
+      CallNamed : forall ctxt, retTypes.
+                  (kind : Kind) ->
+                  (name : GoName) ->
+                  (argTypes : GoTypes) ->
+                  (br : ByRet ctxt.blocks kind name argTypes retTypes) =>
+                  (args : ExprList ctxt argTypes) ->
+                  Expr ctxt retTypes
 
       GetDecl : forall ctxt.
                 (kind : Kind) ->
                 (name : GoName) ->
                 (ty : GoType) ->
-                Query ctxt.blocks kind name ty =>
+                ByType ctxt.blocks kind name ty =>
                 Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.

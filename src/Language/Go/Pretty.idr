@@ -40,13 +40,19 @@ export
 printTypeList : GoTypes -> Printer
 
 export
-printVar : {default False typed : Bool} -> Declaration -> Printer
+printName : Kind -> GoName -> Printer
 
 export
-printVarList : {default False typed : Bool} -> Block -> Printer
+printDecl : {default False typed : Bool} -> Declaration -> Printer
+
+export
+printDeclList : {default False typed : Bool} -> Block -> Printer
 
 export
 funcCall : {opts : _} -> (f, args : Doc opts) -> Doc opts
+
+export
+printExprList : forall ts. {ctxt : Context} -> ExprList ctxt ts -> Printer
 
 export
 printExpr : forall rets.
@@ -116,13 +122,17 @@ printType (GoFunc $ MkFuncTy params rets) {opts} = do
 printTypeList ts = printList (assert_total printType) (asList ts)
 
 
-printVar {typed} (Declare kind (MkName n) ty) {opts} = do
+printName kind (MkName n) = do
   let pre = case kind of
                  Var => "v"
                  Const => "c"
                  Func => "f"
   let suffix = show n
-  let name = line {opts} $ pre ++ suffix
+  pure $ line $ pre ++ suffix
+
+
+printDecl {typed} (Declare kind name ty) {opts} = do
+  name <- printName kind name {opts}
   if typed
      then do
        ty <- printType ty
@@ -131,10 +141,14 @@ printVar {typed} (Declare kind (MkName n) ty) {opts} = do
        pure name
 
 
-printVarList {typed} vs = printList (printVar {typed}) (asList vs)
+printDeclList {typed} vs = printList (printDecl {typed}) (asList vs)
 
 
 funcCall f args = f <+> "(" <+> args <+> ")"
+
+
+printExprList es =
+  printList (\(Evidence _ x) => assert_total printExpr x) (asList es)
 
 
 Show (Literal _) where
@@ -192,7 +206,7 @@ printExpr (CallBuiltin f args) = do
   pure $ funcCall (line $ show f) args
 
 printExpr (AnonFunc {retTypes} paramBlock body) = do
-  params <- printVarList {typed = True} paramBlock
+  params <- printDeclList {typed = True} paramBlock
   body <- printStatement body
   rets <- printNoneOneOrList printType (asList retTypes)
   let holes = map (const "_") $ asList paramBlock
@@ -200,7 +214,7 @@ printExpr (AnonFunc {retTypes} paramBlock body) = do
               [] => pure ""
               _  => do
                 holes <- printList (\h => pure $ line h) holes
-                vars <- printVarList {typed = False} paramBlock
+                vars <- printDeclList {typed = False} paramBlock
                 pure $ holes <++> "=" <++> vars
   pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
               , indent' 4 use
@@ -208,11 +222,14 @@ printExpr (AnonFunc {retTypes} paramBlock body) = do
               , "}"
               ]
 
-printExpr (GetDecl kind name ty) = printVar (Declare kind name ty)
+printExpr (CallNamed kind name _ args) = do
+  args <- printExprList args
+  fn <- printName kind name
+  pure $ funcCall fn args
 
-printExpr (Comma a b rest) =
-  printList (\(Evidence _ x) => assert_total printExpr x)
-            (Evidence _ a :: Evidence _ b :: asList rest)
+printExpr (GetDecl kind name _) = printName kind name
+
+printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 
 
 -- @WHEN IF_STMTS
@@ -260,7 +277,7 @@ printStatement (VoidExpr expr cont) = do
 -- @END IF_STMTS
 
 printStatement (DeclareVar newName ty initial cont) = do
-  var <- printVar (Declare Var newName ty)
+  var <- printDecl (Declare Var newName ty)
   initial <- printExpr initial
   let decl = "var" <++> var <++> "=" <++> initial
   let use = "_" <++> "=" <++> var
@@ -273,7 +290,7 @@ printStatement (DeclareVar newName ty initial cont) = do
 
 wrapStatement {ctxt} stmt = do
   ret <- printTypeList ctxt.returns
-  args <- printVarList {typed = True} ctxt.blocks.top
+  args <- printDeclList {typed = True} ctxt.blocks.top
   stmt <- printStatement stmt
   pure $ vsep [ "package main"
               , ""
@@ -287,7 +304,7 @@ wrapStatement {ctxt} stmt = do
 
 
 wrapExpr {ctxt} expr = do
-  args <- printVarList {typed = True} ctxt.blocks.top
+  args <- printDeclList {typed = True} ctxt.blocks.top
   expr <- printExpr expr
   let store = "temp :=" <++> expr
   pure $ vsep [ "package main"

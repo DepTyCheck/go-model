@@ -27,8 +27,7 @@ namespace Declaration
 
 namespace Expr
   export
-  asList : forall ctxt.
-           {0 rets : GoTypes} ->
+  asList : forall ctxt, rets.
            (ExprList ctxt rets) ->
            List (Exists $ Expr ctxt)
   asList {rets=[]} [] = []
