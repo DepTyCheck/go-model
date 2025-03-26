@@ -12,5 +12,5 @@ ipkg = "test.ipkg"
 [custom.all.deptycheck]
 type = "github"
 url = "https://github.com/buzden/deptycheck"
-commit = "latest:master"
+commit = "fetch-latest:master"
 ipkg = "deptycheck.ipkg"
