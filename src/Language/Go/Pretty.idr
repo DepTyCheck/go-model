@@ -229,7 +229,7 @@ printExpr (CallNamed kind name _ args) = do
 
 printExpr (GetDecl kind name _) = printName kind name
 
-printExpr (Comma a b rest) = printExprList (a :: b :: rest)
+-- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 
 
 -- @WHEN IF_STMTS

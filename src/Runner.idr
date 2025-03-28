@@ -40,7 +40,7 @@ defaultConfig = MkConfig
   { usedSeed = initSeed
   , layoutOpts = Opts 80
   , testsCnt   = 5
-  , modelFuel  = limit 5
+  , modelFuel  = limit 3
   , context    = defaultContext
   -- @WHEN GEN_STMT
   , generator  = Statements

@@ -137,28 +137,27 @@ namespace Declaration
       headName /= newName && isNameAbsent tail newName
 
   public export
-  data ByType : Block -> Kind -> GoName -> GoType -> Type where
-    Here : forall kind, name, ty, rest.
-           (na : NameAbsent rest name) =>
-           ByType (Declare kind name ty :: rest)
-                 kind name ty
+  data ByTypeB : Block -> Kind -> GoName -> GoType -> Type where
+    HereB : forall kind, name, ty, rest.
+            (na : NameAbsent rest name) =>
+            ByTypeB (Declare kind name ty :: rest) kind name ty
 
-    There : forall kind, name, ty, rest, hKind, hName, hTy.
-            (there : ByType rest kind name ty) ->
-            (na : NameAbsent rest hName) =>
-            ByType (Declare hKind hName hTy :: rest) kind name ty
+    ThereB : forall kind, name, ty, rest, hKind, hName, hTy.
+             (there : ByTypeB rest kind name ty) ->
+             (na : NameAbsent rest hName) =>
+             ByTypeB (Declare hKind hName hTy :: rest) kind name ty
 
   public export
-  data ByRet : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
-    Here' : forall kind, name, args, rets, rest.
-            (na : NameAbsent rest name) =>
-            ByRet (Declare kind name (GoFunc args rets) :: rest)
-                  kind name args rets
+  data ByRetB : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
+    HereB' : forall kind, name, args, rets, rest.
+             (na : NameAbsent rest name) =>
+             ByRetB (Declare kind name (GoFunc args rets) :: rest)
+                   kind name args rets
 
-    There' : forall kind, name, args, rets, rest, hKind, hName, hTy.
-             (there : ByRet rest kind name args rets) ->
-             (na : NameAbsent rest hName) =>
-             ByRet (Declare hKind hName hTy :: rest) kind name args rets
+    ThereB' : forall kind, name, args, rets, rest, hKind, hName, hTy.
+              (there : ByRetB rest kind name args rets) ->
+              (na : NameAbsent rest hName) =>
+              ByRetB (Declare hKind hName hTy :: rest) kind name args rets
 
   public export
   data BlockOf : GoTypes -> Block -> Type where
@@ -184,26 +183,26 @@ namespace BlockStack
       rest : MaybeBlockStack
 
   public export
-  data ByType : BlockStack -> Kind -> GoName -> GoType -> Type where
-    Here : forall blocks, kind, name, ty.
-           (bt : ByType blocks.top kind name ty) =>
-           ByType blocks kind name ty
+  data ByTypeS : BlockStack -> Kind -> GoName -> GoType -> Type where
+    HereS : forall blocks, kind, name, ty.
+            (bt : ByTypeB blocks.top kind name ty) =>
+            ByTypeS blocks kind name ty
 
-    There : forall top, rest, kind, name, ty.
-            (there : ByType rest kind name ty) ->
-            (na : NameAbsent top name) =>
-            ByType (MkBlockStack top (Just rest)) kind name ty
+    ThereS : forall top, rest, kind, name, ty.
+             (there : ByTypeS rest kind name ty) ->
+             (na : NameAbsent top name) =>
+             ByTypeS (MkBlockStack top (Just rest)) kind name ty
 
   public export
-  data ByRet : BlockStack -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
-    Here' : forall blocks, kind, name, args, rets.
-            (bt : ByRet blocks.top kind name args rets) =>
-            ByRet blocks kind name args rets
+  data ByRetS : BlockStack -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
+    HereS' : forall blocks, kind, name, args, rets.
+             (bt : ByRetB blocks.top kind name args rets) =>
+             ByRetS blocks kind name args rets
 
-    There' : forall top, rest, kind, name, args, rets.
-             (there : ByRet rest kind name args rets) ->
-             (na : NameAbsent top name) =>
-             ByRet (MkBlockStack top (Just rest)) kind name args rets
+    ThereS' : forall top, rest, kind, name, args, rets.
+              (there : ByRetS rest kind name args rets) ->
+              (na : NameAbsent top name) =>
+              ByRetS (MkBlockStack top (Just rest)) kind name args rets
 
 
 namespace Context
@@ -320,7 +319,7 @@ namespace Expr
                   (kind : Kind) ->
                   (name : GoName) ->
                   (argTypes : GoTypes) ->
-                  (br : ByRet ctxt.blocks kind name argTypes retTypes) =>
+                  (br : ByRetS ctxt.blocks kind name argTypes retTypes) =>
                   (args : ExprList ctxt argTypes) ->
                   Expr ctxt retTypes
 
@@ -328,7 +327,7 @@ namespace Expr
                 (kind : Kind) ->
                 (name : GoName) ->
                 (ty : GoType) ->
-                ByType ctxt.blocks kind name ty =>
+                (bt : ByTypeS ctxt.blocks kind name ty) =>
                 Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.
@@ -336,13 +335,13 @@ namespace Expr
       --            (args : Expr ctxt argTypes) ->
       --            Expr ctxt retTypes
 
-      Comma : forall ctxt.
-              {aTy, bTy : GoType} ->
-              {restTypes : GoTypes} ->
-              (a : Expr ctxt [aTy]) ->
-              (b : Expr ctxt [bTy]) ->
-              (rest : ExprList ctxt restTypes) ->
-              Expr ctxt (aTy :: bTy :: restTypes)
+      -- Comma : forall ctxt.
+      --         {aTy, bTy : GoType} ->
+      --         {restTypes : GoTypes} ->
+      --         (a : Expr ctxt [aTy]) ->
+      --         (b : Expr ctxt [bTy]) ->
+      --         (rest : ExprList ctxt restTypes) ->
+      --         Expr ctxt (aTy :: bTy :: restTypes)
 
 
 namespace Statement
@@ -352,12 +351,21 @@ namespace Statement
     StopWhenReturnNone : AllowJustStop (MkContext { returns = [], _ })
 
   public export
-  data IsTerminating : Context -> (ret : GoTypes) -> Type where
-    MkIsTerminating : forall ret.
-                      IsTerminating (MkContext { isTerminating = True
-                                               , returns = ret
-                                               , _ })
-                                    ret
+  data AllowReturnValue : Context -> Type where
+    MkAllowRetrunValue : forall ret, rets.
+                         AllowReturnValue (MkContext
+                                          { isTerminating = True
+                                          , returns = ret :: rets
+                                          , _
+                                          })
+
+  public export
+  data AllowReturnNone : Context -> Type where
+    MkAllowRetrunNone : AllowReturnNone (MkContext
+                                        { isTerminating = True
+                                        , returns = []
+                                        , _
+                                        })
 
   -- @WHEN IF_STMTS
   -- @ public export
@@ -380,16 +388,16 @@ namespace Statement
                  Statement ctxt
 
     JustStop : forall ctxt.
-               AllowJustStop ctxt =>
+               (a : AllowJustStop ctxt) =>
                Statement ctxt
 
-    ReturnValue : forall ctxt, ret, rets.
-                  IsTerminating ctxt (ret :: rets) =>
-                  (res : Expr ctxt (ret :: rets)) ->
+    ReturnValue : forall ctxt.
+                  (a : AllowReturnValue ctxt) =>
+                  (res : Expr ctxt ctxt.returns) ->
                   Statement ctxt
 
     ReturnNone : forall ctxt.
-                 IsTerminating ctxt [] =>
+                 (a : AllowReturnNone ctxt) =>
                  Statement ctxt
 
     VoidExpr : forall ctxt.
