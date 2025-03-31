@@ -127,8 +127,7 @@ printName kind (MkName n) = do
                  Var => "v"
                  Const => "c"
                  Func => "f"
-  let suffix = show n
-  pure $ line $ pre ++ suffix
+  pure $ line $ pre <+> show n
 
 
 printDecl {typed} (Declare kind name ty) {opts} = do

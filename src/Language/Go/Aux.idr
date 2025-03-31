@@ -1,19 +1,36 @@
 module Language.Go.Aux
 
 import Data.DPair
+import Data.Maybe
+import Data.So
 
 import Language.Go.Model
 
 
 export
+extendBlock : Declaration -> Block -> Maybe Block
+extendBlock decl blk =
+  case choose $ isNameAbsent blk decl.name of
+     Left _ => Just $ decl :: blk
+     Right _ => Nothing
+
+
+export
+defaultBlock : Block
+defaultBlock =
+  let name = MkName 42 in
+  let _ = Wrap Oh in
+  [Declare Var name (GoFunc [GoInt, GoInt] [GoBool])]
+
+export
 defaultBlocks : BlockStack
-defaultBlocks = MkBlockStack [] Nothing
+defaultBlocks = MkBlockStack defaultBlock Nothing
 
 export
 defaultContext : Context
 defaultContext = MkContext
   { blocks = defaultBlocks
-  , returns = [GoInt]
+  , returns = [GoBool]
   , isTerminating = True
   }
 
