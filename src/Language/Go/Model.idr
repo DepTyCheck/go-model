@@ -69,6 +69,11 @@ namespace GoType
       decEq (_ :: _) Nil = No $ \case Refl impossible
       decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
+  public export
+  data GoTypeEq : GoType -> GoType -> Type where
+    Refl : forall ty. GoTypeEq ty ty
+
+
 namespace Assignable
   -- @WHEN ASSIGNABLE_ANY
   -- @ public export
@@ -94,9 +99,6 @@ namespace Assignable
 
 namespace Declaration
   public export
-  data GoName = MkName Nat
-
-  public export
   data Kind
     = Var
     | Const
@@ -106,123 +108,87 @@ namespace Declaration
   record Declaration where
     constructor Declare
     kind: Kind
-    name: GoName
     type: GoType
 
-  %runElab derive "GoName" [Generic, DecEq, DE.Eq]
   %runElab derive "Kind" [Generic, DecEq]
   %runElab derive "Declaration" [Generic, DecEq]
 
-  mutual
-    ||| Set of declarations with unique names
-    public export
-    data Block : Type where
-      Nil : Block
-      (::) : (decl : Declaration) ->
-             (rest : Block) ->
-             (na : NameAbsent rest decl.name) =>
-             Block
-
-    public export
-    data NameAbsent : (rest : Block) -> (name : GoName) -> Type where
-      Wrap : forall rest, name.
-             (oh : So $ isNameAbsent rest name) ->
-             NameAbsent rest name
-
-
-    public export
-    isNameAbsent : Block -> GoName -> Bool
-    isNameAbsent [] _ = True
-    isNameAbsent (Declare _ headName _ :: tail) newName =
-      headName /= newName && isNameAbsent tail newName
 
   public export
-  data ByTypeB : Block -> Kind -> GoName -> GoType -> Type where
-    HereB : forall kind, name, ty, rest.
-            (na : NameAbsent rest name) =>
-            ByTypeB (Declare kind name ty :: rest) kind name ty
+  data Stack : (depth : Nat) -> Type where
+    Nil : Stack 0
+    (::) : forall len. Declaration -> Stack len -> Stack (S len)
 
-    ThereB : forall kind, name, ty, rest, hKind, hName, hTy.
-             (there : ByTypeB rest kind name ty) ->
-             (na : NameAbsent rest hName) =>
-             ByTypeB (Declare hKind hName hTy :: rest) kind name ty
 
   public export
-  data ByRetB : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
-    HereB' : forall kind, name, args, rets, rest.
-             (na : NameAbsent rest name) =>
-             ByRetB (Declare kind name (GoFunc args rets) :: rest)
-                   kind name args rets
+  append : forall len. Declaration -> Stack len -> Stack (S len)
+  append decl Nil = [decl]
+  append decl (d :: ds) = d :: append decl ds
 
-    ThereB' : forall kind, name, args, rets, rest, hKind, hName, hTy.
-              (there : ByRetB rest kind name args rets) ->
-              (na : NameAbsent rest hName) =>
-              ByRetB (Declare hKind hName hTy :: rest) kind name args rets
 
   public export
-  data BlockOf : GoTypes -> Block -> Type where
-
-    BlockOfNil : BlockOf [] []
-
-    BlockOfCons : forall t, ts, tail.
-                  (tailCond : BlockOf ts tail) =>
-                  (newName : GoName) ->
-                  (na : NameAbsent tail newName) =>
-                  BlockOf (t :: ts) (Declare Var newName t :: tail)
-
-
-namespace BlockStack
-  mutual
-    public export
-    data MaybeBlockStack = Just BlockStack | Nothing
-
-    public export
-    record BlockStack where
-      constructor MkBlockStack
-      top : Block
-      rest : MaybeBlockStack
+  index : forall len. Fin len -> Stack len -> Declaration
+  index FZ (d :: _) = d
+  index (FS i) (_ :: ds) = index i ds
 
   public export
-  data ByTypeS : BlockStack -> Kind -> GoName -> GoType -> Type where
-    HereS : forall blocks, kind, name, ty.
-            (bt : ByTypeB blocks.top kind name ty) =>
-            ByTypeS blocks kind name ty
+  data ByType : forall len. GoType -> Stack len ->
+                            Fin len -> Declaration -> Type where
+    HereT : forall ty, head, tail.
+            GoTypeEq ty head.type =>
+            ByType ty (head :: tail) FZ head
 
-    ThereS : forall top, rest, kind, name, ty.
-             (there : ByTypeS rest kind name ty) ->
-             (na : NameAbsent top name) =>
-             ByTypeS (MkBlockStack top (Just rest)) kind name ty
+    ThereT : forall ty, head, tail, idx, found.
+             ByType ty tail idx found ->
+             GoTypeEq ty found.type =>  -- TODO: is it slow?
+             ByType ty (head :: tail) (FS idx) found
 
-  public export
-  data ByRetS : BlockStack -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
-    HereS' : forall blocks, kind, name, args, rets.
-             (bt : ByRetB blocks.top kind name args rets) =>
-             ByRetS blocks kind name args rets
+    -- public export
+    -- data NameAbsent : (rest : Block) -> (name : GoName) -> Type where
+    --   Wrap : forall rest, name.
+    --          (oh : So $ isNameAbsent rest name) ->
+    --          NameAbsent rest name
 
-    ThereS' : forall top, rest, kind, name, args, rets.
-              (there : ByRetS rest kind name args rets) ->
-              (na : NameAbsent top name) =>
-              ByRetS (MkBlockStack top (Just rest)) kind name args rets
+
+    -- public export
+    -- isNameAbsent : Block -> GoName -> Bool
+    -- isNameAbsent [] _ = True
+    -- isNameAbsent (Declare _ headName _ :: tail) newName =
+    --   headName /= newName && isNameAbsent tail newName
+
+
+  -- public export
+  -- data ByRetB : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
+  --   HereB' : forall kind, name, args, rets, rest.
+  --            (na : NameAbsent rest name) =>
+  --            ByRetB (Declare kind name (GoFunc args rets) :: rest)
+  --                  kind name args rets
+
+  --   ThereB' : forall kind, name, args, rets, rest, hKind, hName, hTy.
+  --             (there : ByRetB rest kind name args rets) ->
+  --             (na : NameAbsent rest hName) =>
+  --             ByRetB (Declare hKind hName hTy :: rest) kind name args rets
+
+  -- public export
+  -- data BlockOf : GoTypes -> Block -> Type where
+
+  --   BlockOfNil : BlockOf [] []
+
+  --   BlockOfCons : forall t, ts, tail.
+  --                 (tailCond : BlockOf ts tail) =>
+  --                 (newName : GoName) ->
+  --                 (na : NameAbsent tail newName) =>
+  --                 BlockOf (t :: ts) (Declare Var newName t :: tail)
 
 
 namespace Context
   public export
   record Context where
     constructor MkContext
-    blocks : BlockStack
+    stackDepth : Nat
+    stack : Stack stackDepth
     returns : GoTypes
     isTerminating : Bool
-
-  public export
-  PutDeclaration : (ctxt : Context) ->
-                   (decl : Declaration) ->
-                   (na : NameAbsent ctxt.blocks.top decl.name) =>
-                   Context
-  PutDeclaration ctxt decl = { blocks.top $= (::) decl } ctxt
-
-  public export
-  PutBlock : Block -> Context -> Context
-  PutBlock blk = { blocks $= MkBlockStack blk . Just }
 
   public export
   SetReturns : GoTypes -> Context -> Context
@@ -284,13 +250,13 @@ namespace Expr
 
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      AnonFunc : forall ctxt, paramTypes.
-                 {retTypes : GoTypes} ->
-                 (paramBlock : Block) ->
-                 (pb : BlockOf paramTypes paramBlock) =>
-                 (body : Statement (SetReturns retTypes $
-                                    PutBlock paramBlock ctxt)) ->
-                 Expr ctxt [GoFunc paramTypes retTypes]
+      -- AnonFunc : forall ctxt, paramTypes.
+      --            {retTypes : GoTypes} ->
+      --            (paramBlock : Block) ->
+      --            (pb : BlockOf paramTypes paramBlock) =>
+      --            (body : Statement (SetReturns retTypes $
+      --                               PutBlock paramBlock ctxt)) ->
+      --            Expr ctxt [GoFunc paramTypes retTypes]
 
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->
@@ -315,19 +281,18 @@ namespace Expr
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
-      CallNamed : forall ctxt, retTypes.
-                  (kind : Kind) ->
-                  (name : GoName) ->
-                  (argTypes : GoTypes) ->
-                  (br : ByRetS ctxt.blocks kind name argTypes retTypes) =>
-                  (args : ExprList ctxt argTypes) ->
-                  Expr ctxt retTypes
+      -- CallNamed : forall ctxt, retTypes.
+      --             (kind : Kind) ->
+      --             (name : GoName) ->
+      --             (argTypes : GoTypes) ->
+      --             (br : ByRetS ctxt.blocks kind name argTypes retTypes) =>
+      --             (args : ExprList ctxt argTypes) ->
+      --             Expr ctxt retTypes
 
-      GetDecl : forall ctxt.
-                (kind : Kind) ->
-                (name : GoName) ->
-                (ty : GoType) ->
-                (bt : ByTypeS ctxt.blocks kind name ty) =>
+      GetDecl : forall ctxt, ty.
+                (idx : Fin (ctxt.stackDepth)) ->
+                (decl : Declaration) ->
+                (bt : ByType ty ctxt.stack idx decl) =>
                 Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.
@@ -352,11 +317,13 @@ namespace Statement
 
   public export
   data AllowReturnValue : Context -> Type where
-    MkAllowRetrunValue : forall ret, rets.
+    MkAllowRetrunValue : forall ret, rets, stackDepth.
+                         {0 stack : Stack stackDepth} ->
                          AllowReturnValue (MkContext
                                           { isTerminating = True
                                           , returns = ret :: rets
-                                          , _
+                                          , stack = stack
+                                          , stackDepth = stackDepth
                                           })
 
   public export
@@ -377,14 +344,23 @@ namespace Statement
     -- @ AllowInnerIfFT : AllowInnerIf False True
   -- @END IF_STMTS
 
+  public export
+  OnDeclare : Kind -> GoType -> Context -> Context
+  OnDeclare kind type =
+    { stackDepth $= S
+    , stack $= append (Declare kind type)
+    }
+
+  public export
+  record DeclareStmt (ctxt : Context) Kind where
+    constructor MkDeclareStmt
+    type : GoType
+    initial : Expr ctxt [type]
+    cont : Statement (OnDeclare Var type ctxt)
+
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.
-                 (newName : GoName) ->
-                 (na : NameAbsent ctxt.blocks.top newName) =>
-                 (ty : GoType) ->
-                 (initial : Expr ctxt [ty]) ->
-                 (cont : Statement $
-                         PutDeclaration ctxt (Declare Var newName ty)) ->
+                 (decl : DeclareStmt ctxt Var) ->
                  Statement ctxt
 
     JustStop : forall ctxt.

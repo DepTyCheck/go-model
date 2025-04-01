@@ -16,15 +16,15 @@ GenOrderTuning "ApplyInfix".dataCon where
   isConstructor = itIsConstructor
   deriveFirst _ _ = [`{op}]
 
-export
-GenOrderTuning "AnonFunc".dataCon where
-  isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{pb}]
+-- export
+-- GenOrderTuning "AnonFunc".dataCon where
+--   isConstructor = itIsConstructor
+--   deriveFirst _ _ = [`{pb}]
 
-export
-GenOrderTuning "DeclareVar".dataCon where
-  isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{na}, `{ty}, `{initial}]
+-- export
+-- GenOrderTuning "DeclareVar".dataCon where
+--   isConstructor = itIsConstructor
+--   deriveFirst _ _ = [`{na}, `{ty}, `{initial}]
 
 export
 GenOrderTuning "ReturnValue".dataCon where
