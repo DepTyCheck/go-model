@@ -55,10 +55,8 @@ printDecl : forall t.
             Printer
 
 export
-printDeclList : forall len.
-                {default False typed : Bool} ->
-                (from : Fin (S len)) ->
-                (stack : Stack len) ->
+printDeclList : {default False typed : Bool} ->
+                List (Nat, Declaration) ->
                 Printer
 
 export
@@ -153,9 +151,8 @@ printDecl {typed} idx decl {opts} = do
        pure name
 
 
-printDeclList {typed} from stack =
+printDeclList {typed} =
   printList (\(idx, decl) => printDecl {typed} idx decl)
-            (drop (cast from) (enumerate $ asList stack))
 
 
 funcCall f args = f <+> "(" <+> args <+> ")"
@@ -219,31 +216,35 @@ printExpr (CallBuiltin f args) = do
   args <- printExpr args
   pure $ funcCall (line $ show f) args
 
--- printExpr (AnonFunc {retTypes} paramBlock body) = do
---   params <- printDeclList {typed = True} paramBlock
---   body <- printStatement body
---   rets <- printNoneOneOrList printType (asList retTypes)
---   let holes = map (const "_") $ asList paramBlock
---   use <- case holes of
---               [] => pure ""
---               _  => do
---                 holes <- printList (\h => pure $ line h) holes
---                 vars <- printDeclList {typed = False} paramBlock
---                 pure $ holes <++> "=" <++> vars
---   pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
---               , indent' 4 use
---               , indent' 4 body
---               , "}"
---               ]
+printExpr {ctxt} (AnonFunc paramTypes retTypes body) = do
+  -- TODO: make more convenient interface
+  let decls = map (Declare Var) $ asList paramTypes
+  let params' = enumerate {start = ctxt.stackDepth} decls
+  params <- printDeclList {typed = True} params'
+  body <- assert_total printStatement body
+  rets <- printNoneOneOrList printType (asList retTypes)
+  let holes = map (const "_") $ asList paramTypes
+  use <- case holes of
+              [] => pure ""
+              _  => do
+                holes <- printList (\h => pure $ line h) holes
+                vars <- printDeclList {typed = False} params'
+                pure $ holes <++> "=" <++> vars
+  pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
+              , indent' 4 use
+              , indent' 4 body
+              , "}"
+              ]
 
--- printExpr (CallNamed kind name _ args) = do
---   args <- printExprList args
---   fn <- printName kind name
---   pure $ funcCall fn args
+printExpr (CallNamed idx args) = do
+  args <- printExprList args
+  let decl = index idx ctxt.stack
+  fn <- printName idx decl
+  pure $ funcCall fn args
 
-printExpr {ctxt} (GetDecl idx) =
-  let decl = index idx ctxt.stack in
-    printName idx decl
+printExpr {ctxt} (GetDecl idx) = do
+  let decl = index idx ctxt.stack
+  printName idx decl
 
 -- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 
@@ -309,7 +310,8 @@ printStatement (DeclareVar stmt) = do
 
 wrapStatement {ctxt} stmt = do
   ret <- printTypeList ctxt.returns
-  args <- printDeclList {typed = True} 0 ctxt.stack
+  let params = enumerate $ asList ctxt.stack
+  args <- printDeclList {typed = True} params
   stmt <- printStatement stmt
   pure $ vsep [ "package main"
               , ""
@@ -323,7 +325,8 @@ wrapStatement {ctxt} stmt = do
 
 
 wrapExpr {ctxt} expr = do
-  args <- printDeclList {typed = True} 0 ctxt.stack
+  let params = enumerate $ asList ctxt.stack
+  args <- printDeclList {typed = True} params
   expr <- printExpr expr
   let store = "temp :=" <++> expr
   pure $ vsep [ "package main"

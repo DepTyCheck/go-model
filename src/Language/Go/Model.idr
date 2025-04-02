@@ -46,7 +46,7 @@ namespace GoType
   (.length) : GoTypes -> Nat
   (.length) = length
 
-  export
+  public export
   asList : GoTypes -> List GoType
   asList [] = []
   asList (t :: ts) = t :: asList ts
@@ -123,18 +123,46 @@ namespace Declaration
 
 
   public export
+  fromList : (l : List Declaration) -> Stack (length l)
+  fromList [] = []
+  fromList (d :: ds) = d :: fromList ds
+
+
+  public export
+  extend : forall len.
+           (l : List Declaration) ->
+           Stack len ->
+           (newLen : Nat ** Stack newLen)
+  extend ds [] = (length ds ** fromList ds)
+  extend ds (s :: ss) =
+    let (_ ** ss') = extend ds ss in (_ ** s :: ss')
+
+
+  public export
   index : forall len. Fin len -> Stack len -> Declaration
   index FZ (d :: _) = d
   index (FS i) (_ :: ds) = index i ds
 
+
   public export
   data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
-    HereT : forall ty, head, tail.
-            ByType ty (head :: tail) FZ
+    HereT : forall ty, kind, tail.
+            ByType ty (Declare kind ty :: tail) FZ
 
     ThereT : forall ty, head, tail, idx.
              ByType ty tail idx ->
              ByType ty (head :: tail) (FS idx)
+
+
+  public export
+  data ByRet : forall len. (ret : GoTypes) -> Stack len ->
+               Fin len -> (params : GoTypes) -> Type where
+    HereR : forall par, ret, kind, tail.
+            ByRet ret (Declare kind (GoFunc par ret) :: tail) FZ par
+
+    ThereR : forall par, ret, head, tail, idx.
+             ByRet ret tail idx par ->
+             ByRet ret (head :: tail) (FS idx) par
 
     -- public export
     -- data NameAbsent : (rest : Block) -> (name : GoName) -> Type where
@@ -228,12 +256,16 @@ namespace Expr
     -- @ Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
     -- @END EXTRA_BUILTINS
 
-  -- OnAnonFunc : (paramTypes, retTypes : GoTypes) -> Context -> Context
-  -- OnAnonFunc paramTypes retTypes =
-  --   { isTerminating := True
-  --   , returns := retTypes
-  --   , stackDepth $= (+) (length paramTypes)
-  --   }
+  public export
+  OnAnonFunc : (paramTypes, retTypes : GoTypes) -> Context -> Context
+  OnAnonFunc paramTypes retTypes ctxt =
+    let newDecls = map (Declare Var) $ asList paramTypes in
+    let (newDepth ** newStack) = extend newDecls ctxt.stack in
+    { isTerminating := True
+    , returns := retTypes
+    , stackDepth := newDepth
+    , stack := newStack
+    } ctxt
 
   mutual
     public export
@@ -246,12 +278,11 @@ namespace Expr
 
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      -- AnonFunc : forall ctxt, paramTypes.
-      --            (paramTypes : GoTypes) ->
-      --            (retTypes : GoTypes) ->
-      --            (body : Statement (SetReturns retTypes $
-      --                               PutBlock paramBlock ctxt)) ->
-      --            Expr ctxt [GoFunc paramTypes retTypes]
+      AnonFunc : forall ctxt.
+                 (paramTypes : GoTypes) ->
+                 (retTypes : GoTypes) ->
+                 (body : Statement (OnAnonFunc paramTypes retTypes ctxt)) ->
+                 Expr ctxt [GoFunc paramTypes retTypes]
 
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->
@@ -276,13 +307,12 @@ namespace Expr
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
-      -- CallNamed : forall ctxt, retTypes.
-      --             (kind : Kind) ->
-      --             (name : GoName) ->
-      --             (argTypes : GoTypes) ->
-      --             (br : ByRetS ctxt.blocks kind name argTypes retTypes) =>
-      --             (args : ExprList ctxt argTypes) ->
-      --             Expr ctxt retTypes
+      CallNamed : forall ctxt, retTypes.
+                  (idx : Fin ctxt.stackDepth) ->
+                  {argTypes : GoTypes} ->
+                  (br : ByRet retTypes ctxt.stack idx argTypes) =>
+                  (args : ExprList ctxt argTypes) ->
+                  Expr ctxt retTypes
 
       GetDecl : forall ctxt, ty.
                 (idx : Fin (ctxt.stackDepth)) ->
