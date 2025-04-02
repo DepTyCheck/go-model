@@ -69,10 +69,6 @@ namespace GoType
       decEq (_ :: _) Nil = No $ \case Refl impossible
       decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
-  public export
-  data GoTypeEq : GoType -> GoType -> Type where
-    Refl : forall ty. GoTypeEq ty ty
-
 
 namespace Assignable
   -- @WHEN ASSIGNABLE_ANY
@@ -132,16 +128,13 @@ namespace Declaration
   index (FS i) (_ :: ds) = index i ds
 
   public export
-  data ByType : forall len. GoType -> Stack len ->
-                            Fin len -> Declaration -> Type where
+  data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
     HereT : forall ty, head, tail.
-            GoTypeEq ty head.type =>
-            ByType ty (head :: tail) FZ head
+            ByType ty (head :: tail) FZ
 
-    ThereT : forall ty, head, tail, idx, found.
-             ByType ty tail idx found ->
-             GoTypeEq ty found.type =>  -- TODO: is it slow?
-             ByType ty (head :: tail) (FS idx) found
+    ThereT : forall ty, head, tail, idx.
+             ByType ty tail idx ->
+             ByType ty (head :: tail) (FS idx)
 
     -- public export
     -- data NameAbsent : (rest : Block) -> (name : GoName) -> Type where
@@ -191,10 +184,6 @@ namespace Context
     isTerminating : Bool
 
   public export
-  SetReturns : GoTypes -> Context -> Context
-  SetReturns rets = { isTerminating := True, returns := rets }
-
-  public export
   SetIsTerminating : Bool -> Context -> Context
   SetIsTerminating value = { isTerminating := value }
 
@@ -239,6 +228,13 @@ namespace Expr
     -- @ Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
     -- @END EXTRA_BUILTINS
 
+  -- OnAnonFunc : (paramTypes, retTypes : GoTypes) -> Context -> Context
+  -- OnAnonFunc paramTypes retTypes =
+  --   { isTerminating := True
+  --   , returns := retTypes
+  --   , stackDepth $= (+) (length paramTypes)
+  --   }
+
   mutual
     public export
     data ExprList : (ctxt : Context) -> (rets : GoTypes) -> Type where
@@ -251,9 +247,8 @@ namespace Expr
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
       -- AnonFunc : forall ctxt, paramTypes.
-      --            {retTypes : GoTypes} ->
-      --            (paramBlock : Block) ->
-      --            (pb : BlockOf paramTypes paramBlock) =>
+      --            (paramTypes : GoTypes) ->
+      --            (retTypes : GoTypes) ->
       --            (body : Statement (SetReturns retTypes $
       --                               PutBlock paramBlock ctxt)) ->
       --            Expr ctxt [GoFunc paramTypes retTypes]
@@ -291,8 +286,7 @@ namespace Expr
 
       GetDecl : forall ctxt, ty.
                 (idx : Fin (ctxt.stackDepth)) ->
-                (decl : Declaration) ->
-                (bt : ByType ty ctxt.stack idx decl) =>
+                (bt : ByType ty ctxt.stack idx) =>
                 Expr ctxt [ty]
 
       -- CallExpr : forall ctxt, argTypes, retTypes.

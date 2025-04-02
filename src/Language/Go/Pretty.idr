@@ -241,7 +241,9 @@ printExpr (CallBuiltin f args) = do
 --   fn <- printName kind name
 --   pure $ funcCall fn args
 
-printExpr (GetDecl idx decl) = printName idx decl
+printExpr {ctxt} (GetDecl idx) =
+  let decl = index idx ctxt.stack in
+    printName idx decl
 
 -- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 
