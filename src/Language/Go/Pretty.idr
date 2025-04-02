@@ -223,15 +223,7 @@ printExpr {ctxt} (AnonFunc paramTypes retTypes body) = do
   params <- printDeclList {typed = True} params'
   body <- assert_total printStatement body
   rets <- printNoneOneOrList printType (asList retTypes)
-  let holes = map (const "_") $ asList paramTypes
-  use <- case holes of
-              [] => pure ""
-              _  => do
-                holes <- printList (\h => pure $ line h) holes
-                vars <- printDeclList {typed = False} params'
-                pure $ holes <++> "=" <++> vars
   pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
-              , indent' 4 use
               , indent' 4 body
               , "}"
               ]
