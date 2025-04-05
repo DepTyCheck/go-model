@@ -2,7 +2,9 @@ module Language.Go.Model
 
 import Data.Fuel
 import Data.Nat
+import Data.Nat.Order.Properties
 import Data.Fin
+import Data.Fin.Properties
 import Data.SOP
 
 import Decidable.Equality
@@ -15,6 +17,8 @@ import Test.DepTyCheck.Gen
 
 %language ElabReflection
 %unbound_implicits off
+
+%hide Language.Reflection.TTImp.Decl
 
 namespace GoType
   mutual
@@ -67,7 +71,8 @@ namespace GoType
       decEq Nil Nil = Yes Refl
       decEq Nil (_ :: _) = No $ \case Refl impossible
       decEq (_ :: _) Nil = No $ \case Refl impossible
-      decEq (xs :: x) (xs' :: x') = assert_total decEqCong2 (decEq xs xs') (decEq x x')
+      decEq (xs :: x) (xs' :: x') =
+        assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
 
 namespace Assignable
@@ -93,7 +98,32 @@ namespace Assignable
   -- @END ASSIGNABLE_ANY
 
 
-namespace Declaration
+namespace RelativeTo
+  public export
+  data RelativeTo : (height : Nat) -> Type where
+    Rel : (0 height : Nat) -> (value : Fin height) -> RelativeTo height
+
+  %unbound_implicits on
+  public export
+  Eq (RelativeTo height) where
+    Rel _ x == Rel _ y = x == y
+  %unbound_implicits off
+
+  public export
+  data MaybeRelativeTo : (height : Nat) -> Type where
+    Just : forall height. RelativeTo height -> MaybeRelativeTo height
+    Nothing : forall height. MaybeRelativeTo height
+
+  public export
+  incHeight : forall height. RelativeTo height -> RelativeTo (S height)
+  incHeight (Rel height d) = Rel (S height) (FS d)
+
+  public export
+  asFin : forall height. RelativeTo height -> Fin height
+  asFin (Rel _ d) = d
+
+
+namespace Decl
   public export
   data Kind
     = Var
@@ -101,119 +131,125 @@ namespace Declaration
     | Func
 
   public export
-  record Declaration where
-    constructor Declare
-    kind: Kind
-    type: GoType
-
-  %runElab derive "Kind" [Generic, DecEq]
-  %runElab derive "Declaration" [Generic, DecEq]
-
+  data Name : (n : Nat) -> Type where
+    Shadows : forall n. Fin n -> Name n
+    UniqueName : forall n. Name n
 
   public export
-  data Stack : (depth : Nat) -> Type where
-    Nil : Stack 0
-    (::) : forall len. Declaration -> Stack len -> Stack (S len)
-
-
-  public export
-  append : forall len. Declaration -> Stack len -> Stack (S len)
-  append decl Nil = [decl]
-  append decl (d :: ds) = d :: append decl ds
-
+  weakenLTE : forall m, n. Name n -> LTE n m -> Name m
+  weakenLTE UniqueName lte = UniqueName
+  weakenLTE (Shadows fm) lte = Shadows (weakenLTE fm lte)
 
   public export
-  fromList : (l : List Declaration) -> Stack (length l)
-  fromList [] = []
-  fromList (d :: ds) = d :: fromList ds
+  record Decl (index : Nat) where
+    constructor MkDecl
+    kind : Kind
+    type : GoType
+    shadows : Name index
 
 
+namespace Stack
   public export
-  extend : forall len.
-           (l : List Declaration) ->
-           Stack len ->
-           (newLen : Nat ** Stack newLen)
-  extend ds [] = (length ds ** fromList ds)
-  extend ds (s :: ss) =
-    let (_ ** ss') = extend ds ss in (_ ** s :: ss')
+  data Stack : (len : Nat) -> Type where
+    Lin : Stack Z
+    (:<) : forall len. Stack len -> Decl len -> Stack (S len)
 
 
+  ||| Proof that `decl` doesn't shadows other daclaration at `idx`
   public export
-  index : forall len. Fin len -> Stack len -> Declaration
-  index FZ (d :: _) = d
-  index (FS i) (_ :: ds) = index i ds
+  data NotShadow : forall len. (decl : Decl len) -> (idx : Fin len) -> Type where
+    ShadowNothing : forall idx, kind, type.
+                    NotShadow (MkDecl kind type UniqueName) idx
+
+    ShadowOther : forall len, kind, type.
+                  {0 shadowed, idx : Fin len} ->
+                  (0 so : So $ shadowed /= idx) =>
+                  NotShadow (MkDecl kind type (Shadows shadowed)) idx
 
 
   public export
   data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
-    HereT : forall ty, kind, tail.
-            ByType ty (Declare kind ty :: tail) FZ
+    HereT : forall ty, kind, shadows, tail.
+            ByType ty (tail :< (MkDecl kind ty shadows)) FZ
 
-    ThereT : forall ty, head, tail, idx.
-             ByType ty tail idx ->
-             ByType ty (head :: tail) (FS idx)
-
-
-  public export
-  data ByRet : forall len. (ret : GoTypes) -> Stack len ->
-               Fin len -> (params : GoTypes) -> Type where
-    HereR : forall par, ret, kind, tail.
-            ByRet ret (Declare kind (GoFunc par ret) :: tail) FZ par
-
-    ThereR : forall par, ret, head, tail, idx.
-             ByRet ret tail idx par ->
-             ByRet ret (head :: tail) (FS idx) par
-
-    -- public export
-    -- data NameAbsent : (rest : Block) -> (name : GoName) -> Type where
-    --   Wrap : forall rest, name.
-    --          (oh : So $ isNameAbsent rest name) ->
-    --          NameAbsent rest name
-
-
-    -- public export
-    -- isNameAbsent : Block -> GoName -> Bool
-    -- isNameAbsent [] _ = True
-    -- isNameAbsent (Declare _ headName _ :: tail) newName =
-    --   headName /= newName && isNameAbsent tail newName
+    ThereT : forall ty, head, tail, found.
+             ByType ty tail found ->
+             (ns : NotShadow head found) =>
+             ByType ty (tail :< head) (weaken found)
 
 
   -- public export
-  -- data ByRetB : Block -> Kind -> GoName -> (args, rets : GoTypes) -> Type where
-  --   HereB' : forall kind, name, args, rets, rest.
-  --            (na : NameAbsent rest name) =>
-  --            ByRetB (Declare kind name (GoFunc args rets) :: rest)
-  --                  kind name args rets
+  -- data ByRet : forall len. (ret : GoTypes) -> Stack len ->
+  --              RelativeTo len -> (params : GoTypes) -> Type where
+  --   HereR : forall par, ret, kind, shadows, tail.
+  --           ByRet ret
+  --                 (tail :< (kind ** MkDecl (GoFunc par ret) shadows))
+  --                 (Rel _ FZ)
+  --                 par
 
-  --   ThereB' : forall kind, name, args, rets, rest, hKind, hName, hTy.
-  --             (there : ByRetB rest kind name args rets) ->
-  --             (na : NameAbsent rest hName) =>
-  --             ByRetB (Declare hKind hName hTy :: rest) kind name args rets
+  --   ThereR : forall par, ret, head, tail, depth.
+  --            ByRet ret tail depth par ->
+  --            (ns : NotShadow head depth) =>
+  --            ByRet ret (tail :< head) (incHeight depth) par
 
-  -- public export
-  -- data BlockOf : GoTypes -> Block -> Type where
 
-  --   BlockOfNil : BlockOf [] []
+-- namespace TypesVect
+--   public export
+--   data NewTypes : (len : Nat) -> Type where
+--     Nil : NewTypes 0
+--     (::) : forall len. GoType -> NewTypes len -> NewTypes (S len)
 
-  --   BlockOfCons : forall t, ts, tail.
-  --                 (tailCond : BlockOf ts tail) =>
-  --                 (newName : GoName) ->
-  --                 (na : NameAbsent tail newName) =>
-  --                 BlockOf (t :: ts) (Declare Var newName t :: tail)
+--   public export
+--   fromList : 
+
+-- namespace NewShadows
+--   public export
+--   data NewShadows : (start, count, limit : Nat) -> Type where
+--     Nil : forall start, limit. NewShadows start 0 limit
+--     (::) : forall start, count, limit.
+--            Name limit ->
+--            NewShadows (S start) count limit ->
+--            NewShadows start (S count) limit
+
+-- public export
+-- push : forall len, limit.
+--        (kind : Kind) ->
+--        (types : GoTypes) ->
+--        (lte : LTE limit len) =>
+--        NewShadows len (length types) limit ->
+--        Stack len ->
+--        Stack (len + length types)
+-- push _ [] [] bs =
+--   rewrite plusZeroRightNeutral len in bs
+-- push {len} kind (t :: ts) @{lte} (s :: ss) stack =
+--   rewrite sym $ plusSuccRightSucc len (length ts) in
+--     let lte' : (LTE limit (S len)) = lteSuccRight lte in
+--       push kind ts ss (stack :< MkDecl kind t (weakenLTE s lte))
 
 
 namespace Context
   public export
   record Context where
     constructor MkContext
-    stackDepth : Nat
-    stack : Stack stackDepth
+    stackLen : Nat
+    stack : Stack stackLen
+    blockStart : Fin (S stackLen)
     returns : GoTypes
     isTerminating : Bool
 
   public export
   SetIsTerminating : Bool -> Context -> Context
   SetIsTerminating value = { isTerminating := value }
+
+  public export
+  PushDecl : (ctxt : Context) ->
+             Decl ctxt.stackLen ->
+             Context
+  PushDecl ctxt decl =
+    { stackLen $= S
+    , stack $= flip (:<) decl
+    , blockStart $= weaken
+    } ctxt
 
 
 namespace Statement
@@ -256,16 +292,19 @@ namespace Expr
     -- @ Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
     -- @END EXTRA_BUILTINS
 
-  public export
-  OnAnonFunc : (paramTypes, retTypes : GoTypes) -> Context -> Context
-  OnAnonFunc paramTypes retTypes ctxt =
-    let newDecls = map (Declare Var) $ asList paramTypes in
-    let (newDepth ** newStack) = extend newDecls ctxt.stack in
-    { isTerminating := True
-    , returns := retTypes
-    , stackDepth := newDepth
-    , stack := newStack
-    } ctxt
+  -- public export
+  -- OnAnonFunc : (oldCtxt : Context) ->
+  --              {paramsCount : Nat} ->
+  --              (params : NewDecls Var oldCtxt.stackLen paramsCount) ->
+  --              (retTypes : GoTypes) ->
+  --              Context
+  -- OnAnonFunc oldCtxt params retTypes =
+  --   let newStack = push params oldCtxt.stack in
+  --   { isTerminating := True
+  --   , returns := retTypes
+  --   , stackLen := _
+  --   , stack := newStack
+  --   } oldCtxt
 
   mutual
     public export
@@ -278,11 +317,12 @@ namespace Expr
 
     public export
     data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
-      AnonFunc : forall ctxt.
-                 (paramTypes : GoTypes) ->
-                 (retTypes : GoTypes) ->
-                 (body : Statement (OnAnonFunc paramTypes retTypes ctxt)) ->
-                 Expr ctxt [GoFunc paramTypes retTypes]
+      -- AnonFunc : forall ctxt.
+      --            {paramsCount : Nat} ->
+      --            (params : NewDecls Var ctxt.stackLen paramsCount) ->
+      --            (retTypes : GoTypes) ->
+      --            (body : Statement (OnAnonFunc ctxt params retTypes)) ->
+      --            Expr ctxt [GoFunc (types params) retTypes]
 
       GetLiteral : forall ctxt, resTy.
                    (lit : Literal resTy) ->
@@ -307,15 +347,15 @@ namespace Expr
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
-      CallNamed : forall ctxt, retTypes.
-                  (idx : Fin ctxt.stackDepth) ->
-                  {argTypes : GoTypes} ->
-                  (br : ByRet retTypes ctxt.stack idx argTypes) =>
-                  (args : ExprList ctxt argTypes) ->
-                  Expr ctxt retTypes
+      -- CallNamed : forall ctxt, retTypes.
+      --             (idx : RelativeTo ctxt.stackLen) ->
+      --             {argTypes : GoTypes} ->
+      --             (br : ByRet retTypes ctxt.stack idx argTypes) =>
+      --             (args : ExprList ctxt argTypes) ->
+      --             Expr ctxt retTypes
 
       GetDecl : forall ctxt, ty.
-                (idx : Fin (ctxt.stackDepth)) ->
+                (idx : Fin ctxt.stackLen) ->
                 (bt : ByType ty ctxt.stack idx) =>
                 Expr ctxt [ty]
 
@@ -341,13 +381,14 @@ namespace Statement
 
   public export
   data AllowReturnValue : Context -> Type where
-    MkAllowRetrunValue : forall ret, rets, stackDepth.
-                         {0 stack : Stack stackDepth} ->
+    MkAllowRetrunValue : forall ret, rets, stackLen, blockStart.
+                         {0 stack : Stack stackLen} ->
                          AllowReturnValue (MkContext
                                           { isTerminating = True
                                           , returns = ret :: rets
                                           , stack = stack
-                                          , stackDepth = stackDepth
+                                          , stackLen = stackLen
+                                          , blockStart = blockStart
                                           })
 
   public export
@@ -368,19 +409,42 @@ namespace Statement
     -- @ AllowInnerIfFT : AllowInnerIf False True
   -- @END IF_STMTS
 
-  public export
-  OnDeclare : Kind -> GoType -> Context -> Context
-  OnDeclare kind type =
-    { stackDepth $= S
-    , stack $= append (Declare kind type)
-    }
+  -- public export
+  -- OnDeclare : (ctxt : Context) ->
+  --             (kind : Kind) ->
+  --             (newTypes : GoTypes) ->
+  --             (newShadows : NewShadows ctxt.stackLen
+  --                                      (length newTypes)
+  --                                      (finToNat ctxt.blockStart)) ->
+  --             Context
+  -- OnDeclare ctxt kind newTypes newShadows =
+  --   let lte' : (LTE (S (finToNat ctxt.blockStart)) (S ctxt.stackLen)) :=
+  --     elemSmallerThanBound ctxt.blockStart
+  --     ; LTESucc lte = lte'
+  --     ; cbLteNewLen : (LTE (S ctxt.stackLen) (S (ctxt.stackLen + length newTypes)))
+  --     ; cbLteNewLen = LTESucc (lteAddRight ctxt.stackLen)
+  --   in
+  --     { stackLen := ctxt.stackLen + length newTypes
+  --     , stack := push kind newTypes @{lte} newShadows ctxt.stack
+  --     , blockStart := weakenLTE ctxt.blockStart cbLteNewLen
+  --     } ctxt
+
+  -- public export
+  -- record DeclareStmt (ctxt : Context) (kind : Kind) where
+  --   constructor MkDeclareStmt
+  --   newTypes : GoTypes
+  --   newShadows : NewShadows ctxt.stackLen (length newTypes) (finToNat ctxt.blockStart)
+  --   initial : Expr ctxt newTypes
+  --   cont : Statement $ OnDeclare ctxt kind newTypes newShadows
 
   public export
-  record DeclareStmt (ctxt : Context) Kind where
+  record DeclareStmt (ctxt : Context) (kind : Kind) where
     constructor MkDeclareStmt
-    type : GoType
-    initial : Expr ctxt [type]
-    cont : Statement (OnDeclare Var type ctxt)
+    newType : GoType
+    newName : Name (finToNat ctxt.blockStart)
+    initial : Expr ctxt [newType]
+    cont : Statement (PushDecl ctxt (MkDecl newName newType))
+
 
   data Statement : (ctxt : Context) -> Type where
     DeclareVar : forall ctxt.

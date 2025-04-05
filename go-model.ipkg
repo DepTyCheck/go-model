@@ -19,8 +19,8 @@ main = Runner
 
 modules = Language.Go
         , Language.Go.Model
-        , Language.Go.Aux
-        , Language.Go.Pretty
         , Language.Go.Derived.Tuning
         , Language.Go.Derived
+        , Language.Go.Aux
+        , Language.Go.Pretty
         , Utils.MkVect

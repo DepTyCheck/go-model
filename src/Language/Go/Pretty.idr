@@ -40,23 +40,21 @@ export
 printTypeList : GoTypes -> Printer
 
 export
-printName : forall t.
-            Cast t Nat =>
-            (idx : t) ->
-            Declaration ->
+printName : {stackLen : Nat} ->
+            (idx : Fin stackLen) ->
+            (stack : Stack stackLen) ->
             Printer
 
 export
-printDecl : forall t.
-            {default False typed : Bool} ->
-            Cast t Nat =>
-            (idx : t) ->
-            Declaration ->
+printDecl : {default False typed : Bool} ->
+            {stackLen : Nat} ->
+            (idx : Fin stackLen) ->
+            (stack : Stack stackLen) ->
             Printer
 
 export
 printDeclList : {default False typed : Bool} ->
-                List (Nat, Declaration) ->
+                List (idx ** Decl idx) ->
                 Printer
 
 export
@@ -133,16 +131,25 @@ printType (GoFunc params rets) {opts} = do
 printTypeList ts = printList (assert_total printType) (asList ts)
 
 
-printName n decl = do
-  let pre = case decl.kind of
-                 Var => "v"
-                 Const => "c"
-                 Func => "f"
-  pure $ line $ pre <+> show (the Nat $ cast n)
+printName {stackLen} idx stack =
+  do
+    let (rest, decl) = index' idx stack
+    let pre = case decl.kind of
+                   Var => "v"
+                   Const => "c"
+                   Func => "f"
+    let idx' = trueIdx (rest, decl)
+    pure $ line $ pre <+> show idx'
+  where
+    trueIdx : {i : Nat} -> (Stack i, Decl i) -> Nat
+    trueIdx {i} (rest, decl) =
+      case decl.shadows of
+           Nothing => i
+           Just next => assert_total trueIdx (index' next rest)
 
 
-printDecl {typed} idx decl {opts} = do
-  name <- printName idx decl {opts}
+printDecl {typed} idx stack {opts} = do
+  name <- printName idx stack {opts}
   if typed
      then do
        ty <- printType decl.type
@@ -152,7 +159,7 @@ printDecl {typed} idx decl {opts} = do
 
 
 printDeclList {typed} =
-  printList (\(idx, decl) => printDecl {typed} idx decl)
+  printList (\(_ ** decl) => printDecl {typed} decl)
 
 
 funcCall f args = f <+> "(" <+> args <+> ")"
@@ -216,27 +223,27 @@ printExpr (CallBuiltin f args) = do
   args <- printExpr args
   pure $ funcCall (line $ show f) args
 
-printExpr {ctxt} (AnonFunc paramTypes retTypes body) = do
-  -- TODO: make more convenient interface
-  let decls = map (Declare Var) $ asList paramTypes
-  let params' = enumerate {start = ctxt.stackDepth} decls
-  params <- printDeclList {typed = True} params'
-  body <- assert_total printStatement body
-  rets <- printNoneOneOrList printType (asList retTypes)
-  pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
-              , indent' 4 body
-              , "}"
-              ]
+-- printExpr {ctxt} (AnonFunc paramTypes retTypes body) = do
+--   -- TODO: make more convenient interface
+--   let decls = map (Declare Var) $ asList paramTypes
+--   let params' = enumerate {start = ctxt.stackDepth} decls
+--   params <- printDeclList {typed = True} params'
+--   body <- assert_total printStatement body
+--   rets <- printNoneOneOrList printType (asList retTypes)
+--   pure $ vsep [ "func" <++> "(" <+> params <+> ")" <++> rets <++> "{"
+--               , indent' 4 body
+--               , "}"
+--               ]
 
-printExpr (CallNamed idx args) = do
-  args <- printExprList args
-  let decl = index idx ctxt.stack
-  fn <- printName idx decl
-  pure $ funcCall fn args
+-- printExpr (CallNamed idx args) = do
+--   args <- printExprList args
+--   let decl = index idx ctxt.stack
+--   fn <- printName idx decl
+--   pure $ funcCall fn args
 
 printExpr {ctxt} (GetDecl idx) = do
   let decl = index idx ctxt.stack
-  printName idx decl
+  printName decl
 
 -- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
 

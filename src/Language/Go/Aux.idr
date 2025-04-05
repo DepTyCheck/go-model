@@ -2,12 +2,17 @@ module Language.Go.Aux
 
 import Data.DPair
 import Data.Fin
+import Data.Fin.Properties
+import Data.Nat.Order.Properties
 import Data.List
 import Data.Maybe
 import Data.So
 import Data.Zippable
 
 import Language.Go.Model
+
+
+%unbound_implicits off
 
 
 export
@@ -20,8 +25,8 @@ export
 defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack =
-    [ Declare Var GoInt
-    , Declare Var (GoFunc [GoInt, GoInt] [GoBool])
+    [< MkDecl Var GoInt Nothing
+     , MkDecl Var (GoFunc [GoInt, GoInt] [GoBool]) Nothing
     ]
   in (_ ** stack)
 
@@ -30,30 +35,38 @@ defaultContext : Context
 defaultContext =
   let (stackDepth ** stack) = defaultStack in
     MkContext
-    { stack = stack
-    , stackDepth = stackDepth
+    { stackLen = stackDepth
+    , stack = stack
+    , currentBlock = 0
     , returns = [GoBool]
     , isTerminating = True
     }
 
 
-namespace Declaration
-  export
-  asList : forall len. Stack len -> List Declaration
-  asList Nil = Nil
-  asList (d :: ds) = d :: asList ds
+namespace Stack
+  public export
+  dip : forall len.
+         (depth : Fin len) ->
+         Stack len ->
+         let idx = finToNat $ complement depth in
+         (Stack idx, Decl idx)
+  dip {len = S top} FZ (rest :< decl) =
+    rewrite finToNatLastIsBound {n = top} in (rest, decl)
+  dip {len = S top} (FS d) (rest :< _) =
+    rewrite finToNatWeakenNeutral {n = complement {n = top} d} in
+            dip d rest
 
-  -- export
-  -- block : forall len.
-  --         from : Fin (S len) ->
-  --         Stack len ->
-  --         List (Fin len, Declaration)
-  -- block _ Nil = Nil
-  -- block from 
---   export
---   asList : Block -> List Declaration
---   asList [] = []
---   asList (d :: ds) = d :: asList ds
+
+  public export
+  index : {len : Nat} ->
+         (i : Fin len) ->
+         Stack len ->
+         (Stack (finToNat i), Decl (finToNat i))
+  index {len} i st =
+    let depth : Fin len
+      ; depth = complement i
+    in rewrite sym (complementInvolutive i) in
+      dip depth st
 
 
 namespace Expr
@@ -70,16 +83,3 @@ namespace Statement
   isEmpty JustStop = True
   isEmpty _ = False
 
-  export
-  newDecl : forall ctxt.
-            {kind : Kind} ->
-            DeclareStmt ctxt kind ->
-            Declaration
-  newDecl stmt = Declare kind stmt.type
-
-  export
-  newIndex : forall kind.
-             {ctxt : Context} ->
-             DeclareStmt ctxt kind ->
-             Fin (S ctxt.stackDepth)
-  newIndex {ctxt} stmt = last
