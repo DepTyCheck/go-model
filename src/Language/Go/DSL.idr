@@ -35,17 +35,17 @@ export
 print : {ctxt : Context} -> Expr ctxt [GoInt] -> Expr ctxt []
 print = CallBuiltin Print
 
-export
-get : {ctxt : Context} ->
-      {height : Nat} ->
-      (RelativeTo height) ->
-      Expr ctxt ?___
+-- export
+-- get : {ctxt : Context} ->
+--       {height : Nat} ->
+--       (RelativeTo height) ->
+--       Expr ctxt ?___
 
-main : Go
-main = do
-  avg <- func (withNewNames [GoDouble, GoDouble]) $ \[x, y] => do
-    res <- var ((x .+. y) ./. 2)
-    return $ get res
+-- main : Go
+-- main = do
+--   avg <- func (withNewNames [GoDouble, GoDouble]) $ \[x, y] => do
+--     res <- var ((x .+. y) ./. 2)
+--     return $ get res
 
-  main <- func [] $ \[] => do
-    void $ print "Hello, World"
+--   main <- func [] $ \[] => do
+--     void $ print "Hello, World"

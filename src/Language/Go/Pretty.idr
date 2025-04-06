@@ -37,24 +37,19 @@ export
 printType : GoType -> Printer
 
 export
-printTypeList : GoTypes -> Printer
+printTypeList : forall len. TypeVect len -> Printer
 
 export
-printName : {stackLen : Nat} ->
-            (idx : Fin stackLen) ->
-            (stack : Stack stackLen) ->
-            Printer
+printName : ResolvedDecl -> Printer
 
 export
 printDecl : {default False typed : Bool} ->
-            {stackLen : Nat} ->
-            (idx : Fin stackLen) ->
-            (stack : Stack stackLen) ->
+            ResolvedDecl ->
             Printer
 
 export
 printDeclList : {default False typed : Bool} ->
-                List (idx ** Decl idx) ->
+                List ResolvedDecl ->
                 Printer
 
 export
@@ -64,8 +59,9 @@ export
 printExprList : forall ts. {ctxt : Context} -> ExprList ctxt ts -> Printer
 
 export
-printExpr : forall rets.
-            {ctxt : Context} ->
+printExpr : {0 len  : Nat} ->
+            {0 rets : TypeVect len} ->
+            {ctxt   : Context} ->
             Expr ctxt rets ->
             Printer
 
@@ -116,8 +112,7 @@ printNoneOneOrList pp xs = do
 
 printType GoInt = pure "int"
 printType GoBool = pure "bool"
-
-printType (GoFunc params rets) {opts} = do
+printType (GoFunc $ MkGoFuncType params rets) {opts} = do
   params <- printTypeList params
   let params = enclose "(" ")" params
   rets <- printNoneOneOrList (assert_total printType) (asList rets)
@@ -131,25 +126,16 @@ printType (GoFunc params rets) {opts} = do
 printTypeList ts = printList (assert_total printType) (asList ts)
 
 
-printName {stackLen} idx stack =
-  do
-    let (rest, decl) = index' idx stack
-    let pre = case decl.kind of
-                   Var => "v"
-                   Const => "c"
-                   Func => "f"
-    let idx' = trueIdx (rest, decl)
-    pure $ line $ pre <+> show idx'
-  where
-    trueIdx : {i : Nat} -> (Stack i, Decl i) -> Nat
-    trueIdx {i} (rest, decl) =
-      case decl.shadows of
-           Nothing => i
-           Just next => assert_total trueIdx (index' next rest)
+printName decl = do
+  let pre = case decl.kind of
+                 Var => "v"
+                 Const => "c"
+                 Func => "f"
+  pure $ line $ pre <+> show decl.name
 
 
-printDecl {typed} idx stack {opts} = do
-  name <- printName idx stack {opts}
+printDecl {typed} decl {opts} = do
+  name <- printName decl {opts}
   if typed
      then do
        ty <- printType decl.type
@@ -198,7 +184,10 @@ Show (InfixOp _ _ _) where
   -- @END EXTRA_BUILTINS
 
 
-Show (BuiltinFunc _ _) where
+{n_par, n_ret : Nat}
+-> {par : TypeVect n_par}
+-> {ret : TypeVect n_ret}
+-> Show (BuiltinFunc par ret) where
   show Print = "print"
   -- @WHEN EXTRA_BUILTINS
   -- @ show Max = "max"
@@ -242,7 +231,7 @@ printExpr (CallBuiltin f args) = do
 --   pure $ funcCall fn args
 
 printExpr {ctxt} (GetDecl idx) = do
-  let decl = index idx ctxt.stack
+  let decl = resolve idx ctxt.stack
   printName decl
 
 -- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
@@ -295,16 +284,16 @@ printStatement (VoidExpr expr cont) = do
   -- @ pure ifText
 -- @END IF_STMTS
 
-printStatement (DeclareVar stmt) = do
-  var <- printDecl (newIndex stmt) (newDecl stmt)
-  initial <- printExpr stmt.initial
-  let decl = "var" <++> var <++> "=" <++> initial
-  let use = "_" <++> "=" <++> var
-  cont <- assert_total printStatement stmt.cont
-  pure $ vsep [ decl
-              , use
-              , cont
-              ]
+-- printStatement (DeclareVar stmt) = do
+--   var <- printDecl (newIndex stmt) (newDecl stmt)
+--   initial <- printExpr stmt.initial
+--   let decl = "var" <++> var <++> "=" <++> initial
+--   let use = "_" <++> "=" <++> var
+--   cont <- assert_total printStatement stmt.cont
+--   pure $ vsep [ decl
+--               , use
+--               , cont
+--               ]
 
 
 wrapStatement {ctxt} stmt = do

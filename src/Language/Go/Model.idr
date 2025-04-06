@@ -28,49 +28,68 @@ namespace GoType
     ||| GoAny <-> interface {}
     ||| Note: GoAny can slow down generation if there are any non constructible types
     public export
-    data GoType
-      = GoInt
-      | GoBool
-      | GoFunc GoTypes GoTypes
+    data GoType : Type where
+      GoInt, GoBool : GoType
+      GoFunc : GoFuncType -> GoType
       -- @WHEN ASSIGNABLE_ANY
       -- @ | GoAny
       -- @END ASSIGNABLE_ANY
 
     public export
-    data GoTypes : Type where
-      Nil  : GoTypes
-      (::) : GoType -> GoTypes -> GoTypes
+    data GoFuncType : Type where
+      MkGoFuncType : {n_par, n_ret : Nat} ->
+                     (par : TypeVect n_par) ->
+                     (ret : TypeVect n_ret) ->
+                     GoFuncType
+
+    public export
+    data TypeVect : (len : Nat) -> Type where
+      Nil : TypeVect 0
+      (::) : forall len. GoType -> TypeVect len -> TypeVect (S len)
 
   public export
-  length : GoTypes -> Nat
-  length Nil = Z
-  length (_ :: sx) = S $ length sx
-
-  public export %inline
-  (.length) : GoTypes -> Nat
-  (.length) = length
-
-  public export
-  asList : GoTypes -> List GoType
-  asList [] = []
-  asList (t :: ts) = t :: asList ts
+  asVect : forall len. TypeVect len -> Vect len GoType
+  asVect [] = []
+  asVect (t :: ts) = t :: asVect ts
 
   export
   Biinjective GoType.(::) where
     biinjective Refl = (Refl, Refl)
 
-  export
-  Injective GoType.GoFunc where
-    injective Refl = Refl
+  -- TODO: looks ugly
+  {n_par, n_ret : Nat} -> Biinjective (MkGoFuncType {n_par} {n_ret}) where
+    biinjective Refl = (Refl, Refl)
+
+  injective' : forall np1, nr1, np2, nr2.
+               {p1 : TypeVect np1} ->
+               {r1 : TypeVect nr1} ->
+               {p2 : TypeVect np2} ->
+               {r2 : TypeVect nr2} ->
+               (MkGoFuncType {n_par = np1} {n_ret = nr1} p1 r1 =
+                MkGoFuncType {n_par = np2} {n_ret = nr2} p2 r2) ->
+               (np1 = np2, nr1 = nr2)
+  injective' Refl = (Refl, Refl)
 
   mutual
     %runElab derive "GoType" [Generic, DecEq]
 
     export
-    DecEq GoTypes where
+    DecEq GoFuncType where
+      decEq (MkGoFuncType {n_par = np1} {n_ret = nr1} p1 r1)
+            (MkGoFuncType {n_par = np2} {n_ret = nr2} p2 r2) =
+        case (decEq np1 np2, decEq nr1 nr2) of
+             (Yes Refl, Yes Refl) =>
+                decEqCong2 {f = MkGoFuncType {n_par = np1} {n_ret = nr1}}
+                           (decEq p1 p2) (decEq r1 r2)
+             (No contra, Yes _) => No $ \eq =>
+                                  contra $ fst $ injective' eq
+             (_, No contra) => No $ \eq =>
+                              contra $ snd $ injective' eq
+
+
+    export
+    {len : Nat} -> DecEq (TypeVect len) where
       decEq Nil Nil = Yes Refl
-      decEq Nil (_ :: _) = No $ \case Refl impossible
-      decEq (_ :: _) Nil = No $ \case Refl impossible
       decEq (xs :: x) (xs' :: x') =
         assert_total decEqCong2 (decEq xs xs') (decEq x x')
 
@@ -91,36 +110,7 @@ namespace Assignable
            -- @ (head : Assignable1 t1 t2) ->
            -- @ (tail : Assignable ts1 ts2) ->
            -- @ Assignable (t1 :: ts1) (t2 :: ts2)
-  -- @UNLESS ASSIGNABLE_ANY
-  public export
-  data Assignable : (lhv, rhv : GoTypes) -> Type where
-    Refl : forall ts. Assignable ts ts
   -- @END ASSIGNABLE_ANY
-
-
-namespace RelativeTo
-  public export
-  data RelativeTo : (height : Nat) -> Type where
-    Rel : (0 height : Nat) -> (value : Fin height) -> RelativeTo height
-
-  %unbound_implicits on
-  public export
-  Eq (RelativeTo height) where
-    Rel _ x == Rel _ y = x == y
-  %unbound_implicits off
-
-  public export
-  data MaybeRelativeTo : (height : Nat) -> Type where
-    Just : forall height. RelativeTo height -> MaybeRelativeTo height
-    Nothing : forall height. MaybeRelativeTo height
-
-  public export
-  incHeight : forall height. RelativeTo height -> RelativeTo (S height)
-  incHeight (Rel height d) = Rel (S height) (FS d)
-
-  public export
-  asFin : forall height. RelativeTo height -> Fin height
-  asFin (Rel _ d) = d
 
 
 namespace Decl
@@ -193,11 +183,6 @@ namespace Stack
   --            ByRet ret (tail :< head) (incHeight depth) par
 
 
--- namespace TypesVect
---   public export
---   data NewTypes : (len : Nat) -> Type where
---     Nil : NewTypes 0
---     (::) : forall len. GoType -> NewTypes len -> NewTypes (S len)
 
 --   public export
 --   fromList : 
@@ -234,7 +219,8 @@ namespace Context
     stackLen : Nat
     stack : Stack stackLen
     blockStart : Fin (S stackLen)
-    returns : GoTypes
+    returnsLen : Nat
+    returns : TypeVect returnsLen
     isTerminating : Bool
 
   public export
@@ -281,7 +267,10 @@ namespace Expr
     -- @END EXTRA_BUILTINS
 
   public export
-  data  BuiltinFunc : (paramTypes, retTypes : GoTypes) -> Type where
+  data  BuiltinFunc : {n_par, n_ret : Nat} ->
+                      (paramTypes : TypeVect n_par) ->
+                      (retTypes : TypeVect n_ret) ->
+                      Type where
     -- @WHEN ASSIGNABLE_ANY
     -- @ Print : BuiltinFunc [GoAny] []
     -- @UNLESS ASSIGNABLE_ANY
@@ -306,9 +295,14 @@ namespace Expr
   --   , stack := newStack
   --   } oldCtxt
 
+  -- TODO: {len : Nat} VS {0 len : Nat} in data decls
+
   mutual
     public export
-    data ExprList : (ctxt : Context) -> (rets : GoTypes) -> Type where
+    data ExprList : (ctxt : Context) ->
+                    {len : Nat} ->
+                    (rets : TypeVect len) ->
+                    Type where
       Nil : forall ctxt. ExprList ctxt []
       (::) : forall ctxt, headTy, tailTypes.
              (head : Expr ctxt [headTy]) ->
@@ -316,7 +310,10 @@ namespace Expr
              ExprList ctxt (headTy :: tailTypes)
 
     public export
-    data Expr : (ctxt : Context) -> (res : GoTypes) -> Type where
+    data Expr : (ctxt : Context) ->
+                {len : Nat} ->
+                (res : TypeVect len) ->
+                Type where
       -- AnonFunc : forall ctxt.
       --            {paramsCount : Nat} ->
       --            (params : NewDecls Var ctxt.stackLen paramsCount) ->
@@ -343,7 +340,6 @@ namespace Expr
 
       CallBuiltin : forall ctxt, paramTypes, argTypes, retTypes.
                     (f : BuiltinFunc paramTypes retTypes) ->
-                    (a : Assignable paramTypes argTypes) =>
                     (args : Expr ctxt argTypes) ->
                     Expr ctxt retTypes
 
@@ -375,17 +371,23 @@ namespace Expr
 
 namespace Statement
   public export
+  data BoolEqual : Bool -> Bool -> Type where
+    Refl : forall b. BoolEqual b b
+
+  public export
   data AllowJustStop : Context -> Type where
     StopUnlessShouldReturn : AllowJustStop (MkContext { isTerminating = False, _ })
     StopWhenReturnNone : AllowJustStop (MkContext { returns = [], _ })
 
   public export
   data AllowReturnValue : Context -> Type where
-    MkAllowRetrunValue : forall ret, rets, stackLen, blockStart.
+    MkAllowReturnValue : forall ret, stackLen, blockStart, returnsLen.
+                         {0 rets : TypeVect returnsLen} ->
                          {0 stack : Stack stackLen} ->
                          AllowReturnValue (MkContext
                                           { isTerminating = True
-                                          , returns = ret :: rets
+                                          , returnsLen = S returnsLen
+                                          , returns = (ret :: rets)
                                           , stack = stack
                                           , stackLen = stackLen
                                           , blockStart = blockStart
@@ -437,19 +439,19 @@ namespace Statement
   --   initial : Expr ctxt newTypes
   --   cont : Statement $ OnDeclare ctxt kind newTypes newShadows
 
-  public export
-  record DeclareStmt (ctxt : Context) (kind : Kind) where
-    constructor MkDeclareStmt
-    newType : GoType
-    newName : Name (finToNat ctxt.blockStart)
-    initial : Expr ctxt [newType]
-    cont : Statement (PushDecl ctxt (MkDecl newName newType))
+  -- public export
+  -- record DeclareStmt (ctxt : Context) (kind : Kind) where
+  --   constructor MkDeclareStmt
+  --   newType : GoType
+  --   newName : Name (finToNat ctxt.blockStart)
+  --   initial : Expr ctxt [newType]
+  --   cont : Statement (PushDecl ctxt (MkDecl newName newType))
 
 
   data Statement : (ctxt : Context) -> Type where
-    DeclareVar : forall ctxt.
-                 (decl : DeclareStmt ctxt Var) ->
-                 Statement ctxt
+    -- DeclareVar : forall ctxt.
+    --              (decl : DeclareStmt ctxt Var) ->
+    --              Statement ctxt
 
     JustStop : forall ctxt.
                (a : AllowJustStop ctxt) =>
@@ -491,5 +493,5 @@ export
 genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
 
 export
-genExprs : Fuel -> (ctxt : Context) -> (rets : GoTypes) ->
+genExprs : Fuel -> (ctxt : Context) -> {len : Nat} -> (rets : TypeVect len) ->
                    Gen MaybeEmpty $ Expr ctxt rets
