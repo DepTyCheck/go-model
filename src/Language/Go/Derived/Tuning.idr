@@ -11,10 +11,10 @@ import Deriving.DepTyCheck.Gen
   -- @ deriveFirst _ _ = [`{op}]
 -- @END EXTRA_BUILTINS
 
-export
-GenOrderTuning "ApplyInfix".dataCon where
-  isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{op}]
+-- export
+-- GenOrderTuning "ApplyInfix".dataCon where
+--   isConstructor = itIsConstructor
+--   deriveFirst _ _ = [`{op}]
 
 -- export
 -- GenOrderTuning "AnonFunc".dataCon where
@@ -26,7 +26,7 @@ GenOrderTuning "ApplyInfix".dataCon where
 --   isConstructor = itIsConstructor
 --   deriveFirst _ _ = [`{na}, `{ty}, `{initial}]
 
-export
-GenOrderTuning "ReturnValue".dataCon where
-  isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{a}]
+-- export
+-- GenOrderTuning "ReturnValue".dataCon where
+--   isConstructor = itIsConstructor
+--   deriveFirst _ _ = [`{}]

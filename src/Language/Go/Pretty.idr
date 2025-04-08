@@ -1,9 +1,6 @@
 module Language.Go.Pretty
 
-import Data.Alternative
-import Data.Fuel
 import Data.List
-import Data.DPair
 
 import Language.Go.Model
 import Language.Go.Aux
@@ -12,153 +9,100 @@ import Test.DepTyCheck.Gen
 
 import Text.PrettyPrint.Bernardy
 
-import System.Random.Pure.StdGen
-
 
 %unbound_implicits off
 %default total
 
 
-public export
-Printer : Type
-Printer = {opts : _} -> (Gen0 $ Doc opts)
-
 --------------------------------------------------------------------------------
 --                               Interface
 --------------------------------------------------------------------------------
 
-export
-printList : forall t. (t -> Printer) -> List t -> Printer
+parameters {auto opts : LayoutOpts}
 
-export
-printNoneOneOrList : forall t. (t -> Printer) -> List t -> Printer
+  export
+  typePP   : GoType -> Doc opts
 
-export
-printType : GoType -> Printer
+  export
+  typesPP  : TypeVectL -> List (Doc opts)
 
-export
-printTypeList : forall len. TypeVect len -> Printer
+  export
+  namePP   : ResolvedDecl -> (Gen0 $ Doc opts)
 
-export
-printName : ResolvedDecl -> Printer
+  export
+  literalPP  : forall t. Literal t -> Doc opts
 
-export
-printDecl : {default False typed : Bool} ->
-            ResolvedDecl ->
-            Printer
+  export
+  infixPP    : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
 
-export
-printDeclList : {default False typed : Bool} ->
-                List ResolvedDecl ->
-                Printer
+  export
+  builtinPP  : forall par, ret. BuiltinFunc par ret -> Doc opts
 
-export
-funcCall : {opts : _} -> (f, args : Doc opts) -> Doc opts
+  export
+  paramListPP    : List (Doc opts) -> Doc opts
 
-export
-printExprList : forall ts. {ctxt : Context} -> ExprList ctxt ts -> Printer
+  export
+  retTypesListPP : List (Doc opts) -> Doc opts
 
-export
-printExpr : {0 len  : Nat} ->
-            {0 rets : TypeVect len} ->
-            {ctxt   : Context} ->
-            Expr ctxt rets ->
-            Printer
+  export
+  callPP  : (func, args : Doc opts) -> Doc opts
 
--- @WHEN IF_STMTS
--- @ export
--- @ printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
-          -- @ (test : Expr ctxtTest [GoBool]) ->
-          -- @ (thenBranch : Statement ctxtThen) ->
-          -- @ (elseBranch : Statement ctxtElse) ->
-          -- @ Printer
--- @END IF_STMTS
+  export
+  byComma : Doc opts -> Doc opts -> Doc opts
 
-export
-printStatement : {ctxt : Context} ->
-                 Statement ctxt ->
-                 Printer
 
-export
-wrapStatement : {ctxt : Context} ->
-                (stmt : Statement ctxt) ->
-                Printer
+parameters {ctxt      : Context}
+           {auto opts : LayoutOpts}
 
-export
-wrapExpr : forall rets.
-           {ctxt : Context} ->
-           (stmt : Expr ctxt rets) ->
-           Printer
+  export
+  exprPP : {0 rets : TypeVectL} -> Expr ctxt rets -> (Gen0 $ Doc opts)
+
+  export
+  statementPP : Statement ctxt -> (Gen0 $ Doc opts)
+
+  export
+  wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
+
+
+  -- @WHEN IF_STMTS
+  -- @ export
+  -- @ printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
+            -- @ (test : Expr ctxtTest [GoBool]) ->
+            -- @ (thenBranch : Statement ctxtThen) ->
+            -- @ (elseBranch : Statement ctxtElse) ->
+            -- @ Printer
+  -- @END IF_STMTS
 
 --------------------------------------------------------------------------------
 --                            Implementations
 --------------------------------------------------------------------------------
 
 
-printList pp [] = pure $ line ""
-printList pp [x] = pp x
-printList pp (x :: xs) = do
-  x <- pp x
-  xs <- printList pp xs
-  pure $ x <+> "," <++> xs
-
-
-printNoneOneOrList pp [] = pure $ line ""
-printNoneOneOrList pp [x] = pp x
-printNoneOneOrList pp xs = do
-  items <- printList pp xs
-  pure $ enclose "(" ")" items
-
-
-printType GoInt = pure "int"
-printType GoBool = pure "bool"
-printType (GoFunc $ MkGoFuncType params rets) {opts} = do
-  params <- printTypeList params
-  let params = enclose "(" ")" params
-  rets <- printNoneOneOrList (assert_total printType) (asList rets)
-  pure $ "func" <+> params <++> rets
-
+typePP GoInt  = pure "int"
+typePP GoBool = pure "bool"
+typePP (GoFunc params rets) =
+  let params := paramListPP (typesPP params)
+      rets   := retTypesListPP (typesPP rets)
+   in "func" <++> params <++> rets
 -- @WHEN ASSIGNABLE_ANY
 -- @ printType GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
 
 
-printTypeList ts = printList (assert_total printType) (asList ts)
+typesPP ts = assert_total map typePP (asList ts)
 
 
-printName decl = do
-  let pre = case decl.kind of
-                 Var => "v"
-                 Const => "c"
-                 Func => "f"
+namePP decl = do
+  let pre := case decl.kind of
+               Var   => "v"
+               Const => "c"
+               Func  => "f"
   pure $ line $ pre <+> show decl.name
 
 
-printDecl {typed} decl {opts} = do
-  name <- printName decl {opts}
-  if typed
-     then do
-       ty <- printType decl.type
-       pure $ name <++> ty
-     else
-       pure name
-
-
-printDeclList {typed} =
-  printList (\(_ ** decl) => printDecl {typed} decl)
-
-
-funcCall f args = f <+> "(" <+> args <+> ")"
-
-
-printExprList es =
-  printList (\(Evidence _ x) => assert_total printExpr x) (asList es)
-
-
-Show (Literal _) where
-  show (MkInt x) = show x
-  show (MkBool True) = "true"
-  show (MkBool False) = "false"
+literalPP (MkInt x) = line $ show x
+literalPP (MkBool True) = "true"
+literalPP (MkBool False) = "false"
 
 
 -- @WHEN EXTRA_BUILTINS
@@ -168,51 +112,57 @@ Show (Literal _) where
 -- @END EXTRA_BUILTINS
 
 
-Show (InfixOp _ _ _) where
-  show IntAdd = "+"
-  -- @WHEN EXTRA_BUILTINS
-  -- @ show IntSub = "-"
-  -- @ show IntMul = "*"
-  -- @ show BoolAnd = "&&"
-  -- @ show BoolOr = "||"
-  -- @ show IntEq = "=="
-  -- @ show IntNE = "!="
-  -- @ show IntLt = "<"
-  -- @ show IntLE = "<="
-  -- @ show IntGt = ">"
-  -- @ show IntGE = ">="
-  -- @END EXTRA_BUILTINS
+infixPP IntAdd = "+"
+-- @WHEN EXTRA_BUILTINS
+-- @ infixPP IntSub = "-"
+-- @ infixPP IntMul = "*"
+-- @ infixPP BoolAnd = "&&"
+-- @ infixPP BoolOr = "||"
+-- @ infixPP IntEq = "=="
+-- @ infixPP IntNE = "!="
+-- @ infixPP IntLt = "<"
+-- @ infixPP IntLE = "<="
+-- @ infixPP IntGt = ">"
+-- @ infixPP IntGE = ">="
+-- @END EXTRA_BUILTINS
 
 
-{n_par, n_ret : Nat}
--> {par : TypeVect n_par}
--> {ret : TypeVect n_ret}
--> Show (BuiltinFunc par ret) where
-  show Print = "print"
-  -- @WHEN EXTRA_BUILTINS
-  -- @ show Max = "max"
-  -- @ show Min = "min"
-  -- @END EXTRA_BUILTINS
+builtinPP Print = "print"
+-- @WHEN EXTRA_BUILTINS
+-- @ builtinPP Max = "max"
+-- @ builtinPP Min = "min"
+-- @END EXTRA_BUILTINS
 
 
-printExpr (GetLiteral lit) = pure $ line $ show lit
+paramListPP docs =
+  "(" <+> (foldl byComma empty docs) <+> ")"
+
+
+retTypesListPP [] = empty
+retTypesListPP docs = paramListPP docs
+
+
+callPP func args =
+  func <+> "(" <+> args <+> ")"
+
+
+exprPP (GetLiteral lit) =
+  pure $ literalPP lit
+
 
 -- @WHEN EXTRA_BUILTINS
--- @ printExpr (ApplyPrefix op arg) = do
-  -- @ arg <- printExpr arg
+-- @ exprPP (ApplyPrefix op arg) = do
+  -- @ arg <- exprPP arg
   -- @ pure $ "(" <+> line (show op) <+> arg <+> ")"
 -- @END EXTRA_BUILTINS
 
-printExpr (ApplyInfix op lhv rhv) = do
-    lhv <- printExpr lhv
-    rhv <- printExpr rhv
-    pure $ "(" <+> lhv <++> line (show op) <++> rhv <+> ")"
+exprPP (ApplyInfix op lhv rhv) = do
+    pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
 
-printExpr (CallBuiltin f args) = do
-  args <- printExpr args
-  pure $ funcCall (line $ show f) args
+exprPP (CallBuiltin f args) = do
+  pure $ callPP (builtinPP f) !(exprPP args)
 
--- printExpr {ctxt} (AnonFunc paramTypes retTypes body) = do
+-- exprPP {ctxt} (AnonFunc paramTypes retTypes body) = do
 --   -- TODO: make more convenient interface
 --   let decls = map (Declare Var) $ asList paramTypes
 --   let params' = enumerate {start = ctxt.stackDepth} decls
@@ -224,22 +174,22 @@ printExpr (CallBuiltin f args) = do
 --               , "}"
 --               ]
 
--- printExpr (CallNamed idx args) = do
---   args <- printExprList args
+-- exprPP (CallNamed idx args) = do
+--   args <- exprPPList args
 --   let decl = index idx ctxt.stack
 --   fn <- printName idx decl
 --   pure $ funcCall fn args
 
-printExpr {ctxt} (GetDecl idx) = do
+exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
-  printName decl
+  namePP decl
 
--- printExpr (Comma a b rest) = printExprList (a :: b :: rest)
+-- exprPP (Comma a b rest) = exprPPList (a :: b :: rest)
 
 
 -- @WHEN IF_STMTS
 -- @ printIf test thenBranch elseBranch = do
-  -- @ test <- printExpr test
+  -- @ test <- exprPP test
   -- @ thenBranch <- assert_total printStatement thenBranch
   -- @ let top = hangSep 0 ("if" <++> test) "{"
   -- @ let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
@@ -258,72 +208,81 @@ printExpr {ctxt} (GetDecl idx) = do
                    -- @ ]
 -- @END IF_STMTS
 
+statementPP {ctxt} (DeclareVar {count} newTypes newNames initial cont) = do
+  let newCtxt : Context; newCtxt = _
+  let newVars := foldr byComma empty
+                   !(traverse namePP $ takeTopDecl count newCtxt)
+  initial     <- exprPP initial
+  let holes   := foldr byComma empty $ List.Lazy.replicate count "_"
+  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
+  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+              , "_" <++> "=" <++> newVars
+              , cont
+              ]
 
-printStatement JustStop = pure ""
+statementPP JustStop = do
+  pure ""
 
-printStatement (ReturnValue res) = do
-  resText <- printExpr res
-  pure $ "return" <++> resText
+statementPP (ReturnValue res) = do
+  pure $ "return" <++> !(exprPP res)
 
-printStatement ReturnNone = do
-  pure $ "return"
+statementPP ReturnNone = do
+  pure "return"
 
-printStatement (VoidExpr expr cont) = do
-  e <- printExpr expr
-  contText <- printStatement cont
-  pure $ e `vappend` contText
+statementPP (VoidExpr expr cont) = do
+  pure $ !(exprPP expr) `vappend` !(statementPP cont)
 
 -- @WHEN IF_STMTS
--- @ printStatement (InnerIf test {isTermThen} {isTermElse} th el cont) = do
+-- @ statementPP (InnerIf test {isTermThen} {isTermElse} th el cont) = do
   -- @ ifText <- printIf test th el
-  -- @ contText <- printStatement cont
+  -- @ contText <- statementPP cont
   -- @ pure $ ifText `vappend` contText
 
--- @ printStatement (TermIf test th el) = do
+-- @ statementPP (TermIf test th el) = do
   -- @ ifText <- printIf test th el
   -- @ pure ifText
 -- @END IF_STMTS
 
--- printStatement (DeclareVar stmt) = do
+-- statementPP (DeclareVar stmt) = do
 --   var <- printDecl (newIndex stmt) (newDecl stmt)
---   initial <- printExpr stmt.initial
+--   initial <- exprPP stmt.initial
 --   let decl = "var" <++> var <++> "=" <++> initial
 --   let use = "_" <++> "=" <++> var
---   cont <- assert_total printStatement stmt.cont
+--   cont <- assert_total statementPP stmt.cont
 --   pure $ vsep [ decl
 --               , use
 --               , cont
 --               ]
 
 
-wrapStatement {ctxt} stmt = do
-  ret <- printTypeList ctxt.returns
-  let params = enumerate $ asList ctxt.stack
-  args <- printDeclList {typed = True} params
-  stmt <- printStatement stmt
-  pure $ vsep [ "package main"
-              , ""
-              , "func testFunc(" <+> args <+> ")" <++> ret <++> "{"
-              , indent' 4 stmt
-              , "}"
-              , ""
-              , "func main() {"
-              , "}"
-              ]
+-- wrapStatement {ctxt} stmt = do
+--   let ret := retTypesListPP (typesPP ctxt.returns)
+--   let params = takeFrom 0 ctxt.stack
+--   args <- "<args>" -- TODO printDeclList {typed = True} params
+--   stmt <- statementPP stmt
+--   pure $ vsep [ "package main"
+--               , ""
+--               , "func testFunc(" <+> args <+> ")" <++> ret <++> "{"
+--               , indent' 4 stmt
+--               , "}"
+--               , ""
+--               , "func main() {"
+--               , "}"
+--               ]
 
 
-wrapExpr {ctxt} expr = do
-  let params = enumerate $ asList ctxt.stack
-  args <- printDeclList {typed = True} params
-  expr <- printExpr expr
-  let store = "temp :=" <++> expr
-  pure $ vsep [ "package main"
-              , ""
-              , "func testFunc(" <+> args <+> ")" <++> "{"
-              , indent' 4 store
-              , indent' 4 "print(temp)"
-              , "}"
-              , ""
-              , "func main() {"
-              , "}"
-              ]
+-- wrapExpr {ctxt} expr = do
+--   let params = enumerate $ asList ctxt.stack
+--   args <- printDeclList {typed = True} params
+--   expr <- exprPP expr
+--   let store = "temp :=" <++> expr
+--   pure $ vsep [ "package main"
+--               , ""
+--               , "func testFunc(" <+> args <+> ")" <++> "{"
+--               , indent' 4 store
+--               , indent' 4 "print(temp)"
+--               , "}"
+--               , ""
+--               , "func main() {"
+--               , "}"
+--               ]

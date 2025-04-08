@@ -24,7 +24,7 @@ import System.Random.Pure.StdGen
 
 data SelectedGen
   = Statements
-  | Exprs GoTypes
+  | Exprs TypeVectL
 
 record Config where
   constructor MkConfig
@@ -83,10 +83,12 @@ parseModelFuel str = case parsePositive str of
 --   _ => Left "Unsupported type \{str}."
 
 parseGen : String -> Either String $ Config -> Config
-parseGen str = case str of
-  "blocks" => Right {generator := Statements}
-  "exprs" => Right {generator := Exprs [GoFunc [GoInt, GoInt] [GoBool]]}
-  _ => Left "Unknown generator <\{str}>"
+parseGen str =
+  case str of
+    "blocks" => Right {generator := Statements}
+    "exprs" =>
+      Right {generator := Exprs (MkVectL [funcTy [GoInt, GoInt] [GoBool]])}
+    _ => Left "Unknown generator <\{str}>"
 
 
 cliOpts : List $ OptDescr $ Config -> Config
@@ -117,14 +119,14 @@ runStatementsGen conf = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
     stmt <- genStatements conf.modelFuel conf.context
-    wrapStatement stmt
+    statementPP {ctxt = conf.context} stmt
 
-runExprsGen : {opts : _} -> Config -> (res : GoTypes) -> IO (LazyList $ Doc opts)
+runExprsGen : {opts : _} -> Config -> (res : TypeVectL) -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
     expr <- genExprs conf.modelFuel conf.context res
-    wrapExpr expr
+    exprPP {ctxt = conf.context} expr
 
 run : Config -> IO ()
 run conf = do
