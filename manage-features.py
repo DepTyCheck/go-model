@@ -76,29 +76,35 @@ def parse_line(line: str) -> Directive | None:
     return None
 
 
-def update_line(line: str, new_status: Status) -> str:
+def update_line(
+        line_no: int, n_lines: int, line: str, new_status: Status
+) -> str:
+    if not line:
+        return line
+
     m = line_pat.fullmatch(line)
     if m is None:
         raise RuntimeError(f"Can't parse line: {line}")
-    spaces, leader, text = m.groups()
-
-    old_status = Status.UNCOMMENTED if leader is None else Status.COMMENTED_OUT
-    if old_status == new_status:
-        print("Skip:", line)
-        return line
+    spaces, _, text = m.groups()
 
     if new_status == Status.UNCOMMENTED:
-        print("Uncomment:", line)
-        return f"{spaces}{text}"
+        new_line = f"{spaces}{text}"
     else:
-        print("Comment out:", line)
-        if text == "":
-            return line
-        else:
-            return f"{spaces}-- @ {text}"
+        new_line = f"-- @ {spaces}{text}"
+
+    if line == new_line:
+        # print("Skip:", line)
+        return line
+
+    space = len(str(n_lines))
+    mark = f"{line_no:{space}}"
+    print(f"{mark}: {new_line}")
+
+    return new_line
 
 
 def update_file(path: Path, features: Features):
+    print(f"Open: {path}")
     content = path.read_text().splitlines()
     need_rewrite = False
     current_block: str | None = None
@@ -121,7 +127,7 @@ def update_file(path: Path, features: Features):
                 else:
                     new_status = features[current_block].invert()
             case _, None:
-                new_line = update_line(line, new_status)
+                new_line = update_line(line_no,len(content), line, new_status)
                 if new_line != line:
                     need_rewrite = True
                     content[i] = new_line
@@ -141,6 +147,8 @@ def update_file(path: Path, features: Features):
 
     if need_rewrite:
         path.write_text("\n".join(content))
+
+    print()
 
 
 def traverse(root: Path, features: Features):
