@@ -21,4 +21,3 @@ Language.Go.Model.genStatements = deriveGen
 -- @UNLESS GEN_STMT
 -- @ Language.Go.Model.genExprs = deriveGen
 -- @END GEN_STMT
-

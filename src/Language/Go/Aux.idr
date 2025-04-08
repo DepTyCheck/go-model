@@ -56,7 +56,7 @@ defaultContext =
       { stackLen      = stackDepth
       , stack         = stack
       , blockDepth    = last
-      , returns       = MkVectL [GoBool]
+      , returns       = MkVectL [GoInt]
       , isTerminating = True
       }
 
@@ -189,32 +189,3 @@ namespace Statement
     -> (context stmt = ctxt)
   contextSpec _ = Refl
 
-
--- DSL
-
-
-export
-void
-  :  {ctxt  : Context}
-  -> (expr  : Expr ctxt (MkVectL []))
-  -> (cont  : Statement ctxt)
-  -> Statement ctxt
-void = VoidExpr
-
-
-public export
-(>>)
-  :  {ctxt, newCtxt  : Context}
-  -> (addCont        : Statement newCtxt -> Statement ctxt)
-  -> (cont           : Statement newCtxt)
-  -> Statement ctxt
-(>>) addCont cont = addCont cont
-
-
--- Example
-
-export
-example : Statement defaultContext
-example =
-  VoidExpr (CallBuiltin Print (GetLiteral $ MkInt 42)) $
-         (ReturnValue (GetLiteral $ MkBool True))

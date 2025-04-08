@@ -11,3 +11,5 @@
 
 -- Generate whole statements
 + GEN_STMT
+
++ HOLES

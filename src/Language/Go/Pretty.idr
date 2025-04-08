@@ -65,12 +65,12 @@ parameters {ctxt      : Context}
 
 
   -- @WHEN IF_STMTS
-  -- @ export
-  -- @ printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
-            -- @ (test : Expr ctxtTest [GoBool]) ->
-            -- @ (thenBranch : Statement ctxtThen) ->
-            -- @ (elseBranch : Statement ctxtElse) ->
-            -- @ Printer
+-- @   export
+-- @   printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
+-- @             (test : Expr ctxtTest [GoBool]) ->
+-- @             (thenBranch : Statement ctxtThen) ->
+-- @             (elseBranch : Statement ctxtElse) ->
+-- @             Printer
   -- @END IF_STMTS
 
 --------------------------------------------------------------------------------
@@ -107,8 +107,8 @@ literalPP (MkBool False) = "false"
 
 -- @WHEN EXTRA_BUILTINS
 -- @ Show (PrefixOp _ _) where
-  -- @ show BoolNot = "!"
-  -- @ show IntNeg = "-"
+-- @   show BoolNot = "!"
+-- @   show IntNeg = "-"
 -- @END EXTRA_BUILTINS
 
 
@@ -146,14 +146,22 @@ callPP func args =
   func <+> "(" <+> args <+> ")"
 
 
+byComma lhv rhv = lhv <+> comma <++> rhv
+
+
+-- @WHEN HOLES
+exprPP (Hole type) =
+  pure $ "<<" <++> foldl byComma empty (typesPP type) <++> ">>"
+-- @END HOLES
+
 exprPP (GetLiteral lit) =
   pure $ literalPP lit
 
 
 -- @WHEN EXTRA_BUILTINS
 -- @ exprPP (ApplyPrefix op arg) = do
-  -- @ arg <- exprPP arg
-  -- @ pure $ "(" <+> line (show op) <+> arg <+> ")"
+-- @   arg <- exprPP arg
+-- @   pure $ "(" <+> line (show op) <+> arg <+> ")"
 -- @END EXTRA_BUILTINS
 
 exprPP (ApplyInfix op lhv rhv) = do
@@ -189,36 +197,43 @@ exprPP {ctxt} (GetDecl idx) = do
 
 -- @WHEN IF_STMTS
 -- @ printIf test thenBranch elseBranch = do
-  -- @ test <- exprPP test
-  -- @ thenBranch <- assert_total printStatement thenBranch
-  -- @ let top = hangSep 0 ("if" <++> test) "{"
-  -- @ let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
-  -- @ if skipElse
-     -- @ then pure $ vsep [ top
-                      -- @ , indent' 4 thenBranch
-                      -- @ , "}"
-                      -- @ ]
-     -- @ else do
-       -- @ elseBranch <- assert_total printStatement elseBranch
-       -- @ pure $ vsep [ top
-                   -- @ , indent' 4 thenBranch
-                   -- @ , "} else {"
-                   -- @ , indent' 4 elseBranch
-                   -- @ , "}"
-                   -- @ ]
+-- @   test <- exprPP test
+-- @   thenBranch <- assert_total printStatement thenBranch
+-- @   let top = hangSep 0 ("if" <++> test) "{"
+-- @   let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
+-- @   if skipElse
+-- @      then pure $ vsep [ top
+-- @                       , indent' 4 thenBranch
+-- @                       , "}"
+-- @                       ]
+-- @      else do
+-- @        elseBranch <- assert_total printStatement elseBranch
+-- @        pure $ vsep [ top
+-- @                    , indent' 4 thenBranch
+-- @                    , "} else {"
+-- @                    , indent' 4 elseBranch
+-- @                    , "}"
+-- @                    ]
 -- @END IF_STMTS
 
-statementPP {ctxt} (DeclareVar {count} newTypes newNames initial cont) = do
-  let newCtxt : Context; newCtxt = _
+statementPP
+  {ctxt}
+  (DeclareVar newTypes newNames initial cont)
+= do
+  let count   := 1
+  let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes newNames
   let newVars := foldr byComma empty
                    !(traverse namePP $ takeTopDecl count newCtxt)
   initial     <- exprPP initial
   let holes   := foldr byComma empty $ List.Lazy.replicate count "_"
   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
-  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
-              , "_" <++> "=" <++> newVars
+  pure $ vsep [ "var" <++> "_" <++> "=" <++> initial
               , cont
               ]
+  -- pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+  --             , "_" <++> "=" <++> newVars
+  --             , cont
+  --             ]
 
 statementPP JustStop = do
   pure ""
@@ -234,13 +249,13 @@ statementPP (VoidExpr expr cont) = do
 
 -- @WHEN IF_STMTS
 -- @ statementPP (InnerIf test {isTermThen} {isTermElse} th el cont) = do
-  -- @ ifText <- printIf test th el
-  -- @ contText <- statementPP cont
-  -- @ pure $ ifText `vappend` contText
+-- @   ifText <- printIf test th el
+-- @   contText <- statementPP cont
+-- @   pure $ ifText `vappend` contText
 
 -- @ statementPP (TermIf test th el) = do
-  -- @ ifText <- printIf test th el
-  -- @ pure ifText
+-- @   ifText <- printIf test th el
+-- @   pure ifText
 -- @END IF_STMTS
 
 -- statementPP (DeclareVar stmt) = do

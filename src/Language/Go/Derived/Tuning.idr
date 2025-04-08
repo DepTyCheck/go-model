@@ -7,8 +7,8 @@ import Deriving.DepTyCheck.Gen
 -- @WHEN EXTRA_BUILTINS
 -- @ export
 -- @ GenOrderTuning "ApplyPrefix".dataCon where
-  -- @ isConstructor = itIsConstructor
-  -- @ deriveFirst _ _ = [`{op}]
+-- @   isConstructor = itIsConstructor
+-- @   deriveFirst _ _ = [`{op}]
 -- @END EXTRA_BUILTINS
 
 -- export
@@ -24,7 +24,7 @@ import Deriving.DepTyCheck.Gen
 -- export
 -- GenOrderTuning "DeclareVar".dataCon where
 --   isConstructor = itIsConstructor
---   deriveFirst _ _ = [`{na}, `{ty}, `{initial}]
+--   deriveFirst _ _ = [`{initial}]
 
 -- export
 -- GenOrderTuning "ReturnValue".dataCon where

@@ -35,6 +35,11 @@ record Config where
   context    : Context
   generator  : SelectedGen
 
+defaultStmtGen, defaultExprGen : SelectedGen
+defaultStmtGen  = Statements
+defaultExprGen  = Exprs (MkVectL [GoInt])
+
+
 defaultConfig : Config
 defaultConfig = MkConfig
   { usedSeed = initSeed
@@ -43,9 +48,9 @@ defaultConfig = MkConfig
   , modelFuel  = limit 4
   , context    = defaultContext
   -- @WHEN GEN_STMT
-  , generator  = Statements
+  , generator  = defaultStmtGen
   -- @UNLESS GEN_STMT
-  -- @ , generator  = Exprs [GoFunc [GoInt, GoInt] [GoBool]]
+-- @   , generator  = defaultExprGen
   -- @END GEN_STMT
   }
 
@@ -85,9 +90,8 @@ parseModelFuel str = case parsePositive str of
 parseGen : String -> Either String $ Config -> Config
 parseGen str =
   case str of
-    "blocks" => Right {generator := Statements}
-    "exprs" =>
-      Right {generator := Exprs (MkVectL [funcTy [GoInt, GoInt] [GoBool]])}
+    "blocks" => Right {generator := defaultStmtGen}
+    "exprs" => Right {generator := defaultExprGen}
     _ => Left "Unknown generator <\{str}>"
 
 

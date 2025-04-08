@@ -39,7 +39,7 @@ data GoType : Type where
   GoBool : GoType
   GoFunc : (params  : TypeVectL) -> (returns : TypeVectL) -> GoType
   -- @WHEN ASSIGNABLE_ANY
-  -- @ | GoAny
+-- @   | GoAny
   -- @END ASSIGNABLE_ANY
 
 namespace TypeVect
@@ -109,18 +109,18 @@ data NonEmpty : TypeVectL -> Type where
 -- @WHEN ASSIGNABLE_ANY
 -- @ public export
 -- @ data Assignable1 : (lhv, rhv : GoType) -> Type where
-  -- @ AssignSame : forall t. Assignable1 t t
+-- @   AssignSame : forall t. Assignable1 t t
 
-  -- @ AssignToAny :  forall t. Assignable1 GoAny t
+-- @   AssignToAny :  forall t. Assignable1 GoAny t
 
 -- @ public export
 -- @ data Assignable : (lhv, rhv : GoTypes) -> Type where
-  -- @ Nil : Assignable [] []
+-- @   Nil : Assignable [] []
 
-  -- @ (::) : forall t1, t2, ts1, ts2.
-         -- @ (head : Assignable1 t1 t2) ->
-         -- @ (tail : Assignable ts1 ts2) ->
-         -- @ Assignable (t1 :: ts1) (t2 :: ts2)
+-- @   (::) : forall t1, t2, ts1, ts2.
+-- @          (head : Assignable1 t1 t2) ->
+-- @          (tail : Assignable ts1 ts2) ->
+-- @          Assignable (t1 :: ts1) (t2 :: ts2)
 -- @END ASSIGNABLE_ANY
 
 
@@ -287,8 +287,8 @@ data Literal : (ty : GoType) -> Type where
 -- @WHEN EXTRA_BUILTINS
 -- @ public export
 -- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
-  -- @ BoolNot : PrefixOp GoBool GoBool
-  -- @ IntNeg  : PrefixOp GoInt GoInt
+-- @   BoolNot : PrefixOp GoBool GoBool
+-- @   IntNeg  : PrefixOp GoInt GoInt
 -- @END EXTRA_BUILTINS
 
 public export
@@ -296,21 +296,21 @@ data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
   IntAdd : InfixOp GoInt GoInt GoInt
 
   -- @WHEN EXTRA_BUILTINS
-  -- @ IntSub, IntMul  : InfixOp GoInt GoInt GoInt
-  -- @ BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
-  -- @ IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+-- @   IntSub, IntMul  : InfixOp GoInt GoInt GoInt
+-- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+-- @   IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
   -- @END EXTRA_BUILTINS
 
 public export
 data  BuiltinFunc : (paramTypes, retTypes : TypeVectL) -> Type where
   -- @WHEN ASSIGNABLE_ANY
-  -- @ Print : BuiltinFunc [GoAny] []
+-- @   Print : BuiltinFunc [GoAny] []
   -- @UNLESS ASSIGNABLE_ANY
   Print : BuiltinFunc (MkVectL [GoInt]) (MkVectL [])
   -- @END ASSIGNABLE_ANY
 
   -- @WHEN EXTRA_BUILTINS
-  -- @ Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
+-- @   Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
   -- @END EXTRA_BUILTINS
 
 -- public export
@@ -345,6 +345,13 @@ namespace ExprList
 
 
 data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
+-- @WHEN HOLES
+  Hole
+    :  forall ctxt
+    .  (type : TypeVectL)
+    -> Expr ctxt type
+-- @END HOLES
+
   -- AnonFunc : forall ctxt.
   --            {paramsCount : Nat} ->
   --            (params : NewDecls Var ctxt.stackLen paramsCount) ->
@@ -358,10 +365,10 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     -> Expr ctxt (MkVectL [resTy])
 
   -- @WHEN EXTRA_BUILTINS
-  -- @ ApplyPrefix : forall ctxt, resTy, argTy.
-                -- @ (op : PrefixOp argTy resTy) ->
-                -- @ (arg : Expr ctxt [argTy]) ->
-                -- @ Expr ctxt [resTy]
+-- @   ApplyPrefix : forall ctxt, resTy, argTy.
+-- @                 (op : PrefixOp argTy resTy) ->
+-- @                 (arg : Expr ctxt [argTy]) ->
+-- @                 Expr ctxt [resTy]
   -- @END EXTRA_BUILTINS
 
   ApplyInfix
@@ -425,11 +432,11 @@ data AllowJustStop : Context -> Type where
 -- @WHEN IF_STMTS
 -- @ public export
 -- @ data AllowInnerIf : (isTermThen : Bool) ->
-                    -- @ (isTermElse : Bool) ->
-                    -- @ Type where
-  -- @ AllowInnerIfTT : AllowInnerIf True True
-  -- @ AllowInnerIfTF : AllowInnerIf True False
-  -- @ AllowInnerIfFT : AllowInnerIf False True
+-- @                     (isTermElse : Bool) ->
+-- @                     Type where
+-- @   AllowInnerIfTT : AllowInnerIf True True
+-- @   AllowInnerIfTF : AllowInnerIf True False
+-- @   AllowInnerIfFT : AllowInnerIf False True
 -- @END IF_STMTS
 
 
@@ -459,9 +466,9 @@ OnDeclare ctxt kind newTypes (MkNewNames newNames) =
 data Statement : (ctxt : Context) -> Type where
   DeclareVar
     :  {0 ctxt      : Context}
-    -> {count       : Nat}
-    -> (newTypes    : TypeVect count)
-    -> (newNames    : NewNames count ctxt)
+    -- -> {count'      : Nat}
+    -> (newTypes    : TypeVect 1)
+    -> (newNames    : NewNames 1 ctxt)
     -> (initial     : Expr ctxt (MkVectL newTypes))
     -> (cont        : Statement (OnDeclare ctxt Var newTypes newNames))
     -> Statement ctxt
@@ -491,21 +498,21 @@ data Statement : (ctxt : Context) -> Type where
     -> Statement ctxt
 
   -- @WHEN IF_STMTS
-  -- @ InnerIf : forall ctxt.
-            -- @ (test : Expr ctxt [GoBool]) ->
-            -- @ {isTermThen, isTermElse: Bool} ->
-            -- @ (ai : AllowInnerIf isTermThen isTermElse) =>
-            -- @ (th : Statement $ SetIsTerminating isTermThen ctxt) ->
-            -- @ (el : Statement $ SetIsTerminating isTermElse ctxt) ->
-            -- @ (cont : Statement ctxt) ->
-            -- @ Statement ctxt
+-- @   InnerIf : forall ctxt.
+-- @             (test : Expr ctxt [GoBool]) ->
+-- @             {isTermThen, isTermElse: Bool} ->
+-- @             (ai : AllowInnerIf isTermThen isTermElse) =>
+-- @             (th : Statement $ SetIsTerminating isTermThen ctxt) ->
+-- @             (el : Statement $ SetIsTerminating isTermElse ctxt) ->
+-- @             (cont : Statement ctxt) ->
+-- @             Statement ctxt
 
-  -- @ TermIf : forall ctxt, ret.
-           -- @ IsTerminating ctxt ret =>
-           -- @ (test : Expr ctxt [GoBool]) ->
-           -- @ (th : Statement ctxt) ->
-           -- @ (el : Statement ctxt) ->
-           -- @ Statement ctxt
+-- @   TermIf : forall ctxt, ret.
+-- @            IsTerminating ctxt ret =>
+-- @            (test : Expr ctxt [GoBool]) ->
+-- @            (th : Statement ctxt) ->
+-- @            (el : Statement ctxt) ->
+-- @            Statement ctxt
   -- @END IF_STMTS
 
 
