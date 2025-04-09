@@ -371,10 +371,10 @@ OnAnonFunc {paramCount} ctxt newTypes (MkNewNames newNames) retTypes =
 
 data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
 -- @WHEN HOLES
--- @   Hole
--- @     :  forall ctxt
--- @     .  (type       : TypeVectL)
--- @     -> Expr ctxt type
+  Hole
+    :  forall ctxt, len
+    .  (type       : TypeVect (S (S len)))
+    -> Expr ctxt (MkVectL type)
 -- @END HOLES
 
   AnonFunc

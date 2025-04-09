@@ -153,8 +153,8 @@ parameters {ctxt      : Context}
 
 
 -- @WHEN HOLES
--- @ exprPP (Hole type) =
--- @   pure $ "<<" <++> hsepBy "," (typesPP type) <++> ">>"
+exprPP (Hole type) =
+  pure $ "<<" <+> hsepBy "," (typesPP $ MkVectL type) <+> ">>"
 -- @END HOLES
 
 exprPP
