@@ -168,11 +168,12 @@ namespace ExprList
   export
   asList
     :  forall ctxt
-    .  {types : TypeVectL}
+    .  {len   : Nat}
+    -> {types : TypeVect len}
     -> (ExprList ctxt types)
     -> List (type : GoType ** Expr ctxt (MkVectL [type]))
   asList [] = []
-  asList {types = MkVectL (t :: ts)} (e :: es) =
+  asList {types = t :: ts} (e :: es) =
     (t ** e) :: asList es
 
 

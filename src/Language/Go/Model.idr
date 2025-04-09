@@ -184,19 +184,24 @@ data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
     -> ByType ty (tail :< head) (FS found)
 
 
-  -- public export
-  -- data ByRet : forall len. (ret : GoTypes) -> Stack len ->
-  --              RelativeTo len -> (params : GoTypes) -> Type where
-  --   HereR : forall par, ret, kind, name, tail.
-  --           ByRet ret
-  --                 (tail :< (kind ** MkDecl (GoFunc par ret) name))
-  --                 (Rel _ FZ)
-  --                 par
+public export
+data ByRet
+  :  forall len
+  .  (par, ret : TypeVectL)
+  -> Stack len
+  -> Fin len
+  -> Type
+  where
 
-  --   ThereR : forall par, ret, head, tail, depth.
-  --            ByRet ret tail depth par ->
-  --            (ns : NotShadow head depth) =>
-  --            ByRet ret (tail :< head) (incHeight depth) par
+  HereR
+    :  forall par, ret, kind, name, tail
+    .  ByRet par ret (tail :< MkDecl kind name (GoFunc par ret)) FZ
+
+  ThereR
+    :  forall par, ret, head, tail, found
+    .  (there     : ByRet par ret tail found)
+    -> {auto 0 ns : NotShadow head found}
+    -> ByRet par ret (tail :< head) (FS found)
 
 
 namespace NewNames'
@@ -326,15 +331,20 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type
 
 namespace ExprList
   public export
-  data ExprList : (ctxt : Context) -> (types : TypeVectL) -> Type where
-    Nil  : forall ctxt. ExprList ctxt (MkVectL [])
+  data ExprList
+    :  (ctxt   : Context)
+    -> {len   : Nat}
+    -> (types : TypeVect len)
+    -> Type
+    where
+      Nil  : forall ctxt. ExprList ctxt []
 
-    (::)
-      :  forall ctxt, headT, tailLen
-      .  {0 tailT : TypeVect tailLen}
-      -> (head    : Expr ctxt (MkVectL [headT]))
-      -> (tail    : ExprList ctxt (MkVectL tailT))
-      -> ExprList ctxt (MkVectL (headT :: tailT))
+      (::)
+        :  forall ctxt, headT, tailLen
+        .  {0 tailT : TypeVect tailLen}
+        -> (head    : Expr ctxt (MkVectL [headT]))
+        -> (tail    : ExprList ctxt tailT)
+        -> ExprList ctxt (headT :: tailT)
 
 
 public export
@@ -403,17 +413,18 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     -> (args       : Expr ctxt paramTypes)
     -> Expr ctxt retTypes
 
-  -- CallNamed : forall ctxt, retTypes.
-  --             (idx : RelativeTo ctxt.stackLen) ->
-  --             {argTypes : GoTypes} ->
-  --             (br : ByRet retTypes ctxt.stack idx argTypes) =>
-  --             (args : ExprList ctxt argTypes) ->
-  --             Expr ctxt retTypes
+  CallNamed
+    :  forall ctxt, retT
+    .  (idx        : Fin ctxt.stackLen)
+    -> {parT       : TypeVectL}
+    -> (args       : Expr ctxt parT)
+    -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
+    -> Expr ctxt retT
 
   GetDecl
     :  forall ctxt, ty
-    .  (idx          : Fin ctxt.stackLen)
-    -> {auto 0 bt    : ByType ty ctxt.stack idx}
+    .  (idx        : Fin ctxt.stackLen)
+    -> {auto 0 bt  : ByType ty ctxt.stack idx}
     -> Expr ctxt (MkVectL [ty])
 
   -- CallExpr : forall ctxt, argTypes, retTypes.
@@ -422,11 +433,12 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
   --            Expr ctxt retTypes
 
   Comma
-    :  forall ctxt
-    .  {0 count'' : Nat}
-    -> {0 ret     : TypeVect (S (S count''))}
-    -> (values    : ExprList ctxt (MkVectL ret))
-    -> Expr ctxt (MkVectL ret)
+    :  forall ctxt, tailT
+    .  {0 aT, bT   : GoType}
+    -> (a          : Expr ctxt (MkVectL [aT]))
+    -> (b          : Expr ctxt (MkVectL [bT]))
+    -> (tail       : ExprList ctxt tailT)
+    -> Expr ctxt (MkVectL (aT :: bT :: tailT))
 
 
 public export
@@ -478,9 +490,9 @@ OnDeclare ctxt kind newTypes (MkNewNames newNames) =
 data Statement : (ctxt : Context) -> Type where
   DeclareVar
     :  {0 ctxt      : Context}
-    -- -> {count'      : Nat}
-    -> (newTypes    : TypeVect 1)
-    -> (newNames    : NewNames 1 ctxt)
+    -> {count'      : Nat}
+    -> (newTypes    : TypeVect (S count'))
+    -> (newNames    : NewNames (S count') ctxt)
     -> (initial     : Expr ctxt (MkVectL newTypes))
     -> (cont        : Statement (OnDeclare ctxt Var newTypes newNames))
     -> Statement ctxt

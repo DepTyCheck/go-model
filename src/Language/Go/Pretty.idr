@@ -182,18 +182,18 @@ exprPP (ApplyInfix op lhv rhv) = do
 exprPP (CallBuiltin f args) = do
   pure $ callPP (builtinPP f) !(exprPP args)
 
--- exprPP (CallNamed idx args) = do
---   args <- exprPPList args
---   let decl = index idx ctxt.stack
---   fn <- printName idx decl
---   pure $ funcCall fn args
+exprPP (CallNamed idx args) = do
+  name <- namePP (resolve idx ctxt.stack)
+  args <- exprPP args
+  pure $ callPP name args
 
 exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
   namePP decl
 
-exprPP (Comma values) = do
-  values <- assert_total traverse (\(_ ** e) => exprPP e) $ asList values
+exprPP (Comma a b tail) = do
+  values <- assert_total traverse (\(_ ** e) => exprPP e) $
+              (_ ** a) :: (_ ** b) :: asList tail
   pure $ hsepBy "," values
 
 
@@ -230,9 +230,9 @@ exprPP (Comma values) = do
 
 statementPP
   {ctxt}
-  (DeclareVar newTypes newNames initial cont)
+  (DeclareVar {count'} newTypes newNames initial cont)
 = do
-  let count   := 1
+  let count   := S count'
   let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes newNames
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
@@ -293,4 +293,3 @@ wrapStatement {ctxt} stmt = do
               , "func main() {"
               , "}"
               ]
-
