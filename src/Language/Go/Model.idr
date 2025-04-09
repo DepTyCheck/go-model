@@ -276,6 +276,12 @@ SetIsTerminating value = { isTerminating := value }
 
 
 public export
+record NewNames (count : Nat) (ctxt : Context) where
+  constructor MkNewNames
+  newNames : NewNames' count (finToNat ctxt.blockDepth)
+
+
+public export
 data Statement : (ctxt : Context) -> Type
 
 
@@ -313,19 +319,6 @@ data  BuiltinFunc : (paramTypes, retTypes : TypeVectL) -> Type where
 -- @   Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
   -- @END EXTRA_BUILTINS
 
--- public export
--- OnAnonFunc : (oldCtxt : Context) ->
---              {paramsCount : Nat} ->
---              (params : NewDecls Var oldCtxt.stackLen paramsCount) ->
---              (retTypes : GoTypes) ->
---              Context
--- OnAnonFunc oldCtxt params retTypes =
---   let newStack = push params oldCtxt.stack in
---   { isTerminating := True
---   , returns := retTypes
---   , stackLen := _
---   , stack := newStack
---   } oldCtxt
 
 public export
 data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type
@@ -344,24 +337,47 @@ namespace ExprList
       -> ExprList ctxt (MkVectL (headT :: tailT))
 
 
+public export
+OnAnonFunc
+  :  {paramCount : Nat}
+  -> (ctxt       : Context)
+  -> (paramTypes : TypeVect paramCount)
+  -> (paramNames : NewNames paramCount ctxt)
+  -> (retTypes   : TypeVectL)
+  -> Context
+OnAnonFunc {paramCount} ctxt newTypes (MkNewNames newNames) retTypes =
+  { stackLen      $= (+ paramCount)
+  , stack         $= push Var newTypes newNames
+  , blockDepth    := natToFinLT @{prf paramCount ctxt.stackLen} paramCount
+  , returns       := retTypes
+  , isTerminating := True
+  } ctxt
+
+  where
+    0 prf : (0 a, b : Nat) -> LT a (S $ b + a)
+    prf a b = rewrite plusCommutative b a in
+                LTESucc $ lteAddRight {m = b} a
+
+
 data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
 -- @WHEN HOLES
-  Hole
-    :  forall ctxt
-    .  (type : TypeVectL)
-    -> Expr ctxt type
+-- @   Hole
+-- @     :  forall ctxt
+-- @     .  (type       : TypeVectL)
+-- @     -> Expr ctxt type
 -- @END HOLES
 
-  -- AnonFunc : forall ctxt.
-  --            {paramsCount : Nat} ->
-  --            (params : NewDecls Var ctxt.stackLen paramsCount) ->
-  --            (retTypes : GoTypes) ->
-  --            (body : Statement (OnAnonFunc ctxt params retTypes)) ->
-  --            Expr ctxt [GoFunc (types params) retTypes]
+  AnonFunc
+    :  forall ctxt, retTypes
+    .  {parCount   : Nat}
+    -> {0 parTypes : TypeVect parCount}
+    -> (parNames   : NewNames parCount ctxt)
+    -> (body       : Statement (OnAnonFunc ctxt parTypes parNames retTypes))
+    -> Expr ctxt (MkVectL [GoFunc (MkVectL parTypes) retTypes])
 
   GetLiteral
     :  forall ctxt, resTy
-    .  (lit : Literal resTy)
+    .  (lit        : Literal resTy)
     -> Expr ctxt (MkVectL [resTy])
 
   -- @WHEN EXTRA_BUILTINS
@@ -372,16 +388,19 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
   -- @END EXTRA_BUILTINS
 
   ApplyInfix
-    :  forall ctxt, resTy, lhvTy, rhvTy
-    .  (op  : InfixOp lhvTy rhvTy resTy)
-    -> (lhv : Expr ctxt (MkVectL [lhvTy]))
-    -> (rhv : Expr ctxt (MkVectL [rhvTy]))
+    :  forall ctxt, resTy
+    .  {lhvTy      : GoType}
+    -> {rhvTy      : GoType}
+    -> (op         : InfixOp lhvTy rhvTy resTy)
+    -> (lhv        : Expr ctxt (MkVectL [lhvTy]))
+    -> (rhv        : Expr ctxt (MkVectL [rhvTy]))
     -> Expr ctxt (MkVectL [resTy])
 
   CallBuiltin
-    :  forall ctxt, paramTypes, retTypes
-    .  (func : BuiltinFunc paramTypes retTypes)
-    -> (args : Expr ctxt paramTypes)
+    :  forall ctxt, retTypes
+    .  {paramTypes : TypeVectL}
+    -> (func       : BuiltinFunc paramTypes retTypes)
+    -> (args       : Expr ctxt paramTypes)
     -> Expr ctxt retTypes
 
   -- CallNamed : forall ctxt, retTypes.
@@ -393,8 +412,8 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
 
   GetDecl
     :  forall ctxt, ty
-    .  (idx       : Fin ctxt.stackLen)
-    -> {auto 0 bt : ByType ty ctxt.stack idx}
+    .  (idx          : Fin ctxt.stackLen)
+    -> {auto 0 bt    : ByType ty ctxt.stack idx}
     -> Expr ctxt (MkVectL [ty])
 
   -- CallExpr : forall ctxt, argTypes, retTypes.
@@ -402,13 +421,12 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
   --            (args : Expr ctxt argTypes) ->
   --            Expr ctxt retTypes
 
-  -- Comma : forall ctxt.
-  --         {aTy, bTy : GoType} ->
-  --         {restTypes : GoTypes} ->
-  --         (a : Expr ctxt [aTy]) ->
-  --         (b : Expr ctxt [bTy]) ->
-  --         (rest : ExprList ctxt restTypes) ->
-  --         Expr ctxt (aTy :: bTy :: restTypes)
+  Comma
+    :  forall ctxt
+    .  {0 count'' : Nat}
+    -> {0 ret     : TypeVect (S (S count''))}
+    -> (values    : ExprList ctxt (MkVectL ret))
+    -> Expr ctxt (MkVectL ret)
 
 
 public export
@@ -438,12 +456,6 @@ data AllowJustStop : Context -> Type where
 -- @   AllowInnerIfTF : AllowInnerIf True False
 -- @   AllowInnerIfFT : AllowInnerIf False True
 -- @END IF_STMTS
-
-
-public export
-record NewNames (count : Nat) (ctxt : Context) where
-  constructor MkNewNames
-  newNames : NewNames' count (finToNat ctxt.blockDepth)
 
 
 public export

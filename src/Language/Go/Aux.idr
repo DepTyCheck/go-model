@@ -1,5 +1,6 @@
 module Language.Go.Aux
 
+import Data.DPair
 import Data.Fin
 import Data.Fin.Properties
 import Data.List
@@ -142,10 +143,11 @@ takeTopRev (S i) stack@(rest :< _) =
 
 export
 takeTopDecl
-  :  (count : Nat)
-  -> (ctxt  : Context)
+  :  {len   : Nat}
+  -> (count : Nat)
+  -> (stack : Stack len)
   -> List ResolvedDecl
-takeTopDecl count ctxt = reverse $ takeTopRev count ctxt.stack
+takeTopDecl count stack = reverse $ takeTopRev count stack
 
 -- TODO
 -- export
@@ -162,15 +164,17 @@ takeTopDecl count ctxt = reverse $ takeTopRev count ctxt.stack
 --   reverse $ takeTopRev count newCtxt.stack
 
 
--- namespace Expr
---   export
---   asList : forall ctxt, len.
---            {0 rets : TypeVect len} ->
---            (ExprList ctxt rets) ->
---            List (Exists $ Expr ctxt {len = 1})
---   asList {rets=[]} [] = []
---   asList {rets=(t :: ts)} (e :: es) =
---     (Evidence [t] e) :: asList es
+namespace ExprList
+  export
+  asList
+    :  forall ctxt
+    .  {types : TypeVectL}
+    -> (ExprList ctxt types)
+    -> List (type : GoType ** Expr ctxt (MkVectL [type]))
+  asList [] = []
+  asList {types = MkVectL (t :: ts)} (e :: es) =
+    (t ** e) :: asList es
+
 
 namespace Statement
   export

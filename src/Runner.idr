@@ -123,7 +123,7 @@ runStatementsGen conf = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do
     stmt <- genStatements conf.modelFuel conf.context
-    statementPP {ctxt = conf.context} stmt
+    wrapStatement {ctxt = conf.context} stmt
 
 runExprsGen : {opts : _} -> Config -> (res : TypeVectL) -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
