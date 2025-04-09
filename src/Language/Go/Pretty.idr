@@ -149,12 +149,24 @@ parameters {ctxt      : Context}
   exprPP : {rets : TypeVectL} -> Expr ctxt rets -> (Gen0 $ Doc opts)
 
   export
+  maybeUnpackPP:
+       {len   : Nat}
+    -> {types : TypeVect len}
+    -> MaybeUnpack ctxt types
+    -> (Gen0 $ Doc opts)
+  maybeUnpackPP (JustList exprs) = do
+    values <- assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
+    pure $ hsepBy "," values
+  maybeUnpackPP (Unpack expr) = exprPP expr
+
+
+  export
   wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
 
 
 -- @WHEN HOLES
-exprPP (Hole type) =
-  pure $ "<<" <+> hsepBy "," (typesPP $ MkVectL type) <+> ">>"
+-- @ exprPP {rets} Hole =
+-- @   pure $ "<<" <+> hsepBy "," (typesPP rets) <+> ">>"
 -- @END HOLES
 
 exprPP
@@ -184,17 +196,12 @@ exprPP (CallBuiltin f args) = do
 
 exprPP (CallNamed idx args) = do
   name <- namePP (resolve idx ctxt.stack)
-  args <- exprPP args
+  args <- maybeUnpackPP args
   pure $ callPP name args
 
 exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
   namePP decl
-
-exprPP (Comma a b tail) = do
-  values <- assert_total traverse (\(_ ** e) => exprPP e) $
-              (_ ** a) :: (_ ** b) :: asList tail
-  pure $ hsepBy "," values
 
 
 -- @WHEN IF_STMTS
@@ -228,6 +235,16 @@ exprPP (Comma a b tail) = do
 -- @                    ]
 -- @END IF_STMTS
 
+statementPP JustStop = do
+  pure empty
+
+statementPP {ctxt} (ReturnValue res) = do
+  -- TODO: when returns = [] we can ommit explicit return
+  pure $ "return" <++> !(maybeUnpackPP res)
+
+statementPP (VoidExpr expr cont) = do
+  pure $ !(exprPP expr) `vappend` !(statementPP cont)
+
 statementPP
   {ctxt}
   (DeclareVar {count'} newTypes newNames initial cont)
@@ -236,25 +253,13 @@ statementPP
   let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes newNames
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
-  initial     <- exprPP initial
+  initial     <- maybeUnpackPP initial
   let holes   := hsepBy comma $ replicate count "_"
   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
               , "_" <++> "=" <++> newVars
               , cont
               ]
-
-statementPP JustStop = do
-  pure ""
-
-statementPP (ReturnValue res) = do
-  pure $ "return" <++> !(exprPP res)
-
-statementPP ReturnNone = do
-  pure "return"
-
-statementPP (VoidExpr expr cont) = do
-  pure $ !(exprPP expr) `vappend` !(statementPP cont)
 
 -- @WHEN IF_STMTS
 -- @ statementPP (InnerIf test {isTermThen} {isTermElse} th el cont) = do

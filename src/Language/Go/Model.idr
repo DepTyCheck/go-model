@@ -92,20 +92,6 @@ mutual
         injDP Refl = (Refl, Refl)
 
 
-public export
-data IsEmpty : TypeVectL -> Type where
-  ItIsEmpty : IsEmpty (MkVectL [])
-
-
-public export
-data NonEmpty : TypeVectL -> Type where
-  IsNotEmpty
-    :  {0 len  : Nat}
-    -> {0 head : GoType}
-    -> {0 tail : TypeVect len}
-    -> NonEmpty (MkVectL (head :: tail))
-
-
 -- @WHEN ASSIGNABLE_ANY
 -- @ public export
 -- @ data Assignable1 : (lhv, rhv : GoType) -> Type where
@@ -185,20 +171,21 @@ data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
 
 
 public export
-data ByRet
-  :  forall len
-  .  (par, ret : TypeVectL)
+data ByRet:
+     forall len, parLen
+  .  (par : TypeVect parLen)
+  -> (ret : TypeVectL)
   -> Stack len
   -> Fin len
   -> Type
   where
 
-  HereR
-    :  forall par, ret, kind, name, tail
-    .  ByRet par ret (tail :< MkDecl kind name (GoFunc par ret)) FZ
+  HereR:
+       forall par, ret, kind, name, tail
+    .  ByRet par ret (tail :< MkDecl kind name (GoFunc (MkVectL par) ret)) FZ
 
-  ThereR
-    :  forall par, ret, head, tail, found
+  ThereR:
+       forall par, ret, head, tail, found
     .  (there     : ByRet par ret tail found)
     -> {auto 0 ns : NotShadow head found}
     -> ByRet par ret (tail :< head) (FS found)
@@ -332,7 +319,7 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type
 namespace ExprList
   public export
   data ExprList
-    :  (ctxt   : Context)
+    :  (ctxt  : Context)
     -> {len   : Nat}
     -> (types : TypeVect len)
     -> Type
@@ -345,6 +332,27 @@ namespace ExprList
         -> (head    : Expr ctxt (MkVectL [headT]))
         -> (tail    : ExprList ctxt tailT)
         -> ExprList ctxt (headT :: tailT)
+
+
+public export
+data MaybeUnpack:
+     (ctxt  : Context)
+  -> {len   : Nat}
+  -> (types : TypeVect len)
+  -> Type
+  where
+
+    JustList:
+         forall ctxt, types
+      .  ExprList ctxt types
+      -> MaybeUnpack ctxt types
+
+    Unpack:
+         forall ctxt
+      .  {0 len'' : Nat}
+      -> {0 types : TypeVect (S (S len''))}
+      -> (  expr  : Expr ctxt (MkVectL types))
+      -> MaybeUnpack ctxt types
 
 
 public export
@@ -371,10 +379,9 @@ OnAnonFunc {paramCount} ctxt newTypes (MkNewNames newNames) retTypes =
 
 data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
 -- @WHEN HOLES
-  Hole
-    :  forall ctxt, len
-    .  (type       : TypeVect (S (S len)))
-    -> Expr ctxt (MkVectL type)
+-- @   Hole:
+-- @        forall ctxt, res
+-- @     .  Expr ctxt res
 -- @END HOLES
 
   AnonFunc
@@ -413,11 +420,12 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     -> (args       : Expr ctxt paramTypes)
     -> Expr ctxt retTypes
 
-  CallNamed
-    :  forall ctxt, retT
-    .  (idx        : Fin ctxt.stackLen)
-    -> {parT       : TypeVectL}
-    -> (args       : Expr ctxt parT)
+  CallNamed:
+       forall ctxt, retT
+    .  {parLen     : Nat}
+    -> (idx        : Fin ctxt.stackLen)
+    -> {parT       : TypeVect parLen}
+    -> (args       : MaybeUnpack ctxt parT)
     -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
     -> Expr ctxt retT
 
@@ -432,31 +440,10 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
   --            (args : Expr ctxt argTypes) ->
   --            Expr ctxt retTypes
 
-  Comma
-    :  forall ctxt, tailT
-    .  {0 aT, bT   : GoType}
-    -> (a          : Expr ctxt (MkVectL [aT]))
-    -> (b          : Expr ctxt (MkVectL [bT]))
-    -> (tail       : ExprList ctxt tailT)
-    -> Expr ctxt (MkVectL (aT :: bT :: tailT))
-
 
 public export
 data BoolEqual : Bool -> Bool -> Type where
   Refl : forall b. BoolEqual b b
-
-
-public export
-data AllowJustStop : Context -> Type where
-  StopNonTerminating
-    :  forall ctxt
-    .  {auto 0 prf : BoolEqual ctxt.isTerminating False}
-    -> AllowJustStop ctxt
-
-  StopWhenReturnsNone
-    :  forall ctxt
-    .  {auto 0 prf : IsEmpty ctxt.returns}
-    -> AllowJustStop ctxt
 
 
 -- @WHEN IF_STMTS
@@ -471,8 +458,8 @@ data AllowJustStop : Context -> Type where
 
 
 public export
-OnDeclare
-  :  {count    : Nat}
+OnDeclare:
+     {count    : Nat}
   -> (ctxt     : Context)
   -> (kind     : Kind)
   -> (newTypes : TypeVect count)
@@ -488,37 +475,30 @@ OnDeclare ctxt kind newTypes (MkNewNames newNames) =
 
 
 data Statement : (ctxt : Context) -> Type where
-  DeclareVar
-    :  {0 ctxt      : Context}
+  JustStop:
+       {0 ctxt      : Context}
+    -> {auto 0 nt   : BoolEqual ctxt.isTerminating False}
+    -> Statement ctxt
+
+  ReturnValue:
+       {0 ctxt      : Context}
+    -> {auto 0 term : BoolEqual ctxt.isTerminating True}
+    -> (res         : MaybeUnpack ctxt ctxt.returns.vect)
+    -> Statement ctxt
+
+  VoidExpr:
+       {0 ctxt      : Context}
+    -> (expr        : Expr ctxt (MkVectL []))
+    -> (cont        : Statement ctxt)
+    -> Statement ctxt
+
+  DeclareVar:
+       {0 ctxt      : Context}
     -> {count'      : Nat}
     -> (newTypes    : TypeVect (S count'))
     -> (newNames    : NewNames (S count') ctxt)
-    -> (initial     : Expr ctxt (MkVectL newTypes))
+    -> (initial     : MaybeUnpack ctxt newTypes)
     -> (cont        : Statement (OnDeclare ctxt Var newTypes newNames))
-    -> Statement ctxt
-
-  JustStop
-    :  {0 ctxt      : Context}
-    -> {auto 0 a    : AllowJustStop ctxt}
-    -> Statement ctxt
-
-  ReturnValue
-    :  {0 ctxt      : Context}
-    -> {auto 0 ne   : NonEmpty ctxt.returns}
-    -> {auto 0 term : BoolEqual ctxt.isTerminating True}
-    -> (res         : Expr ctxt ctxt.returns)
-    -> Statement ctxt
-
-  ReturnNone
-    :  {0 ctxt      : Context}
-    -> {auto 0 em   : IsEmpty ctxt.returns}
-    -> {auto 0 term : BoolEqual ctxt.isTerminating True}
-    -> Statement ctxt
-
-  VoidExpr
-    :  {0 ctxt      : Context}
-    -> (expr        : Expr ctxt (MkVectL []))
-    -> (cont        : Statement ctxt)
     -> Statement ctxt
 
   -- @WHEN IF_STMTS

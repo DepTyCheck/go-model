@@ -18,6 +18,12 @@ import Syntax.PreorderReasoning
 
 -- @WHEN GEN_STMT
 Language.Go.Model.genStatements = deriveGen
+
+-- %language ElabReflection
+
+-- %runElab deriveGenPrinter {printTTImp = False} $
+--   Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
+
 -- @UNLESS GEN_STMT
 -- @ Language.Go.Model.genExprs = deriveGen
 -- @END GEN_STMT
