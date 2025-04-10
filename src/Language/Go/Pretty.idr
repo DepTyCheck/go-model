@@ -55,17 +55,17 @@ parameters {auto opts : LayoutOpts}
   typePP : GoType -> Doc opts
 
   export
-  typesPP : TypeVectL -> List (Doc opts)
+  typesPP : forall len. TypeVect len -> List (Doc opts)
   typesPP ts = assert_total map typePP (asList ts)
 
-  returnTypesPP : TypeVectL -> Doc opts
-  returnTypesPP (MkVectL []) = empty
-  returnTypesPP (MkVectL [type]) = typePP type
+  returnTypesPP : forall len. TypeVect len -> Doc opts
+  returnTypesPP [] = empty
+  returnTypesPP [type] = typePP type
   returnTypesPP types = goGeneralList "(" ")" "," (typesPP types)
 
   typePP GoInt  = pure "int"
   typePP GoBool = pure "bool"
-  typePP (GoFunc params rets) =
+  typePP (GoFunc $ params `To` rets) =
     let params := goList (typesPP params)
         rets   := returnTypesPP rets
      in "func" <++> params <+?+> rets
@@ -89,10 +89,11 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  funcPP
-    :  (name    : Doc opts)
+  funcPP:
+       forall retLen
+    .  (name    : Doc opts)
     -> (params  : List ResolvedDecl)
-    -> (returns : TypeVectL)
+    -> (returns : TypeVect retLen)
     -> (body    : Doc opts)
     -> (Gen0 $ Doc opts)
   funcPP name params returns body =
@@ -135,8 +136,8 @@ parameters {auto opts : LayoutOpts}
 -- @END EXTRA_BUILTINS
 
   export
-  callPP  : (func, args : Doc opts) -> Doc opts
-  callPP func args = func <+> goEnclose "(" ")" args
+  callPP  : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
+  callPP func args = func <+> goList args
 
 
 parameters {ctxt      : Context}
@@ -146,19 +147,41 @@ parameters {ctxt      : Context}
   statementPP : Statement ctxt -> (Gen0 $ Doc opts)
 
   export
-  exprPP : {rets : TypeVectL} -> Expr ctxt rets -> (Gen0 $ Doc opts)
+  exprPP:
+       {len  : Nat}
+    -> {rets : TypeVect len}
+    -> Expr ctxt rets
+    -> (Gen0 $ Doc opts)
 
   export
-  maybeUnpackPP:
+  exprListPP:
        {len   : Nat}
     -> {types : TypeVect len}
-    -> MaybeUnpack ctxt types
-    -> (Gen0 $ Doc opts)
-  maybeUnpackPP (JustList exprs) = do
-    values <- assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
-    pure $ hsepBy "," values
-  maybeUnpackPP (Unpack expr) = exprPP expr
+    -> ExprList ctxt types
+    -> Gen0 (List (Doc opts))
+  exprListPP exprs =
+    assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
 
+  export
+  commaPP:
+       {len    : Nat}
+    -> {aT, bT : GoType}
+    -> {restT  : TypeVect len}
+    -> (a      : Expr ctxt [aT])
+    -> (b      : Expr ctxt [bT])
+    -> (rest   : ExprList ctxt restT)
+    -> (Gen0 (List (Doc opts)))
+  commaPP a b rest = exprListPP $ a :: b :: rest
+
+  export
+  maybeNoValuePP:
+       {len   : Nat}
+    -> {types : TypeVect len}
+    -> MaybeNoValue ctxt types
+    -> (Gen0 (List (Doc opts)))
+  maybeNoValuePP (NoValue) = pure [empty]
+  maybeNoValuePP (Value (Comma a b rest)) = commaPP a b rest
+  maybeNoValuePP (Value expr) = pure [ !(exprPP expr) ]
 
   export
   wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
@@ -169,8 +192,11 @@ parameters {ctxt      : Context}
 -- @   pure $ "<<" <+> hsepBy "," (typesPP rets) <+> ">>"
 -- @END HOLES
 
+exprPP (Comma a b rest) =
+  pure $ "/* Comma! */" <++> hsepBy "," !(commaPP a b rest)
+
 exprPP
-  {rets = MkVectL [GoFunc (MkVectL parTypes) retTypes]}
+  {rets = [GoFunc $ parTypes `To` retTypes]}
   (AnonFunc {parCount} parNames body)
 = do
   let newCtxt : Context
@@ -192,11 +218,12 @@ exprPP (ApplyInfix op lhv rhv) = do
     pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
 
 exprPP (CallBuiltin f args) = do
-  pure $ callPP (builtinPP f) !(exprPP args)
+  args <- exprListPP args
+  pure $ callPP (builtinPP f) args
 
 exprPP (CallNamed idx args) = do
   name <- namePP (resolve idx ctxt.stack)
-  args <- maybeUnpackPP args
+  args <- maybeNoValuePP args
   pure $ callPP name args
 
 exprPP {ctxt} (GetDecl idx) = do
@@ -238,22 +265,25 @@ exprPP {ctxt} (GetDecl idx) = do
 statementPP JustStop = do
   pure empty
 
-statementPP {ctxt} (ReturnValue res) = do
-  -- TODO: when returns = [] we can ommit explicit return
-  pure $ "return" <++> !(maybeUnpackPP res)
+-- TODO: when returns = [] we can ommit explicit return
+statementPP {ctxt} (Return res) =
+  -- TODO: wtf?
+  -- case (ctxt.returnsLen, res) of
+  --   (Z, NoValue) => pure "return"
+  --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
+  pure $ "return" <+?+> hsepBy "," !(maybeNoValuePP res)
 
 statementPP (VoidExpr expr cont) = do
   pure $ !(exprPP expr) `vappend` !(statementPP cont)
 
 statementPP
   {ctxt}
-  (DeclareVar {count'} newTypes newNames initial cont)
+  (DeclareVar {count} newTypes newNames initial cont)
 = do
-  let count   := S count'
   let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes newNames
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
-  initial     <- maybeUnpackPP initial
+  initial     <- exprPP initial
   let holes   := hsepBy comma $ replicate count "_"
   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial

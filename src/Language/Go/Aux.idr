@@ -16,8 +16,8 @@ funcTy
   -> (params  : TypeVect parLen)
   -> (returns : TypeVect retLen)
   -> GoType
-funcTy params returns =
-  GoFunc (MkVectL params) (MkVectL returns)
+funcTy par ret =
+  GoFunc $ par `To` ret
 
 
 export
@@ -33,14 +33,8 @@ namespace TypeVect
   asList [] = []
   asList (t :: ts) = t :: asList ts
 
-namespace TypeVectL
-  %inline
-  export
-  asList : TypeVectL -> List GoType
-  asList (MkVectL vect) = asList vect
 
-
-export
+public export
 defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
@@ -49,7 +43,7 @@ defaultStack =
         ]
    in (_ ** stack)
 
-export
+public export
 defaultContext : Context
 defaultContext =
   let (stackDepth ** stack) := defaultStack in
@@ -57,7 +51,8 @@ defaultContext =
       { stackLen      = stackDepth
       , stack         = stack
       , blockDepth    = last
-      , returns       = MkVectL [GoInt]
+      , returnsLen    = _
+      , returns       = [GoInt]
       , isTerminating = True
       }
 
@@ -171,7 +166,7 @@ namespace ExprList
     .  {len   : Nat}
     -> {types : TypeVect len}
     -> (ExprList ctxt types)
-    -> List (type : GoType ** Expr ctxt (MkVectL [type]))
+    -> List (type : GoType ** Expr ctxt [type])
   asList [] = []
   asList {types = t :: ts} (e :: es) =
     (t ** e) :: asList es

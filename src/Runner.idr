@@ -22,9 +22,9 @@ import System.Random.Pure.StdGen
 --- CLI options ---
 -------------------
 
-data SelectedGen
-  = Statements
-  | Exprs TypeVectL
+data SelectedGen : Type where
+  Statements : SelectedGen
+  Exprs      : {len : Nat} -> TypeVect len -> SelectedGen
 
 record Config where
   constructor MkConfig
@@ -37,7 +37,7 @@ record Config where
 
 defaultStmtGen, defaultExprGen : SelectedGen
 defaultStmtGen  = Statements
-defaultExprGen  = Exprs (MkVectL [GoInt])
+defaultExprGen  = Exprs [GoInt]
 
 
 defaultConfig : Config
@@ -125,7 +125,12 @@ runStatementsGen conf = do
     stmt <- genStatements conf.modelFuel conf.context
     wrapStatement {ctxt = conf.context} stmt
 
-runExprsGen : {opts : _} -> Config -> (res : TypeVectL) -> IO (LazyList $ Doc opts)
+runExprsGen:
+     {opts : _}
+  -> {len  : Nat}
+  -> Config
+  -> (res  : TypeVect len)
+  -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
   seed <- conf.usedSeed
   pure $ unGenTryN conf.testsCnt seed $ do

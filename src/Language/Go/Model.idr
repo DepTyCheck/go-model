@@ -21,39 +21,48 @@ import Syntax.PreorderReasoning
 %hide Language.Reflection.TTImp.Decl
 
 
+public export
+data BoolEqual : Bool -> Bool -> Type where
+  Refl : forall b. BoolEqual b b
+
+
+public export
+data IsZero : Nat -> Type where
+  ItIsZero : IsZero Z
+
+
+public export
+data GoType : Type
+
 namespace TypeVect
   public export
-  data TypeVect : (len : Nat) -> Type
-
-
-public export
-record TypeVectL where
-  constructor MkVectL
-  {len : Nat}
-  vect : TypeVect len
-
+  data TypeVect : (len : Nat) -> Type where
+    Nil  : TypeVect 0
+    (::) : forall len. GoType -> TypeVect len -> TypeVect (S len)
 
 public export
+record GoFuncType where
+  constructor To
+  {parLen, retLen : Nat}
+  par : TypeVect parLen
+  ret : TypeVect retLen
+
 data GoType : Type where
   GoInt  : GoType
   GoBool : GoType
-  GoFunc : (params  : TypeVectL) -> (returns : TypeVectL) -> GoType
+  GoFunc : GoFuncType -> GoType
   -- @WHEN ASSIGNABLE_ANY
 -- @   | GoAny
   -- @END ASSIGNABLE_ANY
 
-namespace TypeVect
-  data TypeVect : (len : Nat) -> Type where
-    Nil  : TypeVect 0
-    (::) : forall len. GoType -> TypeVect len -> TypeVect (S len)
 
 export
 Biinjective TypeVect.(::) where
   biinjective Refl = (Refl, Refl)
 
 export
-Biinjective GoFunc where
-  biinjective Refl = (Refl, Refl)
+Injective GoFunc where
+  injective Refl = Refl
 
 
 mutual
@@ -66,30 +75,50 @@ mutual
       assert_total decEqCong2 (decEq t1 t2) (decEq ts1 ts2)
 
   export
-  DecEq TypeVectL where
-    decEq (MkVectL {len = len1} ts1) (MkVectL {len = len2} ts2) =
-      let Yes Refl := decEq len1 len2
-          | No contra => No $ \eq => contra $ fst $ injDP eq
-          Yes eqVect := decEq ts1 ts2
-          | No contra => No $ \eq => contra $ snd $ injDP eq
-       in Yes $ congDP eqVect
+  DecEq GoFuncType where
+    decEq
+      (To {parLen} {retLen} par ret)
+      (To {parLen = parLen'} {retLen = retLen'} par' ret')
+      =
+        let Yes Refl  := decEq parLen parLen'
+              | No contra => No $ \eq => contra $ fst $ injDP eq
+            Yes Refl  := decEq retLen retLen'
+              | No contra => No $ \eq => contra $ fst $ snd $ injDP eq
+            Yes parEq := decEq par par'
+              | No contra => No $ \eq => contra $ fst $ snd $ snd $ injDP eq
+            Yes retEq := decEq ret ret'
+              | No contra => No $ \eq => contra $ snd $ snd $ snd $ injDP eq
+         in Yes $ congDP parEq retEq
 
       where
-        congDP
-          : {0 len1, len2 : Nat}
-          -> {0 ts1 : TypeVect len1}
-          -> {0 ts2 : TypeVect len2}
-          -> (0 _   : (ts1 = ts2))
-          -> ((MkVectL {len = len1} ts1) = (MkVectL {len = len2} ts2))
-        congDP Refl = Refl
+        congDP:
+             forall par, par', ret, ret'
+          .  (0 _              : (par = par'))
+          -> (0 _              : (ret = ret'))
+          -> (To par ret = To par' ret')
+        congDP Refl Refl = Refl
 
-        injDP
-          : {0 len1, len2 : Nat}
-          -> {0 ts1 : TypeVect len1}
-          -> {0 ts2 : TypeVect len2}
-          -> (0 _   : (MkVectL {len = len1} ts1) = (MkVectL {len = len2} ts2))
-          -> (len1 = len2, ts1 = ts2)
-        injDP Refl = (Refl, Refl)
+        injDP:
+             forall parLen, parLen', retLen, retLen'
+          .  {0 par  : TypeVect parLen}
+          -> {0 par' : TypeVect parLen'}
+          -> {0 ret  : TypeVect retLen}
+          -> {0 ret' : TypeVect retLen'}
+          -> (0 _    : (To par ret = To par' ret'))
+          -> (parLen = parLen', retLen = retLen', par = par', ret = ret')
+        injDP Refl = (Refl, Refl, Refl, Refl)
+
+
+public export
+data IsEmpty : forall len. TypeVect len -> Type where
+  [search len]
+  ItIsEmpty : IsEmpty []
+
+
+public export
+data NonEmpty : forall len. TypeVect len -> Type where
+  [search len]
+  IsNonEmpty : forall head, tail. NonEmpty (head :: tail)
 
 
 -- @WHEN ASSIGNABLE_ANY
@@ -172,9 +201,9 @@ data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
 
 public export
 data ByRet:
-     forall len, parLen
+     forall len, parLen, retLen
   .  (par : TypeVect parLen)
-  -> (ret : TypeVectL)
+  -> (ret : TypeVect retLen)
   -> Stack len
   -> Fin len
   -> Type
@@ -182,7 +211,7 @@ data ByRet:
 
   HereR:
        forall par, ret, kind, name, tail
-    .  ByRet par ret (tail :< MkDecl kind name (GoFunc (MkVectL par) ret)) FZ
+    .  ByRet par ret (tail :< MkDecl kind name (GoFunc $ par `To` ret)) FZ
 
   ThereR:
        forall par, ret, head, tail, found
@@ -259,7 +288,8 @@ record Context where
   stackLen      : Nat
   stack         : Stack stackLen
   blockDepth    : Fin (S stackLen)
-  returns       : TypeVectL
+  returnsLen    : Nat
+  returns       : TypeVect returnsLen
   isTerminating : Bool
 
 public export
@@ -270,7 +300,7 @@ SetIsTerminating value = { isTerminating := value }
 public export
 record NewNames (count : Nat) (ctxt : Context) where
   constructor MkNewNames
-  newNames : NewNames' count (finToNat ctxt.blockDepth)
+  newNames : NewNames' count (finToNat $ complement ctxt.blockDepth)
 
 
 public export
@@ -300,20 +330,26 @@ data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
   -- @END EXTRA_BUILTINS
 
 public export
-data  BuiltinFunc : (paramTypes, retTypes : TypeVectL) -> Type where
-  -- @WHEN ASSIGNABLE_ANY
--- @   Print : BuiltinFunc [GoAny] []
-  -- @UNLESS ASSIGNABLE_ANY
-  Print : BuiltinFunc (MkVectL [GoInt]) (MkVectL [])
-  -- @END ASSIGNABLE_ANY
+data  BuiltinFunc:
+     forall parLen, retLen
+  .  (parTypes : TypeVect parLen)
+  -> (retTypes : TypeVect retLen)
+  -> Type
+  where
 
-  -- @WHEN EXTRA_BUILTINS
--- @   Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
-  -- @END EXTRA_BUILTINS
+-- @WHEN ASSIGNABLE_ANY
+-- @     Print : BuiltinFunc [GoAny] []
+-- @UNLESS ASSIGNABLE_ANY
+    Print : BuiltinFunc [GoInt] []
+-- @END ASSIGNABLE_ANY
+
+-- @WHEN EXTRA_BUILTINS
+-- @     Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
+-- @END EXTRA_BUILTINS
 
 
 public export
-data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type
+data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type
 
 
 namespace ExprList
@@ -329,44 +365,40 @@ namespace ExprList
       (::)
         :  forall ctxt, headT, tailLen
         .  {0 tailT : TypeVect tailLen}
-        -> (head    : Expr ctxt (MkVectL [headT]))
+        -> (head    : Expr ctxt [headT])
         -> (tail    : ExprList ctxt tailT)
         -> ExprList ctxt (headT :: tailT)
 
 
 public export
-data MaybeUnpack:
+data MaybeNoValue:
      (ctxt  : Context)
   -> {len   : Nat}
   -> (types : TypeVect len)
   -> Type
   where
 
-    JustList:
-         forall ctxt, types
-      .  ExprList ctxt types
-      -> MaybeUnpack ctxt types
+    NoValue: forall ctxt. MaybeNoValue ctxt []
 
-    Unpack:
-         forall ctxt
-      .  {0 len'' : Nat}
-      -> {0 types : TypeVect (S (S len''))}
-      -> (  expr  : Expr ctxt (MkVectL types))
-      -> MaybeUnpack ctxt types
+    Value:
+         forall ctxt, t, ts
+      .  (expr : Expr ctxt (t :: ts))
+      -> MaybeNoValue ctxt (t :: ts)
 
 
 public export
-OnAnonFunc
-  :  {paramCount : Nat}
-  -> (ctxt       : Context)
-  -> (paramTypes : TypeVect paramCount)
-  -> (paramNames : NewNames paramCount ctxt)
-  -> (retTypes   : TypeVectL)
+OnAnonFunc:
+     {parLen, retLen : Nat}
+  -> (ctxt     : Context)
+  -> (parTypes : TypeVect parLen)
+  -> (parNames : NewNames parLen ctxt)
+  -> (retTypes : TypeVect retLen)
   -> Context
-OnAnonFunc {paramCount} ctxt newTypes (MkNewNames newNames) retTypes =
-  { stackLen      $= (+ paramCount)
+OnAnonFunc {parLen} ctxt newTypes (MkNewNames newNames) retTypes =
+  { stackLen      $= (+ parLen)
   , stack         $= push Var newTypes newNames
-  , blockDepth    := natToFinLT @{prf paramCount ctxt.stackLen} paramCount
+  , blockDepth    := natToFinLT @{prf parLen ctxt.stackLen} parLen
+  , returnsLen    := retLen
   , returns       := retTypes
   , isTerminating := True
   } ctxt
@@ -377,12 +409,19 @@ OnAnonFunc {paramCount} ctxt newTypes (MkNewNames newNames) retTypes =
                 LTESucc $ lteAddRight {m = b} a
 
 
-data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
+data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
 -- @WHEN HOLES
 -- @   Hole:
 -- @        forall ctxt, res
 -- @     .  Expr ctxt res
 -- @END HOLES
+
+  Comma:
+       forall ctxt, aT, bT, restT
+    .  (a          : Expr ctxt [aT])
+    -> (b          : Expr ctxt [bT])
+    -> (rest       : ExprList ctxt restT)
+    -> Expr ctxt (aT :: bT :: restT)
 
   AnonFunc
     :  forall ctxt, retTypes
@@ -390,12 +429,12 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     -> {0 parTypes : TypeVect parCount}
     -> (parNames   : NewNames parCount ctxt)
     -> (body       : Statement (OnAnonFunc ctxt parTypes parNames retTypes))
-    -> Expr ctxt (MkVectL [GoFunc (MkVectL parTypes) retTypes])
+    -> Expr ctxt [GoFunc $ parTypes `To` retTypes]
 
   GetLiteral
     :  forall ctxt, resTy
     .  (lit        : Literal resTy)
-    -> Expr ctxt (MkVectL [resTy])
+    -> Expr ctxt [resTy]
 
   -- @WHEN EXTRA_BUILTINS
 -- @   ApplyPrefix : forall ctxt, resTy, argTy.
@@ -409,15 +448,16 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     .  {lhvTy      : GoType}
     -> {rhvTy      : GoType}
     -> (op         : InfixOp lhvTy rhvTy resTy)
-    -> (lhv        : Expr ctxt (MkVectL [lhvTy]))
-    -> (rhv        : Expr ctxt (MkVectL [rhvTy]))
-    -> Expr ctxt (MkVectL [resTy])
+    -> (lhv        : Expr ctxt [lhvTy])
+    -> (rhv        : Expr ctxt [rhvTy])
+    -> Expr ctxt [resTy]
 
   CallBuiltin
     :  forall ctxt, retTypes
-    .  {paramTypes : TypeVectL}
-    -> (func       : BuiltinFunc paramTypes retTypes)
-    -> (args       : Expr ctxt paramTypes)
+    .  {parLen   : Nat}
+    -> {parTypes : TypeVect parLen}
+    -> (func     : BuiltinFunc parTypes retTypes)
+    -> (args     : ExprList ctxt parTypes)
     -> Expr ctxt retTypes
 
   CallNamed:
@@ -425,7 +465,7 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     .  {parLen     : Nat}
     -> (idx        : Fin ctxt.stackLen)
     -> {parT       : TypeVect parLen}
-    -> (args       : MaybeUnpack ctxt parT)
+    -> (args       : MaybeNoValue ctxt parT)
     -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
     -> Expr ctxt retT
 
@@ -433,17 +473,12 @@ data Expr : (ctxt : Context) -> (res : TypeVectL) -> Type where
     :  forall ctxt, ty
     .  (idx        : Fin ctxt.stackLen)
     -> {auto 0 bt  : ByType ty ctxt.stack idx}
-    -> Expr ctxt (MkVectL [ty])
+    -> Expr ctxt [ty]
 
   -- CallExpr : forall ctxt, argTypes, retTypes.
   --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
   --            (args : Expr ctxt argTypes) ->
   --            Expr ctxt retTypes
-
-
-public export
-data BoolEqual : Bool -> Bool -> Type where
-  Refl : forall b. BoolEqual b b
 
 
 -- @WHEN IF_STMTS
@@ -480,24 +515,25 @@ data Statement : (ctxt : Context) -> Type where
     -> {auto 0 nt   : BoolEqual ctxt.isTerminating False}
     -> Statement ctxt
 
-  ReturnValue:
+  Return:
        {0 ctxt      : Context}
     -> {auto 0 term : BoolEqual ctxt.isTerminating True}
-    -> (res         : MaybeUnpack ctxt ctxt.returns.vect)
+    -> (res         : MaybeNoValue ctxt ctxt.returns)
     -> Statement ctxt
 
   VoidExpr:
        {0 ctxt      : Context}
-    -> (expr        : Expr ctxt (MkVectL []))
+    -> (expr        : Expr ctxt [])
     -> (cont        : Statement ctxt)
     -> Statement ctxt
 
   DeclareVar:
        {0 ctxt      : Context}
-    -> {count'      : Nat}
-    -> (newTypes    : TypeVect (S count'))
-    -> (newNames    : NewNames (S count') ctxt)
-    -> (initial     : MaybeUnpack ctxt newTypes)
+    -> {count       : Nat}
+    -> {auto 0 nemp : IsSucc count}
+    -> (newTypes    : TypeVect count)
+    -> (newNames    : NewNames count ctxt)
+    -> (initial     : Expr ctxt newTypes)
     -> (cont        : Statement (OnDeclare ctxt Var newTypes newNames))
     -> Statement ctxt
 
@@ -524,8 +560,9 @@ export
 genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
 
 export
-genExprs
-  :  Fuel
-  -> (ctxt : Context)
-  -> (rets : TypeVectL)
-  -> Gen MaybeEmpty $ Expr ctxt rets
+genExprs:
+     Fuel
+  -> {retLen : Nat}
+  -> (ctxt   : Context)
+  -> (ret    : TypeVect retLen)
+  -> Gen MaybeEmpty $ Expr ctxt ret
