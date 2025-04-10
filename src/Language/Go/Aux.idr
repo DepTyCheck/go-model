@@ -11,20 +11,17 @@ import Language.Go.Model
 
 
 public export
-funcTy
-  :  {parLen, retLen : Nat}
+funcTy:
+     {parLen, retLen : Nat}
   -> (params  : TypeVect parLen)
   -> (returns : TypeVect retLen)
   -> GoType
-funcTy par ret =
-  GoFunc $ par `To` ret
+funcTy par ret = GoFunc $ par `To` ret
 
-
-export
-enumerate : forall t. {default 0 start : Nat} -> List t -> List (Nat, t)
-enumerate Nil = Nil
-enumerate {start} (x :: xs) =
-  (start, x) :: enumerate {start = S start} xs
+-- enumerate : forall t. {default 0 start : Nat} -> List t -> List (Nat, t)
+-- enumerate Nil = Nil
+-- enumerate {start} (x :: xs) =
+--   (start, x) :: enumerate {start = S start} xs
 
 
 namespace TypeVect
@@ -39,7 +36,7 @@ defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
         [< MkDecl Var GoInt
-         , MkDecl Var (funcTy [GoInt, GoInt] [GoBool])
+         , MkDecl Var (funcTy [GoInt, GoBool] [GoBool, GoInt])
         ]
    in (_ ** stack)
 
@@ -52,7 +49,7 @@ defaultContext =
       , stack         = stack
       , blockDepth    = last
       , returnsLen    = _
-      , returns       = [GoBool]
+      , returns       = [GoInt]
       , isTerminating = True
       }
 
@@ -130,6 +127,7 @@ takeTopRev _ [<] = []
 takeTopRev (S i) stack@(rest :< _) =
   resolve 0 stack :: takeTopRev i rest
 
+-- TODO: simplify
 export
 takeTopDecl
   :  {len   : Nat}
@@ -137,20 +135,6 @@ takeTopDecl
   -> (stack : Stack len)
   -> List ResolvedDecl
 takeTopDecl count stack = reverse $ takeTopRev count stack
-
--- TODO
--- export
--- newDeclarations
---   :  {0 ctxt     : Context}
---   -> {count      : Nat}
---   -> {0 kind     : Kind}
---   -> {0 newTypes : TypeVect count}
---   -> {0 newNames : NewNames count ctxt}
---   -> (newCtxt    : Context)
---   -> {auto eq    : (newCtxt =~ OnDeclare ctxt kind newTypes newNames)}
---   -> List ResolvedDecl
--- newDeclarations {eq = Refl} newCtxt =
---   reverse $ takeTopRev count newCtxt.stack
 
 
 namespace ExprList
@@ -177,8 +161,8 @@ namespace Statement
   context {ctxt} _ = ctxt
 
   public export
-  contextSpec
-    :  {0 ctxt : Context}
+  contextSpec:
+       {0 ctxt : Context}
     -> (0 stmt : Statement ctxt)
     -> (context stmt = ctxt)
   contextSpec _ = Refl

@@ -34,8 +34,8 @@ parameters {auto opts : LayoutOpts}
     ifMultiline (hsepBy delim docs) (vsepBy delim docs)
 
 
-  goGeneralList
-    :  (left, right, sep : Doc opts)
+  goGeneralList:
+       (left, right, sep : Doc opts)
     -> (content : List (Doc opts))
     -> Doc opts
   goGeneralList left right delim content =
@@ -143,7 +143,7 @@ parameters {auto opts : LayoutOpts}
 -- @END EXTRA_BUILTINS
 
   export
-  callPP  : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
+  callPP : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
   callPP func args = func <+> goList args
 
 
@@ -191,7 +191,7 @@ parameters {ctxt      : Context}
   maybeNoValuePP (Value expr) = pure [ !(exprPP expr) ]
 
   export
-  maybeContPP: forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
+  maybeContPP : forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
   maybeContPP (Just cont) = statementPP cont
   maybeContPP Nothing     = pure empty
 
@@ -245,8 +245,8 @@ exprPP {ctxt} (GetDecl idx) = do
 statementPP JustStop = do
   pure empty
 
--- TODO: when returns = [] we can ommit explicit return
 statementPP {ctxt} (Return res) =
+  -- TODO: when returns = [] we can ommit explicit return
   -- TODO: wtf?
   -- case (ctxt.returnsLen, res) of
   --   (Z, NoValue) => pure "return"
@@ -257,6 +257,7 @@ statementPP (VoidExpr expr cont) = do
   pure $ !(exprPP expr) `vappend` !(statementPP cont)
 
 statementPP {ctxt} (DeclareVar {count} newTypes initial cont) = do
+  -- TODO: try use `context cont` here
   let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
@@ -290,18 +291,6 @@ statementPP (If test then_ else_ cont) = do
        , cont
        ]
 -- @END IF_STMTS
-
-
--- statementPP (DeclareVar stmt) = do
---   var <- printDecl (newIndex stmt) (newDecl stmt)
---   initial <- exprPP stmt.initial
---   let decl = "var" <++> var <++> "=" <++> initial
---   let use = "_" <++> "=" <++> var
---   cont <- assert_total statementPP stmt.cont
---   pure $ vsep [ decl
---               , use
---               , cont
---               ]
 
 
 wrapStatement {ctxt} stmt = do

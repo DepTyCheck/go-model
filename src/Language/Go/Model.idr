@@ -77,8 +77,8 @@ mutual
   export
   DecEq GoFuncType where
     decEq
-      (To {parLen} {retLen} par ret)
-      (To {parLen = parLen'} {retLen = retLen'} par' ret')
+        (To {parLen} {retLen} par ret)
+        (To {parLen = parLen'} {retLen = retLen'} par' ret')
       =
         let Yes Refl  := decEq parLen parLen'
               | No contra => No $ \eq => contra $ fst $ injDP eq
@@ -109,16 +109,14 @@ mutual
         injDP Refl = (Refl, Refl, Refl, Refl)
 
 
-public export
-data IsEmpty : forall len. TypeVect len -> Type where
-  [search len]
-  ItIsEmpty : IsEmpty []
+-- data IsEmpty : forall len. TypeVect len -> Type where
+--   [search len]
+--   ItIsEmpty : IsEmpty []
 
 
-public export
-data NonEmpty : forall len. TypeVect len -> Type where
-  [search len]
-  IsNonEmpty : forall head, tail. NonEmpty (head :: tail)
+-- data NonEmpty : forall len. TypeVect len -> Type where
+--   [search len]
+--   IsNonEmpty : forall head, tail. NonEmpty (head :: tail)
 
 
 -- @WHEN ASSIGNABLE_ANY
@@ -173,12 +171,12 @@ push {len} {count = S count'} kind (t :: ts) stack =
 
 public export
 data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
-  HereT
-    :  forall ty, kind, tail
+  HereT:
+       forall ty, kind, tail
     .  ByType ty (tail :< MkDecl kind ty) FZ
 
-  ThereT
-    :  forall ty, head, tail, found
+  ThereT:
+       forall ty, head, tail, found
     .  (there : ByType ty tail found)
     -> ByType ty (tail :< head) (FS found)
 
@@ -269,16 +267,16 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type
 
 namespace ExprList
   public export
-  data ExprList
-    :  (ctxt  : Context)
+  data ExprList:
+       (ctxt  : Context)
     -> {len   : Nat}
     -> (types : TypeVect len)
     -> Type
     where
-      Nil  : forall ctxt. ExprList ctxt []
+      Nil : forall ctxt. ExprList ctxt []
 
-      (::)
-        :  forall ctxt, headT, tailLen
+      (::):
+           forall ctxt, headT, tailLen
         .  {0 tailT : TypeVect tailLen}
         -> (head    : Expr ctxt [headT])
         -> (tail    : ExprList ctxt tailT)
@@ -337,15 +335,15 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> (rest       : ExprList ctxt restT)
     -> Expr ctxt (aT :: bT :: restT)
 
-  AnonFunc
-    :  forall ctxt, retTypes
+  AnonFunc:
+       forall ctxt, retTypes
     .  {parCount   : Nat}
     -> {0 parTypes : TypeVect parCount}
     -> (body       : Statement (OnAnonFunc ctxt parTypes retTypes))
     -> Expr ctxt [GoFunc $ parTypes `To` retTypes]
 
-  GetLiteral
-    :  forall ctxt, resTy
+  GetLiteral:
+       forall ctxt, resTy
     .  (lit        : Literal resTy)
     -> Expr ctxt [resTy]
 
@@ -358,8 +356,8 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> Expr ctxt [resT]
   -- @END EXTRA_BUILTINS
 
-  ApplyInfix
-    :  forall ctxt, resTy
+  ApplyInfix:
+       forall ctxt, resTy
     .  {lhvTy      : GoType}
     -> {rhvTy      : GoType}
     -> (op         : InfixOp lhvTy rhvTy resTy)
@@ -367,8 +365,8 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> (rhv        : Expr ctxt [rhvTy])
     -> Expr ctxt [resTy]
 
-  CallBuiltin
-    :  forall ctxt, retTypes
+  CallBuiltin:
+       forall ctxt, retTypes
     .  {parLen   : Nat}
     -> {parTypes : TypeVect parLen}
     -> (func     : BuiltinFunc parTypes retTypes)
@@ -384,8 +382,8 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
     -> Expr ctxt retT
 
-  GetDecl
-    :  forall ctxt, ty
+  GetDecl:
+       forall ctxt, ty
     .  (idx        : Fin ctxt.stackLen)
     -> {auto 0 bt  : ByType ty ctxt.stack idx}
     -> Expr ctxt [ty]

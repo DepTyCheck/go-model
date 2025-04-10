@@ -1,39 +1,58 @@
 module Language.Go.DSL
 
+import Data.Fin
+
 import Language.Go.Model
--- import Language.Go.Aux
+import Language.Go.Aux
 
-export
-infixl 8 .+.
 
-export
-(.+.) : {ctxt : Context} ->
-        Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
-(.+.) = ApplyInfix IntAdd
+%unbound_implicits off
 
--- @WHEN EXTRA_BUILTINS
--- @ export
--- @ infixl 8 .-.
 
--- @ export
--- @ infixl 9 .*.
+parameters {0 ctxt : Context}
+  export
+  %inline
+  fromInteger : Integer -> Expr ctxt [GoInt]
+  fromInteger x = GetLiteral $ MkInt $ fromInteger x
 
--- @ export
--- @ infixl 5 .&&.
 
--- @ export
--- @ infixl 4 .||.
+  export
+  %inline
+  true, false : Expr ctxt [GoBool]
+  true = GetLiteral $ MkBool True
+  false = GetLiteral $ MkBool False
 
--- @ export
--- @ (.-.), (.*.) : {ctxt : Context} ->
-               -- @ Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
--- @ (.-.) = ApplyInfix IntSub
--- @ (.*.) = ApplyInfix IntMul
--- @END EXTRA_BUILTINS
 
-export
-print : {ctxt : Context} -> Expr ctxt [GoInt] -> Expr ctxt []
-print = CallBuiltin Print
+  export
+  infixl 8 .+.
+
+  export
+  (.+.) : Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
+  (.+.) = ApplyInfix IntAdd
+
+  -- @WHEN EXTRA_BUILTINS
+  export
+  infixl 8 .-.
+
+  export
+  infixl 9 .*.
+
+  export
+  infixl 5 .&&.
+
+  export
+  infixl 4 .||.
+
+  export
+  (.-.), (.*.) : {ctxt : Context} ->
+                 Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
+  (.-.) = ApplyInfix IntSub
+  (.*.) = ApplyInfix IntMul
+  -- @END EXTRA_BUILTINS
+
+  export
+  print : Expr ctxt [GoInt] -> Expr ctxt []
+  print = CallBuiltin Print
 
 -- export
 -- get : {ctxt : Context} ->
