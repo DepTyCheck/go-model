@@ -146,21 +146,9 @@ data Kind
   | Func
 
 public export
-data Name : (height : Nat) -> Type where
-  Shadows    : forall height. Fin height -> Name height
-  UniqueName : forall height. Name height
-
-public export
-map : forall n, m . (Fin n -> Fin m) -> Name n -> Name m
-map _ UniqueName = UniqueName
-map f (Shadows n) = Shadows (f n)
-
-
-public export
-record Decl (height : Nat) where
+record Decl where
   constructor MkDecl
   kind : Kind
-  name : Name height
   type : GoType
 
 
@@ -168,34 +156,30 @@ namespace Stack
   public export
   data Stack : (len : Nat) -> Type where
     Lin  : Stack Z
-    (:<) : forall len. Stack len -> Decl len -> Stack (S len)
+    (:<) : forall len. Stack len -> Decl -> Stack (S len)
 
 
-||| Proof that `decl` doesn't shadows other daclaration at `idx`
-public export
-data NotShadow
-  : forall len. (decl : Decl len) -> (idx : Fin len) -> Type
-  where
-    ShadowNothing
-      :  forall idx, kind, type
-      .  NotShadow (MkDecl kind UniqueName type) idx
+push:
+     forall len, count
+  .  Kind
+  -> TypeVect count
+  -> Stack len
+  -> Stack (len + count)
+push _ [] stack = rewrite plusZeroRightNeutral len in stack
+push {len} {count = S count'} kind (t :: ts) stack =
+  rewrite sym $ plusSuccRightSucc len count' in
+    push kind ts $ stack :< MkDecl kind t
 
-    ShadowOther
-      :  forall len, kind, type
-      .  {0 other, idx : Fin len}
-      -> {auto 0 so    : So $ other /= idx}
-      -> NotShadow (MkDecl kind (Shadows other) type) idx
 
 public export
 data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
   HereT
-    :  forall ty, kind, name, tail
-    .  ByType ty (tail :< MkDecl kind name ty) FZ
+    :  forall ty, kind, tail
+    .  ByType ty (tail :< MkDecl kind ty) FZ
 
   ThereT
     :  forall ty, head, tail, found
-    .  (there     : ByType ty tail found)
-    -> {auto 0 ns : NotShadow head found}
+    .  (there : ByType ty tail found)
     -> ByType ty (tail :< head) (FS found)
 
 
@@ -210,76 +194,13 @@ data ByRet:
   where
 
   HereR:
-       forall par, ret, kind, name, tail
-    .  ByRet par ret (tail :< MkDecl kind name (GoFunc $ par `To` ret)) FZ
+       forall par, ret, kind, tail
+    .  ByRet par ret (tail :< MkDecl kind (GoFunc $ par `To` ret)) FZ
 
   ThereR:
        forall par, ret, head, tail, found
-    .  (there     : ByRet par ret tail found)
-    -> {auto 0 ns : NotShadow head found}
+    .  (there : ByRet par ret tail found)
     -> ByRet par ret (tail :< head) (FS found)
-
-
-namespace NewNames'
-  public export
-  data NewNames' : (count, limit : Nat) -> Type where
-    Nil : forall limit. NewNames' 0 limit
-
-    (::)
-      :  forall count, limit
-      .  Name limit
-      -> NewNames' count limit
-      -> NewNames' (S count) limit
-
-public export
-push'
-  :  forall limit, count
-  .  {offset : Nat}
-  -> Kind
-  -> TypeVect count
-  -> NewNames' count limit
-  -> Stack (limit + offset)
-  -> Stack (limit + offset + count)
-push' _ [] [] stack =
-  rewrite plusZeroRightNeutral (limit + offset) in stack
-push' {count = S count'} {limit} {offset}
-     kind (t :: ts) (n :: ns) stack
-  = let name'  := rewrite plusCommutative limit offset in map (shift offset) n
-        stack' : (Stack (limit + S offset)) :=
-          rewrite sym $ plusSuccRightSucc limit offset in
-            stack :< MkDecl kind name' t
-     in rewrite succ3_2 limit offset count' in push' kind ts ns stack'
-
-  where
-    succ3_2 : (0 a, b, c : Nat) -> (a + b + S c) = (a + S b + c)
-    succ3_2 a b c =
-      Calc $
-        |~ a + b + S c
-        ~~ S (a + b + c) ... (sym $ plusSuccRightSucc (a + b) c)
-        ~~ S (a + b) + c ... (Refl)
-        ~~ (a + S b + c) ... (cong (+ c) (plusSuccRightSucc a b))
-
-public export
-push
-  :  {count, len : Nat}
-  -> {limit      : Fin (S len)}
-  -> Kind
-  -> TypeVect count
-  -> NewNames' count (finToNat limit)
-  -> Stack len
-  -> Stack (len + count)
-push {count} {limit} {len} kind ts ns stack =
-  let offset : Nat
-      offset = finToNat (complement limit)
-
-      limPlusOffEqLen : (finToNat limit + offset = len)
-      limPlusOffEqLen := injective $ complementSpec limit
-
-      stack' : Stack (finToNat limit + offset) :=
-        rewrite limPlusOffEqLen in stack
-
-   in rewrite sym limPlusOffEqLen in
-        push' kind ts ns stack'
 
 
 public export
@@ -295,12 +216,6 @@ record Context where
 public export
 SetIsTerminating : Bool -> Context -> Context
 SetIsTerminating value = { isTerminating := value }
-
-
-public export
-record NewNames (count : Nat) (ctxt : Context) where
-  constructor MkNewNames
-  newNames : NewNames' count (finToNat $ complement ctxt.blockDepth)
 
 
 public export
@@ -391,12 +306,11 @@ OnAnonFunc:
      {parLen, retLen : Nat}
   -> (ctxt     : Context)
   -> (parTypes : TypeVect parLen)
-  -> (parNames : NewNames parLen ctxt)
   -> (retTypes : TypeVect retLen)
   -> Context
-OnAnonFunc {parLen} ctxt newTypes (MkNewNames newNames) retTypes =
+OnAnonFunc {parLen} ctxt newTypes retTypes =
   { stackLen      $= (+ parLen)
-  , stack         $= push Var newTypes newNames
+  , stack         $= push Var newTypes
   , blockDepth    := natToFinLT @{prf parLen ctxt.stackLen} parLen
   , returnsLen    := retLen
   , returns       := retTypes
@@ -427,8 +341,7 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     :  forall ctxt, retTypes
     .  {parCount   : Nat}
     -> {0 parTypes : TypeVect parCount}
-    -> (parNames   : NewNames parCount ctxt)
-    -> (body       : Statement (OnAnonFunc ctxt parTypes parNames retTypes))
+    -> (body       : Statement (OnAnonFunc ctxt parTypes retTypes))
     -> Expr ctxt [GoFunc $ parTypes `To` retTypes]
 
   GetLiteral
@@ -498,11 +411,10 @@ OnDeclare:
   -> (ctxt     : Context)
   -> (kind     : Kind)
   -> (newTypes : TypeVect count)
-  -> (newNames : NewNames count ctxt)
   -> Context
-OnDeclare ctxt kind newTypes (MkNewNames newNames) =
+OnDeclare ctxt kind newTypes =
   { stackLen   $= (+ count)
-  , stack      $= push kind newTypes newNames
+  , stack      $= push kind newTypes
   , blockDepth := rewrite plusCommutative ctxt.stackLen count in
                     rewrite plusSuccRightSucc count ctxt.stackLen in
                       shift count ctxt.blockDepth
@@ -532,9 +444,8 @@ data Statement : (ctxt : Context) -> Type where
     -> {count       : Nat}
     -> {auto 0 nemp : IsSucc count}
     -> (newTypes    : TypeVect count)
-    -> (newNames    : NewNames count ctxt)
     -> (initial     : Expr ctxt newTypes)
-    -> (cont        : Statement (OnDeclare ctxt Var newTypes newNames))
+    -> (cont        : Statement (OnDeclare ctxt Var newTypes))
     -> Statement ctxt
 
   -- @WHEN IF_STMTS

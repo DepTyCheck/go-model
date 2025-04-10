@@ -197,10 +197,10 @@ exprPP (Comma a b rest) =
 
 exprPP
   {rets = [GoFunc $ parTypes `To` retTypes]}
-  (AnonFunc {parCount} parNames body)
+  (AnonFunc {parCount} body)
 = do
   let newCtxt : Context
-      newCtxt = OnAnonFunc ctxt parTypes parNames retTypes
+      newCtxt = OnAnonFunc ctxt parTypes retTypes
       params  := takeTopDecl parCount newCtxt.stack
   body        <- assert_total $ statementPP {ctxt = newCtxt} body
   funcPP empty params retTypes body
@@ -276,11 +276,8 @@ statementPP {ctxt} (Return res) =
 statementPP (VoidExpr expr cont) = do
   pure $ !(exprPP expr) `vappend` !(statementPP cont)
 
-statementPP
-  {ctxt}
-  (DeclareVar {count} newTypes newNames initial cont)
-= do
-  let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes newNames
+statementPP {ctxt} (DeclareVar {count} newTypes initial cont) = do
+  let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
   initial     <- exprPP initial

@@ -38,8 +38,8 @@ public export
 defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
-        [< MkDecl Var UniqueName GoInt
-         , MkDecl Var UniqueName (funcTy [GoInt, GoInt] [GoBool])
+        [< MkDecl Var GoInt
+         , MkDecl Var (funcTy [GoInt, GoInt] [GoBool])
         ]
    in (_ ** stack)
 
@@ -52,7 +52,7 @@ defaultContext =
       , stack         = stack
       , blockDepth    = last
       , returnsLen    = _
-      , returns       = [GoInt]
+      , returns       = [GoBool]
       , isTerminating = True
       }
 
@@ -76,7 +76,7 @@ dip
   .  (depth : Fin len)
   -> (stack : Stack len)
   -> let idx := finToNat $ complement depth
-      in (Stack idx, Decl idx)
+      in (Stack idx, Decl)
 dip {len = S top} FZ (rest :< decl) =
   rewrite finToNatLastIsBound {n = top} in (rest, decl)
 dip {len = S top} (FS d) (rest :< _) =
@@ -106,24 +106,18 @@ record ResolvedDecl where
 
 export
 resolve
-  :  {len : Nat}
-  -> (idx : Fin len)
-  -> (st  : Stack len)
+  :  {len   : Nat}
+  -> (depth : Fin len)
+  -> (st    : Stack len)
   -> ResolvedDecl
-resolve idx st =
-  let pair@(rest, decl) = dip idx st in
-    MkDecl
-      { kind = decl.kind
-      , name = resolveName pair
-      , type = decl.type
-      }
-
-  where
-    resolveName : {i : Nat} -> (Stack i, Decl i) -> Nat
-    resolveName {i} (rest, decl) =
-      case decl.name of
-        UniqueName => i
-        Shadows next => assert_total resolveName (dip next rest)
+resolve depth st =
+  let name := finToNat $ complement depth
+      decl := snd $ dip depth st
+   in MkDecl
+        { kind = decl.kind
+        , name = name
+        , type = decl.type
+        }
 
 
 takeTopRev
