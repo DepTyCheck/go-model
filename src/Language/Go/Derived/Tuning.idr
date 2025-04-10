@@ -7,4 +7,8 @@ import Deriving.DepTyCheck.Gen
 export
 GenOrderTuning "DeclareVar".dataCon where
   isConstructor = itIsConstructor
-  deriveFirst _ _ = [`{initial}]
+  deriveFirst _ _ = [`{nemp}, `{initial}]
+-- export
+-- GenOrderTuning "DeclareVar".dataCon where
+--   isConstructor = itIsConstructor
+--   deriveFirst _ _ = [`{newTypes}]
