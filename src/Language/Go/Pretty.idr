@@ -191,6 +191,11 @@ parameters {ctxt      : Context}
   maybeNoValuePP (Value expr) = pure [ !(exprPP expr) ]
 
   export
+  maybeContPP: forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
+  maybeContPP (Just cont) = statementPP cont
+  maybeContPP Nothing     = pure empty
+
+  export
   wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
 
 
@@ -237,37 +242,6 @@ exprPP {ctxt} (GetDecl idx) = do
   namePP decl
 
 
--- @WHEN IF_STMTS
--- @   export
--- @   printIf : {ctxtTest, ctxtThen, ctxtElse : Context} ->
--- @             (test : Expr ctxtTest [GoBool]) ->
--- @             (thenBranch : Statement ctxtThen) ->
--- @             (elseBranch : Statement ctxtElse) ->
--- @             Printer
--- @END IF_STMTS
-
-
--- @WHEN IF_STMTS
--- @ printIf test thenBranch elseBranch = do
--- @   test <- exprPP test
--- @   thenBranch <- assert_total printStatement thenBranch
--- @   let top = hangSep 0 ("if" <++> test) "{"
--- @   let skipElse = isEmpty elseBranch && !(chooseAnyOf Bool)
--- @   if skipElse
--- @      then pure $ vsep [ top
--- @                       , indent' 4 thenBranch
--- @                       , "}"
--- @                       ]
--- @      else do
--- @        elseBranch <- assert_total printStatement elseBranch
--- @        pure $ vsep [ top
--- @                    , indent' 4 thenBranch
--- @                    , "} else {"
--- @                    , indent' 4 elseBranch
--- @                    , "}"
--- @                    ]
--- @END IF_STMTS
-
 statementPP JustStop = do
   pure empty
 
@@ -295,15 +269,28 @@ statementPP {ctxt} (DeclareVar {count} newTypes initial cont) = do
               ]
 
 -- @WHEN IF_STMTS
--- @ statementPP (InnerIf test {isTermThen} {isTermElse} th el cont) = do
--- @   ifText <- printIf test th el
--- @   contText <- statementPP cont
--- @   pure $ ifText `vappend` contText
-
--- @ statementPP (TermIf test th el) = do
--- @   ifText <- printIf test th el
--- @   pure ifText
+statementPP (If test then_ else_ cont) = do
+  test  <- exprPP test
+  then_ <- assert_total statementPP then_
+  cont  <- maybeContPP cont
+  let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
+  if skipElse
+     then pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "}"
+       , cont
+       ]
+     else pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "} else {"
+       , indent' 4 !(assert_total statementPP else_)
+       , "}"
+       , cont
+       ]
 -- @END IF_STMTS
+
 
 -- statementPP (DeclareVar stmt) = do
 --   var <- printDecl (newIndex stmt) (newDecl stmt)

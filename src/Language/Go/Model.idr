@@ -396,14 +396,19 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
   --            Expr ctxt retTypes
 
 
+public export
+data MaybeCont : (isTerm : Bool) -> (newCtxt : Context) -> Type where
+  Just    : forall ctxt. (cont : Statement ctxt) -> MaybeCont False ctxt
+  Nothing : forall ctxt. MaybeCont True ctxt
+
+
 -- @WHEN IF_STMTS
--- @ public export
--- @ data AllowInnerIf : (isTermThen : Bool) ->
--- @                     (isTermElse : Bool) ->
--- @                     Type where
--- @   AllowInnerIfTT : AllowInnerIf True True
--- @   AllowInnerIfTF : AllowInnerIf True False
--- @   AllowInnerIfFT : AllowInnerIf False True
+public export
+data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
+  TTT : IfTerm True True True
+  FAA : forall th, el. IfTerm False th el
+
+
 -- @END IF_STMTS
 
 
@@ -451,21 +456,15 @@ data Statement : (ctxt : Context) -> Type where
     -> Statement ctxt
 
   -- @WHEN IF_STMTS
--- @   InnerIf : forall ctxt.
--- @             (test : Expr ctxt [GoBool]) ->
--- @             {isTermThen, isTermElse: Bool} ->
--- @             (ai : AllowInnerIf isTermThen isTermElse) =>
--- @             (th : Statement $ SetIsTerminating isTermThen ctxt) ->
--- @             (el : Statement $ SetIsTerminating isTermElse ctxt) ->
--- @             (cont : Statement ctxt) ->
--- @             Statement ctxt
-
--- @   TermIf : forall ctxt, ret.
--- @            IsTerminating ctxt ret =>
--- @            (test : Expr ctxt [GoBool]) ->
--- @            (th : Statement ctxt) ->
--- @            (el : Statement ctxt) ->
--- @            Statement ctxt
+  If:
+       forall ctxt
+    .  {tt, et      : Bool}
+    -> {auto 0 term : IfTerm ctxt.isTerminating tt et}
+    -> (test        : Expr ctxt [GoBool])
+    -> (then_       : Statement $ SetIsTerminating tt ctxt)
+    -> (else_       : Statement $ SetIsTerminating et ctxt)
+    -> (cont : MaybeCont ctxt.isTerminating ctxt)
+    -> Statement ctxt
   -- @END IF_STMTS
 
 
