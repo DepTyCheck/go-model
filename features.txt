@@ -4,7 +4,7 @@
 - ASSIGNABLE_ANY
 
 -- Additional operators
-- EXTRA_BUILTINS
++ EXTRA_BUILTINS
 
 -- TermIf, InnerIf
 - IF_STMTS

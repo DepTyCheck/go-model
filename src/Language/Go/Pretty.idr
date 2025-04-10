@@ -111,28 +111,35 @@ parameters {auto opts : LayoutOpts}
   literalPP (MkBool True) = "true"
   literalPP (MkBool False) = "false"
 
+-- @WHEN EXTRA_BUILTINS
+  export
+  prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
+  prefixPP BoolNot = "!"
+  prefixPP IntNeg = "-"
+-- @END EXTRA_BUILTINS
+
   export
   infixPP : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
   infixPP IntAdd = "+"
 -- @WHEN EXTRA_BUILTINS
--- @   infixPP IntSub = "-"
--- @   infixPP IntMul = "*"
--- @   infixPP BoolAnd = "&&"
--- @   infixPP BoolOr = "||"
--- @   infixPP IntEq = "=="
--- @   infixPP IntNE = "!="
--- @   infixPP IntLt = "<"
--- @   infixPP IntLE = "<="
--- @   infixPP IntGt = ">"
--- @   infixPP IntGE = ">="
+  infixPP IntSub = "-"
+  infixPP IntMul = "*"
+  infixPP BoolAnd = "&&"
+  infixPP BoolOr = "||"
+  infixPP IntEq = "=="
+  infixPP IntNE = "!="
+  infixPP IntLt = "<"
+  infixPP IntLE = "<="
+  infixPP IntGt = ">"
+  infixPP IntGE = ">="
 -- @END EXTRA_BUILTINS
 
   export
   builtinPP : forall par, ret. BuiltinFunc par ret -> Doc opts
   builtinPP Print = "print"
 -- @WHEN EXTRA_BUILTINS
--- @   builtinPP Max = "max"
--- @   builtinPP Min = "min"
+  builtinPP Max = "max"
+  builtinPP Min = "min"
 -- @END EXTRA_BUILTINS
 
   export
@@ -209,9 +216,8 @@ exprPP (GetLiteral lit) =
   pure $ literalPP lit
 
 -- @WHEN EXTRA_BUILTINS
--- @ exprPP (ApplyPrefix op arg) = do
--- @   arg <- exprPP arg
--- @   pure $ "(" <+> line (show op) <+> arg <+> ")"
+exprPP (ApplyPrefix op arg) = do
+  pure $ "(" <+> prefixPP op <+> !(exprPP arg) <+> ")"
 -- @END EXTRA_BUILTINS
 
 exprPP (ApplyInfix op lhv rhv) = do

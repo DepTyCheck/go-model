@@ -228,10 +228,10 @@ data Literal : (ty : GoType) -> Type where
   MkBool : Bool -> Literal GoBool
 
 -- @WHEN EXTRA_BUILTINS
--- @ public export
--- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
--- @   BoolNot : PrefixOp GoBool GoBool
--- @   IntNeg  : PrefixOp GoInt GoInt
+public export
+data PrefixOp : (argTy, resTy : GoType) -> Type where
+  BoolNot : PrefixOp GoBool GoBool
+  IntNeg  : PrefixOp GoInt GoInt
 -- @END EXTRA_BUILTINS
 
 public export
@@ -239,9 +239,9 @@ data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
   IntAdd : InfixOp GoInt GoInt GoInt
 
   -- @WHEN EXTRA_BUILTINS
--- @   IntSub, IntMul  : InfixOp GoInt GoInt GoInt
--- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
--- @   IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+  IntSub, IntMul  : InfixOp GoInt GoInt GoInt
+  BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+  IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
   -- @END EXTRA_BUILTINS
 
 public export
@@ -259,7 +259,7 @@ data  BuiltinFunc:
 -- @END ASSIGNABLE_ANY
 
 -- @WHEN EXTRA_BUILTINS
--- @     Max, Min : BuiltinFunc (2 ** [GoInt, GoInt]) (1 ** [GoInt])
+    Max, Min : BuiltinFunc [GoInt, GoInt] [GoInt]
 -- @END EXTRA_BUILTINS
 
 
@@ -350,10 +350,12 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> Expr ctxt [resTy]
 
   -- @WHEN EXTRA_BUILTINS
--- @   ApplyPrefix : forall ctxt, resTy, argTy.
--- @                 (op : PrefixOp argTy resTy) ->
--- @                 (arg : Expr ctxt [argTy]) ->
--- @                 Expr ctxt [resTy]
+  ApplyPrefix:
+       forall ctxt
+    .  {argT, resT : GoType}
+    -> (op         : PrefixOp argT resT)
+    -> (arg : Expr ctxt [argT])
+    -> Expr ctxt [resT]
   -- @END EXTRA_BUILTINS
 
   ApplyInfix
