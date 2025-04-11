@@ -253,10 +253,12 @@ statementPP {ctxt} (Return res) =
   --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
   pure $ "return" <+?+> hsepBy "," !(maybeNoValuePP res)
 
-statementPP (VoidExpr expr cont) = do
-  pure $ !(exprPP expr) `vappend` !(statementPP cont)
+statementPP {ctxt} (Var' {count = 0} newTypes initial cont) = do
+  pure $ vsep [ !(exprPP initial)
+              , assert_total !(statementPP cont)
+              ]
 
-statementPP {ctxt} (DeclareVar {count} newTypes initial cont) = do
+statementPP {ctxt} (Var' {count} newTypes initial cont) = do
   -- TODO: try use `context cont` here
   let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes
   let newVars := hsepBy comma

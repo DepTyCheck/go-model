@@ -438,16 +438,9 @@ data Statement : (ctxt : Context) -> Type where
     -> (res         : MaybeNoValue ctxt ctxt.returns)
     -> Statement ctxt
 
-  VoidExpr:
-       {0 ctxt      : Context}
-    -> (expr        : Expr ctxt [])
-    -> (cont        : Statement ctxt)
-    -> Statement ctxt
-
-  DeclareVar:
+  Var':
        {0 ctxt      : Context}
     -> {count       : Nat}
-    -> {auto 0 nemp : IsSucc count}
     -> (newTypes    : TypeVect count)
     -> (initial     : Expr ctxt newTypes)
     -> (cont        : Statement (OnDeclare ctxt Var newTypes))
