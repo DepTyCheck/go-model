@@ -1,7 +1,7 @@
 .PHONY: build-log manage-features try-compile
 
 build-log:
-	python3 scripts/build-log.py
+	sh scripts/build-log.sh
 
 manage-features:
 	python3 scripts/manage-features.py
