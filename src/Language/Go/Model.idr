@@ -357,20 +357,19 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
   -- @END EXTRA_BUILTINS
 
   ApplyInfix:
-       forall ctxt, resTy
-    .  {lhvTy      : GoType}
-    -> {rhvTy      : GoType}
-    -> (op         : InfixOp lhvTy rhvTy resTy)
-    -> (lhv        : Expr ctxt [lhvTy])
-    -> (rhv        : Expr ctxt [rhvTy])
-    -> Expr ctxt [resTy]
+       forall ctxt, resT
+    .  {lhvT, rhvT : GoType}
+    -> (op         : InfixOp lhvT rhvT resT)
+    -> (lhv        : Expr ctxt [lhvT])
+    -> (rhv        : Expr ctxt [rhvT])
+    -> Expr ctxt [resT]
 
   CallBuiltin:
        forall ctxt, retTypes
-    .  {parLen   : Nat}
-    -> {parTypes : TypeVect parLen}
-    -> (func     : BuiltinFunc parTypes retTypes)
-    -> (args     : ExprList ctxt parTypes)
+    .  {parLen     : Nat}
+    -> {parTypes   : TypeVect parLen}
+    -> (func       : BuiltinFunc parTypes retTypes)
+    -> (args       : ExprList ctxt parTypes)
     -> Expr ctxt retTypes
 
   CallNamed:
@@ -469,3 +468,4 @@ genExprs:
   -> (ctxt   : Context)
   -> (ret    : TypeVect retLen)
   -> Gen MaybeEmpty $ Expr ctxt ret
+
