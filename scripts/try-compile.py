@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from argparse import ArgumentParser
 from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -7,7 +8,7 @@ from dataclasses import dataclass
 from tempfile import TemporaryDirectory, NamedTemporaryFile
 
 import math
-import os
+import multiprocessing
 import re
 import subprocess as sp
 
@@ -22,8 +23,10 @@ class Failure:
 divider = re.compile(b"\n*// -*\n*")
 
 
-def generate_examples(count: int) -> list[bytes]:
-    cmd = ("build/exec/go-model", "-n", str(count))
+def generate_examples(count: int, fuel: int | None) -> list[bytes]:
+    cmd = ["build/exec/go-model", "-n", str(count)]
+    if fuel is not None:
+        cmd.extend(("--model-fuel", str(fuel)))
     pack_run = sp.run(cmd, stdout=sp.PIPE, check=True)
     results = divider.split(pack_run.stdout)
     results.remove(b"")
@@ -33,16 +36,13 @@ def generate_examples(count: int) -> list[bytes]:
 
 
 def generate_examples_par(
-    count: int, *, max_workers: int | None = None
+    count: int, *, max_workers: int, fuel: int | None
 ) -> Iterable[bytes]:
-
-    if max_workers is None:
-        max_workers = os.process_cpu_count()
-
     examples_per_proc = math.ceil(count / max_workers)
     with ProcessPoolExecutor(max_workers) as exe:
         futures = (
-            exe.submit(generate_examples, examples_per_proc) for _ in range(max_workers)
+            exe.submit(generate_examples, examples_per_proc, fuel)
+            for _ in range(max_workers)
         )
         for fut in as_completed(futures):
             yield from fut.result()
@@ -72,7 +72,6 @@ def check_example(example: bytes, testdir: str) -> Failure | None:
 def check_examples_par(
     examples: Iterable[bytes], *, max_workers: int | None = None
 ) -> Iterable[Failure | None]:
-
     with TemporaryDirectory("deptycheck-go_") as testdir:
         with ProcessPoolExecutor(max_workers) as exe:
             futures = (exe.submit(check_example, ex, testdir) for ex in examples)
@@ -101,16 +100,26 @@ def render_example(code: str) -> str:
 
 
 def main():
-    # sp.run(("pack", "build"), check=True)
+    parser = ArgumentParser()
+    parser.add_argument("-t", "--threads")
+    parser.add_argument("-e", "--examples")
+    parser.add_argument("-f", "--fuel")
+    args = parser.parse_args()
+
+    n_examples = 128 if args.examples is None else int(args.examples)
+    n_threads = (
+        multiprocessing.cpu_count() if args.threads is None else int(args.threads)
+    )
+    fuel = args.fuel
 
     print("Start generating and checking examples")
 
-    examples = generate_examples_par(256)
+    examples = generate_examples_par(n_examples, max_workers=n_threads, fuel=fuel)
 
     n_ok = n_fail = 0
     errors = Counter()
     try:
-        for res in check_examples_par(examples):
+        for res in check_examples_par(examples, max_workers=n_threads):
             if res is None:
                 n_ok += 1
             else:
