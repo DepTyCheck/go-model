@@ -12,7 +12,38 @@ import multiprocessing
 import os
 import re
 import subprocess as sp
-from typing import Sequence
+from typing import Callable, Sequence, TypeVar, overload
+
+
+_A = TypeVar("_A")
+_C = TypeVar("_C")
+
+
+@overload
+def none_or_map(
+        x: _A | None,
+        f: Callable[[_A], _C],
+) -> _C | None:
+    if x is None:
+        return None
+    return f(x)
+
+
+@overload
+def none_or_map(
+        x: _A | None,
+        f: Callable[[_A], _C],
+        default: Callable[[], _C]
+)-> _C:
+    if x is None:
+        return default()
+    return f(x)
+
+
+def none_or_map(x, f, default = None):
+    if x is None:
+        return default
+    return f(x)
 
 
 @dataclass
@@ -147,12 +178,10 @@ def parse_args() -> Config:
     args = parser.parse_args()
 
     return Config(
-        gen_timeout=args.gen_timeout,
-        test_timeout=args.test_timeout,
-        n_examples=128 if args.examples is None else int(args.examples),
-        n_workers=(
-            multiprocessing.cpu_count() if args.workers is None else int(args.workers)
-        ),
+        gen_timeout=none_or_map(args.gen_timeout, float),
+        test_timeout=none_or_map(args.test_timeout, float),
+        n_examples=none_or_map(args.examples, int, lambda: 128),
+        n_workers=none_or_map(args.workers, int, multiprocessing.cpu_count),
         model_fuel=args.fuel,
     )
 
