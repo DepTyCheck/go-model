@@ -131,8 +131,8 @@ def check_example(example: bytes, testdir: str, cfg: Config) -> Failure | Succes
 
         return (
             check_via(example, cmd, testdir, cfg)
-            or check_via(example, (output,), testdir, cfg)
-            or SUCCESS
+            and check_via(example, (output,), testdir, cfg)
+            and SUCCESS
         )
     finally:
         os.remove(tempname)
