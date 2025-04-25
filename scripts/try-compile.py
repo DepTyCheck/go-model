@@ -5,10 +5,11 @@ from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
-from tempfile import TemporaryDirectory, NamedTemporaryFile
+from tempfile import TemporaryDirectory, mkstemp
 
 import math
 import multiprocessing
+import os
 import re
 import subprocess as sp
 
@@ -49,14 +50,13 @@ def generate_examples_par(
 
 
 def check_example(example: bytes, testdir: str) -> Failure | None:
-    with NamedTemporaryFile(
-        suffix=".go", dir=testdir, delete_on_close=False
-    ) as tempfile:
-        tempfile.write(example)
-        tempfile.close()
+    tempfd, tempname = mkstemp(suffix=".go", dir=testdir)
+    try:
+        os.write(tempfd, example)
+        os.close(tempfd)
 
-        output = f"{tempfile.name}.out"
-        cmd = ("go", "build", "-o", output, tempfile.name)
+        output = f"{tempname}.out"
+        cmd = ("go", "build", "-o", output, tempname)
 
         go_build = sp.run(cmd, stderr=sp.PIPE, cwd=testdir)
         if go_build.returncode != 0:
@@ -67,6 +67,8 @@ def check_example(example: bytes, testdir: str) -> Failure | None:
             return Failure(example, go_run.returncode, go_run.stderr)
 
         return None
+    finally:
+        os.remove(tempname)
 
 
 def check_examples_par(
