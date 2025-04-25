@@ -12,44 +12,84 @@ import multiprocessing
 import os
 import re
 import subprocess as sp
+from typing import Sequence
+
+
+@dataclass
+class Config:
+    gen_timeout: float | None
+    test_timeout: float | None
+    n_workers: int
+    n_examples: int
+    model_fuel: int
+
+    @property
+    def examples_per_worker(self) -> int:
+        return math.ceil(self.n_examples / self.n_workers)
 
 
 @dataclass
 class Failure:
     example: bytes
-    compiler_returncode: int
-    compiler_stderr: bytes
+    cause: bytes
+    returncode: int | None
+
+    def __bool__(self) -> bool:
+        return False
+
+
+class Success:
+    __slots__ = ()
+
+    def __bool__(self) -> bool:
+        return True
+
+
+SUCCESS = Success()
 
 
 divider = re.compile(b"\n*// -*\n*")
 
 
-def generate_examples(count: int, fuel: int | None) -> list[bytes]:
-    cmd = ["build/exec/go-model", "-n", str(count)]
-    if fuel is not None:
-        cmd.extend(("--model-fuel", str(fuel)))
+def generate_examples(cfg: Config) -> list[bytes]:
+    cmd = ["build/exec/go-model", "-n", str(cfg.n_examples)]
+    if cfg.model_fuel is not None:
+        cmd.extend(("--model-fuel", str(cfg.model_fuel)))
     pack_run = sp.run(cmd, stdout=sp.PIPE, check=True)
     results = divider.split(pack_run.stdout)
     results.remove(b"")
-    if len(results) != count:
+    if len(results) != cfg.n_examples:
         raise RuntimeError("Can't properly split generated examples")
     return results
 
 
-def generate_examples_par(
-    count: int, *, max_workers: int, fuel: int | None
-) -> Iterable[bytes]:
-    examples_per_proc = math.ceil(count / max_workers)
-    with ProcessPoolExecutor(max_workers) as exe:
-        futures = (
-            exe.submit(generate_examples, examples_per_proc, fuel)
-            for _ in range(max_workers)
-        )
-        for fut in as_completed(futures):
-            yield from fut.result()
+def generate_examples_par(cfg: Config) -> Iterable[bytes]:
+    with ProcessPoolExecutor(cfg.n_workers) as exe:
+        futures = (exe.submit(generate_examples, cfg) for _ in range(cfg.n_workers))
+        try:
+            for fut in as_completed(futures, cfg.gen_timeout):
+                yield from fut.result()
+        except TimeoutError:
+            print("TimeoutError: can't generate enough examples")
 
 
-def check_example(example: bytes, testdir: str) -> Failure | None:
+def check_via(
+    example: bytes, cmd: Sequence[str], cwd: str, cfg: Config
+) -> Failure | Success:
+    try:
+        go_build = sp.run(cmd, stderr=sp.PIPE, cwd=cwd, timeout=cfg.test_timeout)
+        if go_build.returncode == 0:
+            return SUCCESS
+        else:
+            return Failure(example, go_build.stderr, go_build.returncode)
+    except TimeoutError:
+        return Failure(example, b"TimeoutError", -1)
+
+
+def check_example(example: bytes, testdir: str, cfg: Config) -> Failure | Success:
+    if isinstance(example, Failure):
+        return example
+
     tempfd, tempname = mkstemp(suffix=".go", dir=testdir)
     try:
         os.write(tempfd, example)
@@ -58,25 +98,21 @@ def check_example(example: bytes, testdir: str) -> Failure | None:
         output = f"{tempname}.out"
         cmd = ("go", "build", "-o", output, tempname)
 
-        go_build = sp.run(cmd, stderr=sp.PIPE, cwd=testdir)
-        if go_build.returncode != 0:
-            return Failure(example, go_build.returncode, go_build.stderr)
-
-        go_run = sp.run((output,), stderr=sp.PIPE, cwd=testdir)
-        if go_run.returncode != 0:
-            return Failure(example, go_run.returncode, go_run.stderr)
-
-        return None
+        return (
+            check_via(example, cmd, testdir, cfg)
+            or check_via(example, (output,), testdir, cfg)
+            or SUCCESS
+        )
     finally:
         os.remove(tempname)
 
 
 def check_examples_par(
-    examples: Iterable[bytes], *, max_workers: int | None = None
-) -> Iterable[Failure | None]:
+    examples: Iterable[bytes], cfg: Config
+) -> Iterable[Failure | Success]:
     with TemporaryDirectory("deptycheck-go_") as testdir:
-        with ProcessPoolExecutor(max_workers) as exe:
-            futures = (exe.submit(check_example, ex, testdir) for ex in examples)
+        with ProcessPoolExecutor(cfg.n_workers) as exe:
+            futures = (exe.submit(check_example, ex, testdir, cfg) for ex in examples)
             for fut in as_completed(futures):
                 yield fut.result()
 
@@ -101,38 +137,46 @@ def render_example(code: str) -> str:
     )
 
 
-def main():
+def parse_args() -> Config:
     parser = ArgumentParser()
-    parser.add_argument("-t", "--threads")
-    parser.add_argument("-e", "--examples")
-    parser.add_argument("-f", "--fuel")
+    parser.add_argument("--gen-timeout", help="generator timeout in seconds")
+    parser.add_argument("--test-timeout", help="generator timeout in seconds")
+    parser.add_argument("-w", "--workers", help="number of worker threads")
+    parser.add_argument("-n", "--examples", help="number of examples")
+    parser.add_argument("-f", "--fuel", help="model fuel")
     args = parser.parse_args()
 
-    n_examples = 128 if args.examples is None else int(args.examples)
-    n_threads = (
-        multiprocessing.cpu_count() if args.threads is None else int(args.threads)
+    return Config(
+        gen_timeout=args.gen_timeout,
+        test_timeout=args.test_timeout,
+        n_examples=128 if args.examples is None else int(args.examples),
+        n_workers=(
+            multiprocessing.cpu_count() if args.workers is None else int(args.workers)
+        ),
+        model_fuel=args.fuel,
     )
-    fuel = args.fuel
+
+
+def main() -> None:
+    cfg = parse_args()
 
     print("Start generating and checking examples")
 
-    examples = generate_examples_par(n_examples, max_workers=n_threads, fuel=fuel)
+    examples = generate_examples_par(cfg)
 
     n_ok = n_fail = 0
     errors = Counter()
     try:
-        for res in check_examples_par(examples, max_workers=n_threads):
-            if res is None:
+        for res in check_examples_par(examples, cfg):
+            if isinstance(res, Success):
                 n_ok += 1
             else:
                 n_fail += 1
-                parse_output(res.compiler_stderr, errors)
-                print(
-                    f">>> Can't compile example (returncode = {res.compiler_returncode})"
-                )
+                parse_output(res.cause, errors)
+                print(f">>> Can't compile example (returncode = {res.returncode})")
                 print(render_example(res.example.decode()))
                 print()
-                print(res.compiler_stderr.decode())
+                print(res.cause.decode())
                 print()
     finally:
         print(f"OK: {n_ok}; Fail: {n_fail}")
