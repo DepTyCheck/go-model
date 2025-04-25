@@ -89,7 +89,7 @@ def generate_examples(cfg: Config) -> list[bytes]:
     pack_run = sp.run(cmd, stdout=sp.PIPE, check=True)
     results = divider.split(pack_run.stdout)
     results.remove(b"")
-    if len(results) != cfg.n_examples:
+    if len(results) != cfg.examples_per_worker:
         raise RuntimeError("Can't properly split generated examples")
     return results
 
