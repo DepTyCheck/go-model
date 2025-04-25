@@ -83,7 +83,7 @@ divider = re.compile(b"\n*// -*\n*")
 
 
 def generate_examples(cfg: Config) -> list[bytes]:
-    cmd = ["build/exec/go-model", "-n", str(cfg.n_examples)]
+    cmd = ["build/exec/go-model", "-n", str(cfg.examples_per_worker)]
     if cfg.model_fuel is not None:
         cmd.extend(("--model-fuel", str(cfg.model_fuel)))
     pack_run = sp.run(cmd, stdout=sp.PIPE, check=True)
