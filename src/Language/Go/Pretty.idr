@@ -108,38 +108,38 @@ parameters {auto opts : LayoutOpts}
   export
   literalPP : forall t. Literal t -> Doc opts
   literalPP (MkInt x) = line $ show x
-  literalPP (MkBool True) = "true"
+  literalPP (MkBool True)  = "true"
   literalPP (MkBool False) = "false"
 
 -- @WHEN EXTRA_BUILTINS
   export
   prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
   prefixPP BoolNot = "!"
-  prefixPP IntNeg = "-"
+  prefixPP IntNeg  = "-"
 -- @END EXTRA_BUILTINS
 
   export
   infixPP : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
-  infixPP IntAdd = "+"
+  infixPP IntAdd  = "+"
 -- @WHEN EXTRA_BUILTINS
-  infixPP IntSub = "-"
-  infixPP IntMul = "*"
+  infixPP IntSub  = "-"
+  infixPP IntMul  = "*"
   infixPP BoolAnd = "&&"
-  infixPP BoolOr = "||"
-  infixPP IntEq = "=="
-  infixPP IntNE = "!="
-  infixPP IntLt = "<"
-  infixPP IntLE = "<="
-  infixPP IntGt = ">"
-  infixPP IntGE = ">="
+  infixPP BoolOr  = "||"
+  infixPP IntEq   = "=="
+  infixPP IntNE   = "!="
+  infixPP IntLt   = "<"
+  infixPP IntLE   = "<="
+  infixPP IntGt   = ">"
+  infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
 
   export
   builtinPP : forall par, ret. BuiltinFunc par ret -> Doc opts
   builtinPP Print = "print"
 -- @WHEN EXTRA_BUILTINS
-  builtinPP Max = "max"
-  builtinPP Min = "min"
+  builtinPP Max   = "max"
+  builtinPP Min   = "min"
 -- @END EXTRA_BUILTINS
 
   export
@@ -267,7 +267,7 @@ statementPP {ctxt} (Var' {count} newTypes initial cont) = do
   let holes   := hsepBy comma $ replicate count "_"
   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
-              , "_" <++> "=" <++> newVars
+              , holes <++> "=" <++> newVars
               , cont
               ]
 
