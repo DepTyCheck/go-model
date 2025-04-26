@@ -5,14 +5,15 @@ from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+from signal import SIGKILL
 from tempfile import TemporaryDirectory, mkstemp
+from typing import Callable, Sequence, TypeVar, overload
 
 import math
 import multiprocessing
 import os
 import re
 import subprocess as sp
-from typing import Callable, Sequence, TypeVar, overload
 
 
 _A = TypeVar("_A")
@@ -20,9 +21,9 @@ _C = TypeVar("_C")
 
 
 @overload
-def none_or_map(
-        x: _A | None,
-        f: Callable[[_A], _C],
+def option(
+    x: _A | None,
+    f: Callable[[_A], _C],
 ) -> _C | None:
     if x is None:
         return None
@@ -30,20 +31,34 @@ def none_or_map(
 
 
 @overload
-def none_or_map(
-        x: _A | None,
-        f: Callable[[_A], _C],
-        default: Callable[[], _C]
-)-> _C:
-    if x is None:
-        return default()
-    return f(x)
-
-
-def none_or_map(x, f, default = None):
+def option(x: _A | None, f: Callable[[_A], _C], default: _C) -> _C:
     if x is None:
         return default
     return f(x)
+
+
+def option(x, f, default=None):
+    if x is None:
+        return default
+    return f(x)
+
+
+RETURNCODE_TIMEOUT = -2
+
+
+def run_external_tool(
+    cmd: Sequence[str], *, cwd: str | None = None, timeout: float | None = None
+) -> tuple[int, bytes, bytes]:
+    with sp.Popen(
+        cmd, stdout=sp.PIPE, stderr=sp.PIPE, cwd=cwd, preexec_fn=os.setsid
+    ) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+            return proc.returncode, out, err
+        except sp.TimeoutExpired:
+            os.killpg(proc.pid, SIGKILL)
+            out, err = proc.communicate(timeout=timeout)
+            return RETURNCODE_TIMEOUT, out, err
 
 
 @dataclass
@@ -69,16 +84,6 @@ class Failure:
         return False
 
 
-class Success:
-    __slots__ = ()
-
-    def __bool__(self) -> bool:
-        return True
-
-
-SUCCESS = Success()
-
-
 divider = re.compile(b"\n*// -*\n*")
 
 
@@ -86,38 +91,32 @@ def generate_examples(cfg: Config) -> list[bytes]:
     cmd = ["build/exec/go-model", "-n", str(cfg.examples_per_worker)]
     if cfg.model_fuel is not None:
         cmd.extend(("--model-fuel", str(cfg.model_fuel)))
-    pack_run = sp.run(cmd, stdout=sp.PIPE, check=True)
-    results = divider.split(pack_run.stdout)
+    code, out, err = run_external_tool(cmd, timeout=cfg.gen_timeout)
+    if code != 0 and code != RETURNCODE_TIMEOUT:
+        raise RuntimeError(f"Error while generating example:\n  {err}")
+    results = divider.split(out)
     results.remove(b"")
-    if len(results) != cfg.examples_per_worker:
-        raise RuntimeError("Can't properly split generated examples")
     return results
 
 
 def generate_examples_par(cfg: Config) -> Iterable[bytes]:
     with ProcessPoolExecutor(cfg.n_workers) as exe:
         futures = (exe.submit(generate_examples, cfg) for _ in range(cfg.n_workers))
-        try:
-            for fut in as_completed(futures, cfg.gen_timeout):
-                yield from fut.result()
-        except TimeoutError:
-            print("TimeoutError: can't generate enough examples")
+        for fut in as_completed(futures):
+            yield from fut.result()
 
 
 def check_via(
     example: bytes, cmd: Sequence[str], cwd: str, cfg: Config
-) -> Failure | Success:
-    try:
-        go_build = sp.run(cmd, stderr=sp.PIPE, cwd=cwd, timeout=cfg.test_timeout)
-        if go_build.returncode == 0:
-            return SUCCESS
-        else:
-            return Failure(example, go_build.stderr, go_build.returncode)
-    except TimeoutError:
-        return Failure(example, b"TimeoutError", -1)
+) -> Failure | None:
+    code, _, err = run_external_tool(cmd, cwd=cwd, timeout=cfg.test_timeout)
+    if code == 0:
+        return None
+    else:
+        return Failure(example, err, code)
 
 
-def check_example(example: bytes, testdir: str, cfg: Config) -> Failure | Success:
+def check_example(example: bytes, testdir: str, cfg: Config) -> Failure | None:
     if isinstance(example, Failure):
         return example
 
@@ -129,18 +128,18 @@ def check_example(example: bytes, testdir: str, cfg: Config) -> Failure | Succes
         output = f"{tempname}.out"
         cmd = ("go", "build", "-o", output, tempname)
 
-        return (
-            check_via(example, cmd, testdir, cfg)
-            and check_via(example, (output,), testdir, cfg)
-            and SUCCESS
-        )
+        if (c := check_via(example, cmd, testdir, cfg)) is not None:
+            return c
+        if (c := check_via(example, (output,), testdir, cfg)) is not None:
+            return c
+        return None
     finally:
         os.remove(tempname)
 
 
 def check_examples_par(
     examples: Iterable[bytes], cfg: Config
-) -> Iterable[Failure | Success]:
+) -> Iterable[Failure | None]:
     with TemporaryDirectory("deptycheck-go_") as testdir:
         with ProcessPoolExecutor(cfg.n_workers) as exe:
             futures = (exe.submit(check_example, ex, testdir, cfg) for ex in examples)
@@ -178,10 +177,10 @@ def parse_args() -> Config:
     args = parser.parse_args()
 
     return Config(
-        gen_timeout=none_or_map(args.gen_timeout, float),
-        test_timeout=none_or_map(args.test_timeout, float),
-        n_examples=none_or_map(args.examples, int, lambda: 128),
-        n_workers=none_or_map(args.workers, int, multiprocessing.cpu_count),
+        gen_timeout=option(args.gen_timeout, float),
+        test_timeout=option(args.test_timeout, float),
+        n_examples=option(args.examples, int, 128),
+        n_workers=option(args.workers, int, multiprocessing.cpu_count()),
         model_fuel=args.fuel,
     )
 
@@ -197,7 +196,7 @@ def main() -> None:
     errors = Counter()
     try:
         for res in check_examples_par(examples, cfg):
-            if isinstance(res, Success):
+            if res is None:
                 n_ok += 1
             else:
                 n_fail += 1
