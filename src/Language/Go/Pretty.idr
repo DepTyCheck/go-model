@@ -39,9 +39,9 @@ parameters {auto opts : LayoutOpts}
     -> (content : List (Doc opts))
     -> Doc opts
   goGeneralList left right delim content =
-    ifMultiline
+    -- ifMultiline
       (left <+> hsepBy delim content <+> right)
-      (vsep [left, indent indentWidth (vsepBy delim content), right])
+      -- (vsep [left, indent indentWidth (vsepBy delim content), right])
 
   goList : (content : List (Doc opts)) -> Doc opts
   goList = goGeneralList "(" ")" ","
@@ -205,7 +205,7 @@ parameters {ctxt      : Context}
 -- @END HOLES
 
 exprPP (Comma a b rest) =
-  pure $ "/* Comma! */" <++> hsepBy "," !(commaPP a b rest)
+  pure $ hsepBy "," !(commaPP a b rest)
 
 exprPP
   {rets = [GoFunc $ parTypes `To` retTypes]}
