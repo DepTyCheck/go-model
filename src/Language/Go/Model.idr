@@ -330,6 +330,7 @@ OnAnonFunc {parLen} ctxt newTypes retTypes =
                 LTESucc $ lteAddRight {m = b} a
 
 
+public export
 data Callable:
      forall ctxt, par, ret
   .  (expr : Expr ctxt [GoFunc $ par `To` ret])
