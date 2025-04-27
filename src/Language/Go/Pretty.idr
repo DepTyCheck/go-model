@@ -232,8 +232,8 @@ exprPP (CallBuiltin f args) = do
   args <- exprListPP args
   pure $ callPP (builtinPP f) args
 
-exprPP (CallNamed idx args) = do
-  name <- namePP (resolve idx ctxt.stack)
+exprPP (Call func args) = do
+  name <- exprPP func
   args <- maybeNoValuePP args
   pure $ callPP name args
 

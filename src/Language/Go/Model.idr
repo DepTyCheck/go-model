@@ -202,6 +202,15 @@ data ByRet:
 
 
 public export
+byRetToByType:
+     forall par, ret, stack, idx
+  .  ByRet par ret stack idx
+  -> ByType (GoFunc $ par `To` ret) stack idx
+byRetToByType HereR = HereT
+byRetToByType (ThereR there) = ThereT (byRetToByType there)
+
+
+public export
 record Context where
   constructor MkContext
   stackLen      : Nat
@@ -321,6 +330,12 @@ OnAnonFunc {parLen} ctxt newTypes retTypes =
                 LTESucc $ lteAddRight {m = b} a
 
 
+data Callable:
+     forall ctxt, par, ret
+  .  (expr : Expr ctxt [GoFunc $ par `To` ret])
+  -> Type
+
+
 data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
 -- @WHEN HOLES
 -- @   Hole:
@@ -372,13 +387,13 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> (args       : ExprList ctxt parTypes)
     -> Expr ctxt retTypes
 
-  CallNamed:
-       forall ctxt, retT
+  Call:
+       forall ctxt, retT, ty
     .  {parLen     : Nat}
-    -> (idx        : Fin ctxt.stackLen)
     -> {parT       : TypeVect parLen}
+    -> (func       : Expr ctxt [GoFunc $ parT `To` retT])
+    -> {auto 0 s   : Callable func}
     -> (args       : MaybeNoValue ctxt parT)
-    -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
     -> Expr ctxt retT
 
   GetDecl:
@@ -391,6 +406,24 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
   --            (f : Expr ctxt [GoFunc argTypes retTypes]) ->
   --            (args : Expr ctxt argTypes) ->
   --            Expr ctxt retTypes
+
+
+data Callable:
+     forall ctxt, par, ret
+  .  (expr : Expr ctxt [GoFunc $ par `To` ret])
+  -> Type
+  where
+
+  FromFuncLiteral:
+       forall ctxt, parT, retT
+    .  (body       : Statement (OnAnonFunc ctxt parT retT))
+    -> Callable {ctxt = ctxt} {par = parT} {ret = retT} (AnonFunc body)
+
+  FromGetDecl:
+       forall ctxt, parT, retT
+    .  (idx        : Fin ctxt.stackLen)
+    -> {auto 0 br  : ByRet parT retT ctxt.stack idx}
+    -> Callable {ctxt = ctxt} (GetDecl idx @{byRetToByType br})
 
 
 public export
