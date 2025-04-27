@@ -72,6 +72,7 @@ parameters {auto opts : LayoutOpts}
 -- @WHEN ASSIGNABLE_ANY
 -- @   typePP GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
+  typePP (GoChan t) = "chan" <++> typePP t
 
 
   export
@@ -114,8 +115,9 @@ parameters {auto opts : LayoutOpts}
 -- @WHEN EXTRA_BUILTINS
   export
   prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
-  prefixPP BoolNot = "!"
-  prefixPP IntNeg  = "-"
+  prefixPP BoolNot  = "!"
+  prefixPP IntNeg   = "-"
+  prefixPP ChanRecv = "<-"
 -- @END EXTRA_BUILTINS
 
   export
@@ -135,12 +137,14 @@ parameters {auto opts : LayoutOpts}
 -- @END EXTRA_BUILTINS
 
   export
-  builtinPP : forall par, ret. BuiltinFunc par ret -> Doc opts
+  builtinPP : forall t, par, ret. BuiltinFunc t par ret -> Doc opts
   builtinPP Print = "print"
 -- @WHEN EXTRA_BUILTINS
   builtinPP Max   = "max"
   builtinPP Min   = "min"
 -- @END EXTRA_BUILTINS
+  builtinPP MakeChanUnbuf = "make"
+  builtinPP MakeChanBuf   = "make"
 
   export
   callPP : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
@@ -228,9 +232,12 @@ exprPP (ApplyPrefix op arg) = do
 exprPP (ApplyInfix op lhv rhv) = do
     pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
 
-exprPP (CallBuiltin f args) = do
+exprPP (CallBuiltin typePar f args) = do
   args <- exprListPP args
-  pure $ callPP (builtinPP f) args
+  let typePar = case typePar of
+                  Just t => [typePP t]
+                  Nothing => []
+  pure $ callPP (builtinPP f) (typePar ++ args)
 
 exprPP (Call func args) = do
   name <- exprPP func
@@ -293,6 +300,24 @@ statementPP (If test then_ else_ cont) = do
        , cont
        ]
 -- @END IF_STMTS
+
+statementPP (ChanSend chan value cont) =
+  pure $ vsep
+    [ !(exprPP chan) <++> "<-" <++> !(exprPP value)
+    , !(statementPP cont)
+    ]
+
+statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
+  let newCtxt : Context; newCtxt = OnDeclare ctxt Var [type, GoBool]
+  let newVars := hsepBy comma
+                   !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
+  initial     <- exprPP initial
+  let holes   := hsepBy comma $ replicate 2 "_"
+  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
+  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+              , holes <++> "=" <++> newVars
+              , cont
+              ]
 
 
 wrapStatement {ctxt} stmt = do
