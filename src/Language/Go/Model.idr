@@ -388,7 +388,7 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
     -> Expr ctxt retTypes
 
   Call:
-       forall ctxt, retT, ty
+       forall ctxt, retT
     .  {parLen     : Nat}
     -> {parT       : TypeVect parLen}
     -> (func       : Expr ctxt [GoFunc $ parT `To` retT])
