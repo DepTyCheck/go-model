@@ -19,7 +19,7 @@ class Status(Enum):
             return Status.COMMENTED_OUT
 
 
-type Features = dict[str, Status]
+Features = dict[str, Status]
 
 
 decl_pat = re.compile(r"^([+\-])\s*(\w+)\s*(\-\-.*)?")
