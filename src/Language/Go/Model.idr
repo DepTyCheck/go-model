@@ -77,16 +77,31 @@ Injective GoChan where
 
 
 export
-DecEq GoType
-
-export
 {0 len : Nat} -> DecEq (TypeVect len)
 
 export
 DecEq GoFuncType
 
+export
+DecEq GoType where
+  decEq GoInt GoInt = Yes Refl
+  decEq GoBool GoBool = Yes Refl
+  decEq (GoFunc f) (GoFunc f') = decEqCong (decEq f f')
+  decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
+  decEq GoInt GoBool     = No $ \case Refl impossible
+  decEq GoInt (GoFunc _) = No $ \case Refl impossible
+  decEq GoInt (GoChan _) = No $ \case Refl impossible
+  decEq GoBool GoInt      = No $ \case Refl impossible
+  decEq GoBool (GoFunc _) = No $ \case Refl impossible
+  decEq GoBool (GoChan _) = No $ \case Refl impossible
+  decEq (GoFunc _) GoInt      = No $ \case Refl impossible
+  decEq (GoFunc _) GoBool     = No $ \case Refl impossible
+  decEq (GoFunc _) (GoChan _) = No $ \case Refl impossible
+  decEq (GoChan _) GoInt      = No $ \case Refl impossible
+  decEq (GoChan _) GoBool     = No $ \case Refl impossible
+  decEq (GoChan _) (GoFunc _) = No $ \case Refl impossible
 
-%runElab derive "GoType" [Generic, DecEq]
+-- %runElab derive "GoType" [Generic, DecEq]
 
 {0 len : Nat} -> DecEq (TypeVect len) where
   decEq Nil Nil = Yes Refl
