@@ -257,11 +257,11 @@ data Literal : (ty : GoType) -> Type where
   MkBool : Bool -> Literal GoBool
 
 -- @WHEN EXTRA_BUILTINS
-public export
-data PrefixOp : (argTy, resTy : GoType) -> Type where
-  BoolNot  : PrefixOp GoBool GoBool
-  IntNeg   : PrefixOp GoInt GoInt
-  ChanRecv : forall t. PrefixOp (GoChan t) t
+-- @ public export
+-- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
+-- @   BoolNot  : PrefixOp GoBool GoBool
+-- @   IntNeg   : PrefixOp GoInt GoInt
+-- @   ChanRecv : forall t. PrefixOp (GoChan t) t
 -- @END EXTRA_BUILTINS
 
 public export
@@ -269,9 +269,9 @@ data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
   IntAdd : InfixOp GoInt GoInt GoInt
 
   -- @WHEN EXTRA_BUILTINS
-  IntSub, IntMul  : InfixOp GoInt GoInt GoInt
-  BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
-  IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
+-- @   IntSub, IntMul  : InfixOp GoInt GoInt GoInt
+-- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
+-- @   IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
   -- @END EXTRA_BUILTINS
 
 public export
@@ -282,8 +282,8 @@ data BuiltinFunc : forall parLen, retLen.
                    Type
   where
 
-  MakeChanUnbuf : forall t. BuiltinFunc (Just t) [] [GoChan t]
-  MakeChanBuf   : forall t. BuiltinFunc (Just t) [GoInt] [GoChan t]
+  MakeChanUnbuf : forall t. BuiltinFunc (Just (GoChan t)) [] [GoChan t]
+  MakeChanBuf   : forall t. BuiltinFunc (Just (GoChan t)) [GoInt] [GoChan t]
 
 -- @WHEN ASSIGNABLE_ANY
 -- @     Print : BuiltinFunc [GoAny] []
@@ -292,7 +292,7 @@ data BuiltinFunc : forall parLen, retLen.
 -- @END ASSIGNABLE_ANY
 
 -- @WHEN EXTRA_BUILTINS
-  Max, Min : BuiltinFunc Nothing [GoInt, GoInt] [GoInt]
+-- @   Max, Min : BuiltinFunc Nothing [GoInt, GoInt] [GoInt]
 -- @END EXTRA_BUILTINS
 
 
@@ -382,11 +382,11 @@ data Expr : forall len. (ctxt : Context) -> (res : TypeVect len) -> Type where
                 Expr ctxt [resTy]
 
 -- @WHEN EXTRA_BUILTINS
-  ApplyPrefix : forall ctxt.
-                {argT, resT : GoType} ->
-                (op         : PrefixOp argT resT) ->
-                (arg : Expr ctxt [argT]) ->
-                Expr ctxt [resT]
+-- @   ApplyPrefix : forall ctxt.
+-- @                 {argT, resT : GoType} ->
+-- @                 (op         : PrefixOp argT resT) ->
+-- @                 (arg : Expr ctxt [argT]) ->
+-- @                 Expr ctxt [resT]
 -- @END EXTRA_BUILTINS
 
   ApplyInfix  : forall ctxt, resT.
@@ -506,6 +506,17 @@ data Statement : (ctxt : Context) -> Type where
                 (cont        : Statement (onDeclare ctxt Var [type, GoBool])) ->
                 Statement ctxt
 
+  Go          : forall ctxt.
+                {retLen      : Nat} ->
+                {retT        : TypeVect retLen} ->
+                {parLen      : Nat} ->
+                {parT        : TypeVect parLen} ->
+                (func        : Expr ctxt [GoFunc $ parT `To` retT]) ->
+                {auto 0 s    : Callable func} ->
+                (args        : MaybeNoValue ctxt parT) ->
+                (cont        : Statement ctxt) ->
+                Statement ctxt
+
 
 export
 genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
@@ -516,4 +527,3 @@ genExprs : Fuel ->
            (ctxt   : Context) ->
            (ret    : TypeVect retLen) ->
            Gen MaybeEmpty $ Expr ctxt ret
-

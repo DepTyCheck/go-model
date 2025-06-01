@@ -31,23 +31,23 @@ parameters {0 ctxt : Context}
   (.+.) = ApplyInfix IntAdd
 
   -- @WHEN EXTRA_BUILTINS
-  export
-  infixl 8 .-.
+-- @   export
+-- @   infixl 8 .-.
 
-  export
-  infixl 9 .*.
+-- @   export
+-- @   infixl 9 .*.
 
-  export
-  infixl 5 .&&.
+-- @   export
+-- @   infixl 5 .&&.
 
-  export
-  infixl 4 .||.
+-- @   export
+-- @   infixl 4 .||.
 
-  export
-  (.-.), (.*.) : {ctxt : Context} ->
-                 Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
-  (.-.) = ApplyInfix IntSub
-  (.*.) = ApplyInfix IntMul
+-- @   export
+-- @   (.-.), (.*.) : {ctxt : Context} ->
+-- @                  Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
+-- @   (.-.) = ApplyInfix IntSub
+-- @   (.*.) = ApplyInfix IntMul
   -- @END EXTRA_BUILTINS
 
   export

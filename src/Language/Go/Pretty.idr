@@ -113,35 +113,35 @@ parameters {auto opts : LayoutOpts}
   literalPP (MkBool False) = "false"
 
 -- @WHEN EXTRA_BUILTINS
-  export
-  prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
-  prefixPP BoolNot  = "!"
-  prefixPP IntNeg   = "-"
-  prefixPP ChanRecv = "<-"
+-- @   export
+-- @   prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
+-- @   prefixPP BoolNot  = "!"
+-- @   prefixPP IntNeg   = "-"
+-- @   prefixPP ChanRecv = "<-"
 -- @END EXTRA_BUILTINS
 
   export
   infixPP : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
   infixPP IntAdd  = "+"
 -- @WHEN EXTRA_BUILTINS
-  infixPP IntSub  = "-"
-  infixPP IntMul  = "*"
-  infixPP BoolAnd = "&&"
-  infixPP BoolOr  = "||"
-  infixPP IntEq   = "=="
-  infixPP IntNE   = "!="
-  infixPP IntLt   = "<"
-  infixPP IntLE   = "<="
-  infixPP IntGt   = ">"
-  infixPP IntGE   = ">="
+-- @   infixPP IntSub  = "-"
+-- @   infixPP IntMul  = "*"
+-- @   infixPP BoolAnd = "&&"
+-- @   infixPP BoolOr  = "||"
+-- @   infixPP IntEq   = "=="
+-- @   infixPP IntNE   = "!="
+-- @   infixPP IntLt   = "<"
+-- @   infixPP IntLE   = "<="
+-- @   infixPP IntGt   = ">"
+-- @   infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
 
   export
   builtinPP : forall t, par, ret. BuiltinFunc t par ret -> Doc opts
   builtinPP Print = "print"
 -- @WHEN EXTRA_BUILTINS
-  builtinPP Max   = "max"
-  builtinPP Min   = "min"
+-- @   builtinPP Max   = "max"
+-- @   builtinPP Min   = "min"
 -- @END EXTRA_BUILTINS
   builtinPP MakeChanUnbuf = "make"
   builtinPP MakeChanBuf   = "make"
@@ -216,7 +216,7 @@ exprPP
   (AnonFunc {parCount} body)
 = do
   let newCtxt : Context
-      newCtxt = OnAnonFunc ctxt parTypes retTypes
+      newCtxt = onAnonFunc ctxt parTypes retTypes
       params  := takeTopDecl parCount newCtxt.stack
   body        <- assert_total $ statementPP {ctxt = newCtxt} body
   funcPP empty params retTypes body
@@ -225,8 +225,8 @@ exprPP (GetLiteral lit) =
   pure $ literalPP lit
 
 -- @WHEN EXTRA_BUILTINS
-exprPP (ApplyPrefix op arg) = do
-  pure $ "(" <+> prefixPP op <+> !(exprPP arg) <+> ")"
+-- @ exprPP (ApplyPrefix op arg) = do
+-- @   pure $ "(" <+> prefixPP op <+> !(exprPP arg) <+> ")"
 -- @END EXTRA_BUILTINS
 
 exprPP (ApplyInfix op lhv rhv) = do
@@ -267,7 +267,7 @@ statementPP {ctxt} (Var' {count = 0} newTypes initial cont) = do
 
 statementPP {ctxt} (Var' {count} newTypes initial cont) = do
   -- TODO: try use `context cont` here
-  let newCtxt : Context; newCtxt = OnDeclare ctxt Var newTypes
+  let newCtxt : Context; newCtxt = onDeclare ctxt Var newTypes
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
   initial     <- exprPP initial
@@ -308,7 +308,7 @@ statementPP (ChanSend chan value cont) =
     ]
 
 statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
-  let newCtxt : Context; newCtxt = OnDeclare ctxt Var [type, GoBool]
+  let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GoBool]
   let newVars := hsepBy comma
                    !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
   initial     <- exprPP initial
@@ -318,6 +318,14 @@ statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
               , holes <++> "=" <++> newVars
               , cont
               ]
+
+statementPP (Go func args cont) = do
+  func <- exprPP func
+  args <- maybeNoValuePP args
+  pure $ vsep
+    [ "go" <++> callPP func args
+    , !(statementPP cont)
+    ]
 
 
 wrapStatement {ctxt} stmt = do
