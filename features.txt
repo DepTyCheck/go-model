@@ -7,7 +7,7 @@
 - EXTRA_BUILTINS
 
 -- TermIf, InnerIf
-+ IF_STMTS
+- IF_STMTS
 
 -- Generate whole statements
 + GEN_STMT

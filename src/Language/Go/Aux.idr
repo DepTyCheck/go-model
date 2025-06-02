@@ -11,11 +11,10 @@ import Language.Go.Model
 
 
 public export
-funcTy:
-     {parLen, retLen : Nat}
-  -> (params  : TypeVect parLen)
-  -> (returns : TypeVect retLen)
-  -> GoType
+funcTy : {parLen, retLen : Nat} ->
+         (parTypes : TypeVect parLen) ->
+         (retTypes : TypeVect retLen) ->
+         GoType
 funcTy par ret = GoFunc $ par `To` ret
 
 -- enumerate : forall t. {default 0 start : Nat} -> List t -> List (Nat, t)
@@ -36,7 +35,7 @@ defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
         [< MkDecl Var GoInt
-         , MkDecl Var (funcTy [GoInt, GoBool] [GoBool, GoInt])
+         , MkDecl Var (funcTy [GoInt, GoBool] [GoInt])
         ]
    in (_ ** stack)
 
@@ -49,7 +48,7 @@ defaultContext =
       , stack         = stack
       , blockDepth    = last
       , returnsLen    = _
-      , returns       = [GoInt]
+      , returns       = [GoFunc $ [GoInt] `To` [GoInt, GoInt]]
       , isTerminating = True
       }
 
@@ -68,12 +67,10 @@ defaultContext =
 
 
 export
-dip
-  :  forall len
-  .  (depth : Fin len)
-  -> (stack : Stack len)
-  -> let idx := finToNat $ complement depth
-      in (Stack idx, Decl)
+dip :  forall len.
+     (depth : Fin len) ->
+     (stack : Stack len) ->
+     (Stack (finToNat $ complement depth), Decl)
 dip {len = S top} FZ (rest :< decl) =
   rewrite finToNatLastIsBound {n = top} in (rest, decl)
 dip {len = S top} (FS d) (rest :< _) =
@@ -102,14 +99,13 @@ record ResolvedDecl where
 
 
 export
-resolve
-  :  {len   : Nat}
-  -> (depth : Fin len)
-  -> (st    : Stack len)
-  -> ResolvedDecl
-resolve depth st =
+resolve : {len : Nat} ->
+          (depth : Fin len) ->
+          (stack : Stack len) ->
+          ResolvedDecl
+resolve depth stack =
   let name := finToNat $ complement depth
-      decl := snd $ dip depth st
+      decl := snd $ dip depth stack
    in MkDecl
         { kind = decl.kind
         , name = name
@@ -117,34 +113,30 @@ resolve depth st =
         }
 
 
-takeTopRev
-  :  {len   : Nat}
-  -> (count : Nat)
-  -> (stack : Stack len)
-  -> List ResolvedDecl
+takeTopRev : {len : Nat} ->
+             (count : Nat) ->
+             (stack : Stack len) ->
+             List ResolvedDecl
 takeTopRev Z _ = []
 takeTopRev _ [<] = []
 takeTopRev (S i) stack@(rest :< _) =
   resolve 0 stack :: takeTopRev i rest
 
--- TODO: simplify
 export
-takeTopDecl
-  :  {len   : Nat}
-  -> (count : Nat)
-  -> (stack : Stack len)
-  -> List ResolvedDecl
+takeTopDecl : {len : Nat} ->
+              (count : Nat) ->
+              (stack : Stack len) ->
+              List ResolvedDecl
 takeTopDecl count stack = reverse $ takeTopRev count stack
 
 
 namespace ExprList
   export
-  asList
-    :  forall ctxt
-    .  {len   : Nat}
-    -> {types : TypeVect len}
-    -> (ExprList ctxt types)
-    -> List (type : GoType ** Expr ctxt [type])
+  asList : forall ctxt.
+           {len : Nat} ->
+           {types : TypeVect len} ->
+           ExprList ctxt types ->
+           List (type : GoType ** Expr ctxt type)
   asList [] = []
   asList {types = t :: ts} (e :: es) =
     (t ** e) :: asList es
@@ -161,9 +153,8 @@ namespace Statement
   context {ctxt} _ = ctxt
 
   public export
-  contextSpec:
-       {0 ctxt : Context}
-    -> (0 stmt : Statement ctxt)
-    -> (context stmt = ctxt)
+  contextSpec : forall ctxt.
+                (0 stmt : Statement ctxt) ->
+                (context stmt = ctxt)
   contextSpec _ = Refl
 

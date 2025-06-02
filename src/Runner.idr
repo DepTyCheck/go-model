@@ -24,7 +24,7 @@ import System.Random.Pure.StdGen
 
 data SelectedGen : Type where
   Statements : SelectedGen
-  Exprs      : {len : Nat} -> TypeVect len -> SelectedGen
+  Exprs      : (res : GoType) -> SelectedGen
 
 record Config where
   constructor MkConfig
@@ -37,7 +37,7 @@ record Config where
 
 defaultStmtGen, defaultExprGen : SelectedGen
 defaultStmtGen  = Statements
-defaultExprGen  = Exprs [GoInt]
+defaultExprGen  = Exprs GoInt
 
 
 defaultConfig : Config
@@ -127,9 +127,8 @@ runStatementsGen conf = do
 
 runExprsGen:
      {opts : _}
-  -> {len  : Nat}
   -> Config
-  -> (res  : TypeVect len)
+  -> (res : GoType)
   -> IO (LazyList $ Doc opts)
 runExprsGen conf res = do
   seed <- conf.usedSeed

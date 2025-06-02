@@ -34,14 +34,11 @@ parameters {auto opts : LayoutOpts}
     ifMultiline (hsepBy delim docs) (vsepBy delim docs)
 
 
-  goGeneralList:
-       (left, right, sep : Doc opts)
-    -> (content : List (Doc opts))
-    -> Doc opts
+  goGeneralList : (left, right, sep : Doc opts) ->
+                  (content : List (Doc opts)) ->
+                  Doc opts
   goGeneralList left right delim content =
-    -- ifMultiline
-      (left <+> hsepBy delim content <+> right)
-      -- (vsep [left, indent indentWidth (vsepBy delim content), right])
+    (left <+> hsepBy delim content <+> right)
 
   goList : (content : List (Doc opts)) -> Doc opts
   goList = goGeneralList "(" ")" ","
@@ -90,17 +87,16 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  funcPP:
-       forall retLen
-    .  (name    : Doc opts)
-    -> (params  : List ResolvedDecl)
-    -> (returns : TypeVect retLen)
-    -> (body    : Doc opts)
-    -> (Gen0 $ Doc opts)
-  funcPP name params returns body =
-    let params  := goList !(traverse nameTypePP params)
-        returns := returnTypesPP returns
-     in pure $ vsep [ "func" <++> params <+?+> returns <++> "{"
+  funcPP : forall retLen.
+           (name    : Doc opts) ->
+           (params  : List ResolvedDecl) ->
+           (retTypes : TypeVect retLen) ->
+           (body    : Doc opts) ->
+           (Gen0 $ Doc opts)
+  funcPP name params retTypes body =
+    let params   := goList !(traverse nameTypePP params)
+        retTypes := returnTypesPP retTypes
+     in pure $ vsep [ "func" <++> params <+?+> retTypes <++> "{"
                     , indent' 4 body
                     , "}"
                     ]
@@ -120,9 +116,9 @@ parameters {auto opts : LayoutOpts}
 -- @   prefixPP ChanRecv = "<-"
 -- @END EXTRA_BUILTINS
 
-  export
-  infixPP : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
-  infixPP IntAdd  = "+"
+  -- export
+  -- infixPP : forall lhv, rhv, res. InfixOp lhv rhv res -> Doc opts
+  -- infixPP IntAdd  = "+"
 -- @WHEN EXTRA_BUILTINS
 -- @   infixPP IntSub  = "-"
 -- @   infixPP IntMul  = "*"
@@ -136,15 +132,15 @@ parameters {auto opts : LayoutOpts}
 -- @   infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
 
-  export
-  builtinPP : forall t, par, ret. BuiltinFunc t par ret -> Doc opts
-  builtinPP Print = "print"
+  -- export
+  -- builtinPP : forall t, par, ret. BuiltinFunc t par ret -> Doc opts
+  -- builtinPP Print = "print"
 -- @WHEN EXTRA_BUILTINS
 -- @   builtinPP Max   = "max"
 -- @   builtinPP Min   = "min"
 -- @END EXTRA_BUILTINS
-  builtinPP MakeChanUnbuf = "make"
-  builtinPP MakeChanBuf   = "make"
+  -- builtinPP MakeChanUnbuf = "make"
+  -- builtinPP MakeChanBuf   = "make"
 
   export
   callPP : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
@@ -158,41 +154,29 @@ parameters {ctxt      : Context}
   statementPP : Statement ctxt -> (Gen0 $ Doc opts)
 
   export
-  exprPP:
-       {len  : Nat}
-    -> {rets : TypeVect len}
-    -> Expr ctxt rets
-    -> (Gen0 $ Doc opts)
+  exprPP: {retType : GoType} -> Expr ctxt retType -> (Gen0 $ Doc opts)
 
   export
-  exprListPP:
-       {len   : Nat}
-    -> {types : TypeVect len}
-    -> ExprList ctxt types
-    -> Gen0 (List (Doc opts))
+  multivaluedPP: {len : Nat} ->
+                 {types : TypeVect len} ->
+                 MultivaluedExpr ctxt types ->
+                 (Gen0 $ Doc opts)
+
+  export
+  exprListPP : {len   : Nat} ->
+               {types : TypeVect len} ->
+               ExprList ctxt types ->
+               Gen0 (List (Doc opts))
   exprListPP exprs =
     assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
 
   export
-  commaPP:
-       {len    : Nat}
-    -> {aT, bT : GoType}
-    -> {restT  : TypeVect len}
-    -> (a      : Expr ctxt [aT])
-    -> (b      : Expr ctxt [bT])
-    -> (rest   : ExprList ctxt restT)
-    -> (Gen0 (List (Doc opts)))
-  commaPP a b rest = exprListPP $ a :: b :: rest
-
-  export
-  maybeNoValuePP:
-       {len   : Nat}
-    -> {types : TypeVect len}
-    -> MaybeNoValue ctxt types
-    -> (Gen0 (List (Doc opts)))
-  maybeNoValuePP (NoValue) = pure [empty]
-  maybeNoValuePP (Value (Comma a b rest)) = commaPP a b rest
-  maybeNoValuePP (Value expr) = pure [ !(exprPP expr) ]
+  argsPP : {len : Nat} ->
+           {types : TypeVect len} ->
+           Args ctxt types ->
+           (Gen0 $ List (Doc opts))
+  argsPP (Comma args) = exprListPP args
+  argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
 
   export
   maybeContPP : forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
@@ -208,16 +192,13 @@ parameters {ctxt      : Context}
 -- @   pure $ "<<" <+> hsepBy "," (typesPP rets) <+> ">>"
 -- @END HOLES
 
-exprPP (Comma a b rest) =
-  pure $ hsepBy "," !(commaPP a b rest)
-
 exprPP
-  {rets = [GoFunc $ parTypes `To` retTypes]}
-  (AnonFunc {parCount} body)
+  {retType = (GoFunc $ parTypes `To` retTypes)}
+  (AnonFunc {parLen} body)
 = do
   let newCtxt : Context
       newCtxt = onAnonFunc ctxt parTypes retTypes
-      params  := takeTopDecl parCount newCtxt.stack
+      params  := takeTopDecl parLen newCtxt.stack
   body        <- assert_total $ statementPP {ctxt = newCtxt} body
   funcPP empty params retTypes body
 
@@ -229,24 +210,30 @@ exprPP (GetLiteral lit) =
 -- @   pure $ "(" <+> prefixPP op <+> !(exprPP arg) <+> ")"
 -- @END EXTRA_BUILTINS
 
-exprPP (ApplyInfix op lhv rhv) = do
-    pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
+-- exprPP (ApplyInfix op lhv rhv) = do
+--     pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
 
-exprPP (CallBuiltin typePar f args) = do
-  args <- exprListPP args
-  let typePar = case typePar of
-                  Just t => [typePP t]
-                  Nothing => []
-  pure $ callPP (builtinPP f) (typePar ++ args)
+-- exprPP (CallBuiltin typePar f args) = do
+--   args <- exprListPP args
+--   let typePar = case typePar of
+--                   Just t => [typePP t]
+--                   Nothing => []
+--   pure $ callPP (builtinPP f) (typePar ++ args)
 
 exprPP (Call func args) = do
   name <- exprPP func
-  args <- maybeNoValuePP args
+  args <- argsPP args
   pure $ callPP name args
 
 exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
   namePP decl
+
+
+multivaluedPP (Call func args) = do
+  name <- exprPP func
+  args <- argsPP args
+  pure $ callPP name args
 
 
 statementPP JustStop = do
@@ -258,74 +245,74 @@ statementPP {ctxt} (Return res) =
   -- case (ctxt.returnsLen, res) of
   --   (Z, NoValue) => pure "return"
   --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
-  pure $ "return" <+?+> hsepBy "," !(maybeNoValuePP res)
+  pure $ "return" <+?+> hsepBy "," !(argsPP res)
 
-statementPP {ctxt} (Var' {count = 0} newTypes initial cont) = do
-  pure $ vsep [ !(exprPP initial)
-              , assert_total !(statementPP cont)
-              ]
+-- statementPP {ctxt} (Void value cont) = do
+--   pure $ vsep [ !(multivaluedPP value)
+--               , assert_total !(statementPP cont)
+--               ]
 
-statementPP {ctxt} (Var' {count} newTypes initial cont) = do
-  -- TODO: try use `context cont` here
-  let newCtxt : Context; newCtxt = onDeclare ctxt Var newTypes
-  let newVars := hsepBy comma
-                   !(traverse namePP $ takeTopDecl count newCtxt.stack)
-  initial     <- exprPP initial
-  let holes   := hsepBy comma $ replicate count "_"
-  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
-  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
-              , holes <++> "=" <++> newVars
-              , cont
-              ]
+-- statementPP {ctxt} (Var {count} newTypes initial cont) = do
+--   -- TODO: try use `context cont` here
+--   let newCtxt : Context; newCtxt = onDeclare ctxt Var newTypes
+--   let newVars := hsepBy comma
+--                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
+--   initial     <- exprPP initial
+--   let holes   := hsepBy comma $ replicate count "_"
+--   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
+--   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+--               , holes <++> "=" <++> newVars
+--               , cont
+--               ]
 
 -- @WHEN IF_STMTS
-statementPP (If test then_ else_ cont) = do
-  test  <- exprPP test
-  then_ <- assert_total statementPP then_
-  cont  <- maybeContPP cont
-  let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
-  if skipElse
-     then pure $ vsep
-       [ "if" <++> test  <++> "{"
-       , indent' 4 then_
-       , "}"
-       , cont
-       ]
-     else pure $ vsep
-       [ "if" <++> test  <++> "{"
-       , indent' 4 then_
-       , "} else {"
-       , indent' 4 !(assert_total statementPP else_)
-       , "}"
-       , cont
-       ]
+-- @ statementPP (If test then_ else_ cont) = do
+-- @   test  <- exprPP test
+-- @   then_ <- assert_total statementPP then_
+-- @   cont  <- maybeContPP cont
+-- @   let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
+-- @   if skipElse
+-- @      then pure $ vsep
+-- @        [ "if" <++> test  <++> "{"
+-- @        , indent' 4 then_
+-- @        , "}"
+-- @        , cont
+-- @        ]
+-- @      else pure $ vsep
+-- @        [ "if" <++> test  <++> "{"
+-- @        , indent' 4 then_
+-- @        , "} else {"
+-- @        , indent' 4 !(assert_total statementPP else_)
+-- @        , "}"
+-- @        , cont
+-- @        ]
 -- @END IF_STMTS
 
-statementPP (ChanSend chan value cont) =
-  pure $ vsep
-    [ !(exprPP chan) <++> "<-" <++> !(exprPP value)
-    , !(statementPP cont)
-    ]
+-- statementPP (ChanSend chan value cont) =
+--   pure $ vsep
+--     [ !(exprPP chan) <++> "<-" <++> !(exprPP value)
+--     , !(statementPP cont)
+--     ]
 
-statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
-  let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GoBool]
-  let newVars := hsepBy comma
-                   !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
-  initial     <- exprPP initial
-  let holes   := hsepBy comma $ replicate 2 "_"
-  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
-  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
-              , holes <++> "=" <++> newVars
-              , cont
-              ]
+-- statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
+--   let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GoBool]
+--   let newVars := hsepBy comma
+--                    !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
+--   initial     <- exprPP initial
+--   let holes   := hsepBy comma $ replicate 2 "_"
+--   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
+--   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+--               , holes <++> "=" <++> newVars
+--               , cont
+--               ]
 
-statementPP (Go func args cont) = do
-  func <- exprPP func
-  args <- maybeNoValuePP args
-  pure $ vsep
-    [ "go" <++> callPP func args
-    , !(statementPP cont)
-    ]
+-- statementPP (Go func args cont) = do
+--   func <- exprPP func
+--   args <- maybeNoValuePP args
+--   pure $ vsep
+--     [ "go" <++> callPP func args
+--     , !(statementPP cont)
+--     ]
 
 
 wrapStatement {ctxt} stmt = do
