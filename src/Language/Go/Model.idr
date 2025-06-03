@@ -471,13 +471,12 @@ data Statement : (ctxt : Context) -> Type where
 
   SReturn     : forall ctxt.
                 (0 term : BoolEqual ctxt.isTerminating True) =>
-                (res    : ExprList ctxt ctxt.returns) ->
+                (res : ExprList ctxt ctxt.returns) ->
                 Statement ctxt
 
   SPrintLn    : forall ctxt.
-                {parLen : Nat} ->
-                {parTypes : TypeVect parLen} ->
-                (args : ExprList ctxt parTypes) ->
+                {argType : GoType} ->
+                (arg : Expr ctxt argType) ->
                 (cont : Statement ctxt) ->
                 Statement ctxt
 

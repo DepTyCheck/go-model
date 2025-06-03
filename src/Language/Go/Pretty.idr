@@ -259,8 +259,8 @@ statementPP {ctxt} (SReturn res) =
   --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
   pure $ "return" <+?+> hsepBy "," !(exprListPP res)
 
-statementPP (SPrintLn args cont) = pure $ vsep
-  [ !(funcE "println" args)
+statementPP (SPrintLn arg cont) = pure $ vsep
+  [ !(funcE "println" [arg])
   , !(assert_total $ statementPP cont)
   ]
 
