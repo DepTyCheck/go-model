@@ -132,8 +132,7 @@ takeTopDecl count stack = reverse $ takeTopRev count stack
 
 namespace ExprList
   export
-  asList : forall ctxt.
-           {len : Nat} ->
+  asList : forall ctxt, len.
            {types : TypeVect len} ->
            ExprList ctxt types ->
            List (type : GoType ** Expr ctxt type)
@@ -145,7 +144,7 @@ namespace ExprList
 namespace Statement
   export
   isEmpty : forall ctxt. Statement ctxt -> Bool
-  isEmpty JustStop = True
+  isEmpty SStop = True
   isEmpty _ = False
 
   public export
