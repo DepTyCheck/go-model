@@ -310,7 +310,7 @@ namespace MaybeExpr
   public export
   data MaybeExpr : (ctxt : Context) -> (type : MaybeType) -> Type where
     Just : forall ctxt, inner. Expr ctxt inner -> MaybeExpr ctxt (Just inner)
-    Nothing : forall ctxt, type. MaybeExpr ctxt type
+    Nothing : forall ctxt. MaybeExpr ctxt Nothing
 
 
 -- public export

@@ -170,8 +170,8 @@ parameters {ctxt      : Context}
               (args : ExprList ctxt parTypes) ->
               (Gen0 $ Doc opts)
   builtinPP IntAdd = infixE "+"
-  builtinPP (MakeChanUnbuf elemType) = makeE elemType
-  builtinPP (MakeChanBuf elemType) = makeE elemType
+  builtinPP (MakeChanUnbuf elemType) = makeE (GoChan elemType)
+  builtinPP (MakeChanBuf elemType) = makeE (GoChan elemType)
   builtinPP ChanLen = funcE "len"
   builtinPP ChanCap = funcE "cap"
 -- @WHEN EXTRA_BUILTINS
