@@ -52,27 +52,27 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  typePP : GoType -> Doc opts
+  typeName : GoType -> Doc opts
 
   export
   typesPP : forall len. TypeVect len -> List (Doc opts)
-  typesPP ts = assert_total map typePP (asList ts)
+  typesPP ts = assert_total map typeName (asList ts)
 
   returnTypesPP : forall len. TypeVect len -> Doc opts
   returnTypesPP [] = empty
-  returnTypesPP [type] = typePP type
+  returnTypesPP [type] = typeName type
   returnTypesPP types = goGeneralList "(" ")" "," (typesPP types)
 
-  typePP GoInt  = pure "int"
-  typePP GoBool = pure "bool"
-  typePP (GoFunc $ params `To` rets) =
+  typeName GoInt  = pure "int"
+  typeName GoBool = pure "bool"
+  typeName (GoFunc $ params `To` rets) =
     let params := goList (typesPP params)
         rets   := returnTypesPP rets
      in "func" <++> params <+?+> rets
 -- @WHEN ASSIGNABLE_ANY
--- @   typePP GoAny = pure "interface {}"
+-- @   typeName GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
-  -- typePP (GoChan t) = "chan" <++> typePP t
+  typeName (GoChan t) = "chan" <++> typeName t
 
 
   export
@@ -86,7 +86,7 @@ parameters {auto opts : LayoutOpts}
 
   export
   nameTypePP : ResolvedDecl -> (Gen0 $ Doc opts)
-  nameTypePP decl = pure $ !(namePP decl) <++> typePP decl.type
+  nameTypePP decl = pure $ !(namePP decl) <++> typeName decl.type
 
 
   export
@@ -111,12 +111,12 @@ parameters {auto opts : LayoutOpts}
   literalPP (MkBool True)  = "true"
   literalPP (MkBool False) = "false"
 
+  export
+  prefixName : forall par, ret. PrefixOp par ret -> Doc opts
+  prefixName ChanRecv = "<-"
 -- @WHEN EXTRA_BUILTINS
--- @   export
--- @   prefixPP : forall par, ret. PrefixOp par ret -> Doc opts
--- @   prefixPP BoolNot  = "!"
--- @   prefixPP IntNeg   = "-"
--- @   prefixPP ChanRecv = "<-"
+-- @   prefixName BoolNot  = "!"
+-- @   prefixName IntNeg   = "-"
 -- @END EXTRA_BUILTINS
 
   -- export
@@ -135,15 +135,6 @@ parameters {auto opts : LayoutOpts}
 -- @   infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
 
-  export
-  builtinPP : forall par, ret. BuiltinFunc par ret -> Doc opts
-  builtinPP PrintLn = "println"
--- @WHEN EXTRA_BUILTINS
--- @   builtinPP Max   = "max"
--- @   builtinPP Min   = "min"
--- @END EXTRA_BUILTINS
-  -- builtinPP MakeChanUnbuf = "make"
-  -- builtinPP MakeChanBuf   = "make"
 
 
 parameters {ctxt      : Context}
@@ -169,6 +160,40 @@ parameters {ctxt      : Context}
   exprListPP exprs =
     assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
 
+  export
+  builtinPP : {parLen : Nat} ->
+              {0 retLen : Nat} ->
+              {parTypes : TypeVect parLen} ->
+              {retTypes : TypeVect retLen} ->
+              (func : BuiltinFunc parTypes retTypes) ->
+              (args : ExprList ctxt parTypes) ->
+              (Gen0 $ Doc opts)
+  builtinPP func args = do
+      args <- exprListPP args
+      let ta := typeName <$> typeArg func
+      pure $ goCall (name func) (ta ++ args)
+    where
+      typeArg : forall parTypes, retLen.
+                {retTypes : TypeVect retLen} ->
+                BuiltinFunc parTypes retTypes ->
+                List GoType
+      typeArg {retTypes = [GoChan t]} MakeChanUnbuf = [GoChan t]
+      typeArg {retTypes = [GoChan t]} MakeChanBuf = [GoChan t]
+      typeArg _ = []
+
+      name : forall parTypes, retTypes.
+             BuiltinFunc parTypes retTypes ->
+             Doc opts
+      name PrintLn = "println"
+      -- @WHEN EXTRA_BUILTINS
+      -- @   name Max   = "max"
+      -- @   name Min   = "min"
+      -- @END EXTRA_BUILTINS
+      name MakeChanUnbuf = "make"
+      name MakeChanBuf   = "make"
+      name ChanLen = "len"
+      name ChanCap = "cap"
+
   -- export
   -- argsPP : {len : Nat} ->
   --          {types : TypeVect len} ->
@@ -176,6 +201,7 @@ parameters {ctxt      : Context}
   --          (Gen0 $ List (Doc opts))
   -- argsPP (Comma args) = exprListPP args
   -- argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
+
   export
   callPP : {len : Nat} ->
            {types : TypeVect len} ->
@@ -213,22 +239,15 @@ exprPP
 exprPP (GetLiteral lit) =
   pure $ literalPP lit
 
--- @WHEN EXTRA_BUILTINS
--- @ exprPP (ApplyPrefix op arg) = do
--- @   pure $ "(" <+> prefixPP op <+> !(exprPP arg) <+> ")"
--- @END EXTRA_BUILTINS
-
 -- exprPP (ApplyInfix op lhv rhv) = do
 --     pure $ "(" <+> !(exprPP lhv) <++> infixPP op <++> !(exprPP rhv) <+> ")"
 
--- exprPP (CallBuiltin typePar f args) = do
---   args <- exprListPP args
---   let typePar = case typePar of
---                   Just t => [typePP t]
---                   Nothing => []
---   pure $ goCall (builtinPP f) (typePar ++ args)
+exprPP (EPrefix op arg) = do
+  pure $ "(" <+> prefixName op <+> !(exprPP arg) <+> ")"
 
-exprPP (CallNormal call) = callPP call
+exprPP (EBuiltin func args) = builtinPP func args
+
+exprPP (ECall call) = callPP call
 
 exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
@@ -257,8 +276,10 @@ statementPP {ctxt} (Return res) =
 --               , assert_total !(statementPP cont)
 --               ]
 
-statementPP {ctxt} (SBuiltin func args) =
-  pure $ goCall (builtinPP func) !(exprListPP args)
+statementPP (SBuiltin func args cont) = pure $ vsep
+  [ !(builtinPP func args)
+  , !(assert_total $ statementPP cont)
+  ]
 
 statementPP {ctxt} (SVar1 {newType} initial cont) = do
   let count := 1
@@ -272,6 +293,11 @@ statementPP {ctxt} (SVar1 {newType} initial cont) = do
               , holes <++> "=" <++> newVars
               , cont
               ]
+
+statementPP (SCall call cont) = pure $ vsep
+  [ !(callPP call)
+  , !(assert_total $ statementPP cont)
+  ]
 
 -- @WHEN IF_STMTS
 -- @ statementPP (If test then_ else_ cont) = do

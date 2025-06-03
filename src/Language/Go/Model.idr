@@ -51,7 +51,7 @@ data GoType : Type where
   GoInt  : GoType
   GoBool : GoType
   GoFunc : GoFuncType -> GoType
-  -- GoChan : GoType -> GoType
+  GoChan : GoType -> GoType
   -- @WHEN ASSIGNABLE_ANY
 -- @   | GoAny
   -- @END ASSIGNABLE_ANY
@@ -64,9 +64,9 @@ export
 Injective GoFunc where
   injective Refl = Refl
 
--- export
--- Injective GoChan where
---   injective Refl = Refl
+export
+Injective GoChan where
+  injective Refl = Refl
 
 
 export
@@ -80,21 +80,19 @@ DecEq GoType where
   decEq GoInt      GoInt       = Yes Refl
   decEq GoBool     GoBool      = Yes Refl
   decEq (GoFunc f) (GoFunc f') = decEqCong (decEq f f')
-  -- decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
+  decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
   decEq GoInt      GoBool      = No $ \case Refl impossible
   decEq GoInt      (GoFunc _)  = No $ \case Refl impossible
-  -- decEq GoInt      (GoChan _)  = No $ \case Refl impossible
+  decEq GoInt      (GoChan _)  = No $ \case Refl impossible
   decEq GoBool     GoInt       = No $ \case Refl impossible
   decEq GoBool     (GoFunc _)  = No $ \case Refl impossible
-  -- decEq GoBool     (GoChan _)  = No $ \case Refl impossible
+  decEq GoBool     (GoChan _)  = No $ \case Refl impossible
   decEq (GoFunc _) GoInt       = No $ \case Refl impossible
   decEq (GoFunc _) GoBool      = No $ \case Refl impossible
-  -- decEq (GoFunc _) (GoChan _)  = No $ \case Refl impossible
-  -- decEq (GoChan _) GoInt       = No $ \case Refl impossible
-  -- decEq (GoChan _) GoBool      = No $ \case Refl impossible
-  -- decEq (GoChan _) (GoFunc _)  = No $ \case Refl impossible
-
--- %runElab derive "GoType" [Generic, DecEq]
+  decEq (GoFunc _) (GoChan _)  = No $ \case Refl impossible
+  decEq (GoChan _) GoInt       = No $ \case Refl impossible
+  decEq (GoChan _) GoBool      = No $ \case Refl impossible
+  decEq (GoChan _) (GoFunc _)  = No $ \case Refl impossible
 
 {0 len : Nat} -> DecEq (TypeVect len) where
   decEq Nil Nil = Yes Refl
@@ -249,18 +247,17 @@ data Literal : (ty : GoType) -> Type where
   MkInt  : Nat  -> Literal GoInt
   MkBool : Bool -> Literal GoBool
 
+public export
+data PrefixOp : (argType, resType : GoType) -> Type where
+   ChanRecv : forall t. PrefixOp (GoChan t) t
 -- @WHEN EXTRA_BUILTINS
--- @ public export
--- @ data PrefixOp : (argTy, resTy : GoType) -> Type where
 -- @   BoolNot  : PrefixOp GoBool GoBool
 -- @   IntNeg   : PrefixOp GoInt GoInt
--- @   ChanRecv : forall t. PrefixOp (GoChan t) t
 -- @END EXTRA_BUILTINS
 
 public export
 data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
   IntAdd : InfixOp GoInt GoInt GoInt
-
   -- @WHEN EXTRA_BUILTINS
 -- @   IntSub, IntMul  : InfixOp GoInt GoInt GoInt
 -- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
@@ -271,11 +268,11 @@ public export
 data BuiltinFunc : forall parLen, retLen.
                    (parTypes : TypeVect parLen) ->
                    (retTypes : TypeVect retLen) ->
-                   Type
-  where
+                   Type where
+  MakeChanUnbuf : forall t. BuiltinFunc [] [GoChan t]
+  MakeChanBuf   : forall t. BuiltinFunc [GoInt] [GoChan t]
 
-  -- MakeChanUnbuf : forall t. BuiltinFunc [] [GoChan t]
-  -- MakeChanBuf   : forall t. BuiltinFunc [GoInt] [GoChan t]
+  ChanLen, ChanCap : forall t. BuiltinFunc [GoChan t] [GoInt]
 
 -- @WHEN ASSIGNABLE_ANY
 -- @     Print : BuiltinFunc [GoAny] []
@@ -286,8 +283,6 @@ data BuiltinFunc : forall parLen, retLen.
 -- @WHEN EXTRA_BUILTINS
 -- @   Max, Min : BuiltinFunc MustUse [GoInt, GoInt] [GoInt]
 -- @END EXTRA_BUILTINS
-
-
 
 
 namespace Expr
@@ -384,13 +379,11 @@ namespace Expr
                   (literal    : Literal resType) ->
                   Expr ctxt resType
 
--- @WHEN EXTRA_BUILTINS
--- @     ApplyPrefix : forall ctxt.
--- @                   {argType, resType : GoType} ->
--- @                   (op  : PrefixOp argType resType) ->
--- @                   (arg : Expr ctxt argType) ->
--- @                   Expr ctxt resType
--- @END EXTRA_BUILTINS
+    EPrefix     : forall ctxt.
+                  {argType, resType : GoType} ->
+                  (op  : PrefixOp argType resType) ->
+                  (arg : Expr ctxt argType) ->
+                  Expr ctxt resType
 
     -- ApplyInfix  : forall ctxt, resType.
     --               {lhvType, rhvType : GoType} ->
@@ -399,15 +392,14 @@ namespace Expr
     --               (rhv : Expr ctxt rhvType) ->
     --               Expr ctxt resType
 
-    -- CallBuiltin : forall ctxt, retType.
-    --               {parLen   : Nat} ->
-    --               {parTypes : TypeVect parLen} ->
-    --               (typePar  : MaybeType) ->
-    --               (func : BuiltinFunc typePar parTypes [retType]) ->
-    --               (args : ExprList ctxt parTypes) ->
-    --               Expr ctxt retType
+    EBuiltin    : forall ctxt, retType.
+                  {parLen   : Nat} ->
+                  {parTypes : TypeVect parLen} ->
+                  (func : BuiltinFunc parTypes [retType]) ->
+                  (args : ExprList ctxt parTypes) ->
+                  Expr ctxt retType
 
-    CallNormal  : forall ctxt, retType.
+    ECall       : forall ctxt, retType.
                   (call : Call ctxt [retType]) ->
                   Expr ctxt retType
 
@@ -493,12 +485,20 @@ data Statement : (ctxt : Context) -> Type where
                 {parTypes : TypeVect parLen} ->
                 (func : BuiltinFunc parTypes []) ->
                 (args : ExprList ctxt parTypes) ->
+                (cont : Statement ctxt) ->
                 Statement ctxt
 
   SVar1       : forall ctxt.
                 {newType : GoType} ->
                 (initial : Expr ctxt newType) ->
                 (cont    : Statement (onDeclare ctxt Var [newType])) ->
+                Statement ctxt
+
+  SCall       : forall ctxt.
+                {retLen : Nat} ->
+                {retTypes : TypeVect retLen} ->
+                (call : Call ctxt retTypes) ->
+                (cont : Statement ctxt) ->
                 Statement ctxt
 
   -- Var         : forall ctxt.
