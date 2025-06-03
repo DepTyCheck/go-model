@@ -156,11 +156,11 @@ parameters {ctxt      : Context}
   export
   exprPP: {retType : GoType} -> Expr ctxt retType -> (Gen0 $ Doc opts)
 
-  export
-  multivaluedPP: {len : Nat} ->
-                 {types : TypeVect len} ->
-                 MultivaluedExpr ctxt types ->
-                 (Gen0 $ Doc opts)
+  -- export
+  -- multivaluedPP: {len : Nat} ->
+  --                {types : TypeVect len} ->
+  --                MultivaluedExpr ctxt types ->
+  --                (Gen0 $ Doc opts)
 
   export
   exprListPP : {len   : Nat} ->
@@ -170,13 +170,13 @@ parameters {ctxt      : Context}
   exprListPP exprs =
     assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
 
-  export
-  argsPP : {len : Nat} ->
-           {types : TypeVect len} ->
-           Args ctxt types ->
-           (Gen0 $ List (Doc opts))
-  argsPP (Comma args) = exprListPP args
-  argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
+  -- export
+  -- argsPP : {len : Nat} ->
+  --          {types : TypeVect len} ->
+  --          Args ctxt types ->
+  --          (Gen0 $ List (Doc opts))
+  -- argsPP (Comma args) = exprListPP args
+  -- argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
 
   export
   maybeContPP : forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
@@ -222,7 +222,7 @@ exprPP (GetLiteral lit) =
 
 exprPP (Call func args) = do
   name <- exprPP func
-  args <- argsPP args
+  args <- exprListPP args
   pure $ callPP name args
 
 exprPP {ctxt} (GetDecl idx) = do
@@ -230,10 +230,10 @@ exprPP {ctxt} (GetDecl idx) = do
   namePP decl
 
 
-multivaluedPP (Call func args) = do
-  name <- exprPP func
-  args <- argsPP args
-  pure $ callPP name args
+-- multivaluedPP (Call func args) = do
+--   name <- exprPP func
+--   args <- exprListPP args
+--   pure $ callPP name args
 
 
 statementPP JustStop = do
@@ -245,7 +245,7 @@ statementPP {ctxt} (Return res) =
   -- case (ctxt.returnsLen, res) of
   --   (Z, NoValue) => pure "return"
   --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
-  pure $ "return" <+?+> hsepBy "," !(argsPP res)
+  pure $ "return" <+?+> hsepBy "," !(exprListPP res)
 
 -- statementPP {ctxt} (Void value cont) = do
 --   pure $ vsep [ !(multivaluedPP value)

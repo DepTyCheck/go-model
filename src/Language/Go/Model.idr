@@ -300,12 +300,12 @@ namespace Expr
   public export
   data Expr : (ctxt : Context) -> (res : GoType) -> Type
 
-namespace MultivaluedExpr
-  public export
-  data MultivaluedExpr : forall len.
-                         (ctxt  : Context) ->
-                         (types : TypeVect len) ->
-                         Type
+-- namespace MultivaluedExpr
+--   public export
+--   data MultivaluedExpr : forall len.
+--                          (ctxt  : Context) ->
+--                          (types : TypeVect len) ->
+--                          Type
 
 namespace ExprList
   public export
@@ -322,19 +322,19 @@ namespace ExprList
            ExprList ctxt (headT :: tailT)
 
 
-public export
-data Args: forall len.
-           (ctxt  : Context) ->
-           (types : TypeVect len) ->
-           Type where
+-- public export
+-- data Args: forall len.
+--            (ctxt  : Context) ->
+--            (types : TypeVect len) ->
+--            Type where
 
-  Comma : forall ctxt, types.
-          (args : ExprList ctxt types) ->
-          Args ctxt types
+--   Comma : forall ctxt, types.
+--           (args : ExprList ctxt types) ->
+--           Args ctxt types
 
-  Many  : forall ctxt, t1, t2, ts.
-          (expr : MultivaluedExpr ctxt (t1 :: t2 :: ts)) ->
-          Args ctxt (t1 :: t2 :: ts)
+--   Many  : forall ctxt, t1, t2, ts.
+--           (expr : MultivaluedExpr ctxt (t1 :: t2 :: ts)) ->
+--           Args ctxt (t1 :: t2 :: ts)
 
 
 public export
@@ -408,7 +408,7 @@ namespace Expr
                   {parTypes : TypeVect parLen} ->
                   (func : Expr ctxt (GoFunc $ parTypes `To` [retType])) ->
                   (0 s : Callable func) =>
-                  (args : Args ctxt parTypes) ->
+                  (args : ExprList ctxt parTypes) ->
                   Expr ctxt retType
 
     GetDecl     : forall ctxt, type.
@@ -417,19 +417,19 @@ namespace Expr
                   Expr ctxt type
 
 
-namespace MultivaluedExpr
-  data MultivaluedExpr : forall len.
-                         (ctxt : Context) ->
-                         (res : TypeVect len) ->
-                         Type where
+-- namespace MultivaluedExpr
+--   data MultivaluedExpr : forall len.
+--                          (ctxt : Context) ->
+--                          (res : TypeVect len) ->
+--                          Type where
 
-    Call        : forall ctxt, retTypes.
-                  {parLen   : Nat} ->
-                  {parTypes : TypeVect parLen} ->
-                  (func : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
-                  (0 s : Callable func) =>
-                  (args : Args ctxt parTypes) ->
-                  MultivaluedExpr ctxt retTypes
+--     Call        : forall ctxt, retTypes.
+--                   {parLen   : Nat} ->
+--                   {parTypes : TypeVect parLen} ->
+--                   (func : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
+--                   (0 s : Callable func) =>
+--                   (args : Args ctxt parTypes) ->
+--                   MultivaluedExpr ctxt retTypes
 
 
 data Callable : forall ctxt, parTypes, retTypes.
@@ -485,7 +485,7 @@ data Statement : (ctxt : Context) -> Type where
 
   Return      : forall ctxt.
                 (0 term : BoolEqual ctxt.isTerminating True) =>
-                (res    : Args ctxt ctxt.returns) ->
+                (res    : ExprList ctxt ctxt.returns) ->
                 Statement ctxt
 
   -- Var         : forall ctxt.
