@@ -109,6 +109,19 @@ parameters {auto opts : LayoutOpts}
   literalPP (MkBool True)  = "true"
   literalPP (MkBool False) = "false"
 
+  export
+  varPP : (initial : Doc opts) ->
+          (newCtxt : Context) ->
+          (count : Nat) ->
+          (Gen0 $ Doc opts)
+  varPP initial newCtxt count = do
+    let newVars := hsepBy comma
+                     !(traverse namePP $ takeTopDecl count newCtxt.stack)
+    let holes := hsepBy comma $ replicate count "_"
+    pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+                , holes <++> "=" <++> newVars
+                ]
+
 
 parameters {ctxt      : Context}
            {auto opts : LayoutOpts}
@@ -216,8 +229,11 @@ parameters {ctxt      : Context}
   maybeContPP Nothing     = pure empty
 
   export
-  wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
+  sendRecvPP : SendRecv ctxt -> (Gen0 $ Doc opts)
 
+
+  export
+  wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
 
 -- @WHEN HOLES
 -- @ exprPP {rets} Hole =
@@ -263,22 +279,21 @@ statementPP (SPrintLn arg cont) = pure $ vsep
   ]
 
 statementPP {ctxt} (SVar1 {newType} initial cont) = do
-  let count := 1
   let newCtxt : Context; newCtxt = onDeclare ctxt Var [newType]
-  let newVars := hsepBy comma
-                   !(traverse namePP $ takeTopDecl count newCtxt.stack)
-  initial     <- exprPP initial
-  let holes   := hsepBy comma $ replicate count "_"
-  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
-  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
-              , holes <++> "=" <++> newVars
-              , cont
+  initial <- exprPP initial
+  pure $ vsep [ !(varPP initial newCtxt 1)
+              , !(assert_total $ statementPP {ctxt = newCtxt} cont)
               ]
 
 statementPP (SCall async call cont) = do
   let pre = if async then "go" <+> space else empty
   pure $ vsep
     [ pre <+> !(callPP call)
+    , !(assert_total $ statementPP cont)
+    ]
+
+statementPP (SSendRecv op cont) = pure $ vsep
+    [ !(sendRecvPP op)
     , !(assert_total $ statementPP cont)
     ]
 
@@ -322,6 +337,15 @@ statementPP (SCall async call cont) = do
 --               , holes <++> "=" <++> newVars
 --               , cont
 --               ]
+
+sendRecvPP {ctxt} (Send chan value) =
+  pure $ !(exprPP chan) <++> "<-" <++> !(exprPP value)
+-- sendRecvPP {ctxt} (Recv0 chan) =
+--   pure $ "<-" <++> !(exprPP chan)
+sendRecvPP {ctxt} (Recv1 chan) = do
+  varPP ("<-" <++> !(exprPP chan)) (onSendRecv ctxt (Recv1 chan)) 1
+-- sendRecvPP {ctxt} (Recv2 chan) = do
+--   varPP ("<-" <++> !(exprPP chan)) (onSendRecv ctxt (Recv2 chan)) 2
 
 wrapStatement {ctxt} stmt = do
   let rets   := returnTypesPP ctxt.returns

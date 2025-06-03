@@ -460,27 +460,35 @@ onDeclare ctxt kind newTypes =
 
 
 public export
-data SendRecv : (oldCtxt, newCtxt : Context) -> Type where
+data SendRecv : (ctxt : Context) -> Type where
   Send    : forall ctxt.
             {elemType : GoType} ->
             (chan  : Expr ctxt (GoChan elemType)) ->
             (value : Expr ctxt elemType) ->
-            SendRecv ctxt ctxt
+            SendRecv ctxt
 
-  Recv0   : forall ctxt.
-            {elemType : GoType} ->
-            (chan : Expr ctxt elemType) ->
-            SendRecv ctxt ctxt
+  -- Recv0   : forall ctxt.
+  --           {elemType : GoType} ->
+  --           (chan : Expr ctxt (GoChan elemType)) ->
+  --           SendRecv ctxt
 
   Recv1   : forall ctxt.
             {elemType : GoType} ->
-            (chan : Expr ctxt elemType) ->
-            SendRecv ctxt (onDeclare ctxt Var [elemType])
+            (chan : Expr ctxt (GoChan elemType)) ->
+            SendRecv ctxt
 
-  Recv2   : forall ctxt.
-            {elemType : GoType} ->
-            (chan : Expr ctxt elemType) ->
-            SendRecv ctxt (onDeclare ctxt Var [elemType, GoBool])
+  -- Recv2   : forall ctxt.
+  --           {elemType : GoType} ->
+  --           (chan : Expr ctxt (GoChan elemType)) ->
+  --           SendRecv ctxt
+
+
+public export
+onSendRecv : (ctxt : Context) -> (op : SendRecv ctxt) -> Context
+onSendRecv ctxt (Send _ _) = ctxt
+-- onSendRecv ctxt (Recv0 _)  = ctxt
+onSendRecv ctxt (Recv1 {elemType} _) = onDeclare ctxt Var [elemType]
+-- onSendRecv ctxt (Recv2 {elemType} _) = onDeclare ctxt Var [elemType, GoBool]
 
 
 data Statement : (ctxt : Context) -> Type where
@@ -512,12 +520,11 @@ data Statement : (ctxt : Context) -> Type where
                 (cont : Statement ctxt) ->
                 Statement ctxt
 
-  -- Var         : forall ctxt.
-  --               {count'   : Nat} ->
-  --               (newTypes : TypeVect (S count')) ->
-  --               (initial  : Args ctxt newTypes) ->
-  --               (cont     : Statement (onDeclare ctxt Var newTypes)) ->
-  --               Statement ctxt
+  SSendRecv   : forall ctxt.
+                (op : SendRecv ctxt) ->
+                (cont : Statement (onSendRecv ctxt op)) ->
+                Statement ctxt
+
 
   -- @WHEN IF_STMTS
 -- @   If          : forall ctxt.
