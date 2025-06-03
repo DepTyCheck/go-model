@@ -530,7 +530,3 @@ data Statement : (ctxt : Context) -> Type where
 
 export
 genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
-
-export
-genExprs : Fuel -> (ctxt : Context) -> (ret : GoType) ->
-           Gen MaybeEmpty $ Expr ctxt ret
