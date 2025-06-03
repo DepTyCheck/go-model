@@ -40,12 +40,16 @@ namespace TypeVect
     Nil  : TypeVect 0
     (::) : forall len. GoType -> TypeVect len -> TypeVect (S len)
 
+namespace MaybeType
+  public export
+  data MaybeType = Just GoType | Nothing
+
 public export
 record GoFuncType where
   constructor To
-  {parLen, retLen : Nat}
+  {parLen : Nat}
   par : TypeVect parLen
-  ret : TypeVect retLen
+  ret : MaybeType
 
 data GoType : Type where
   GoInt  : GoType
@@ -58,6 +62,10 @@ Biinjective TypeVect.(::) where
   biinjective Refl = (Refl, Refl)
 
 export
+Injective MaybeType.Just where
+  injective Refl = Refl
+
+export
 Injective GoFunc where
   injective Refl = Refl
 
@@ -68,6 +76,9 @@ Injective GoChan where
 
 export
 {0 len : Nat} -> DecEq (TypeVect len)
+
+export
+DecEq MaybeType
 
 export
 DecEq GoFuncType
@@ -96,19 +107,20 @@ DecEq GoType where
   decEq (t1 :: ts1) (t2 :: ts2) =
     assert_total decEqCong2 (decEq t1 t2) (decEq ts1 ts2)
 
+DecEq MaybeType where
+  decEq (Just t1) (Just t2) = assert_total decEqCong (decEq t1 t2)
+  decEq (Just _) Nothing = No $ \case Refl impossible
+  decEq Nothing (Just _) = No $ \case Refl impossible
+  decEq Nothing Nothing = Yes Refl
+
 DecEq GoFuncType where
-  decEq
-      (To {parLen} {retLen} par ret)
-      (To {parLen = parLen'} {retLen = retLen'} par' ret')
-    =
+  decEq (To {parLen} par ret) (To {parLen = parLen'} par' ret') =
       let Yes Refl  := decEq parLen parLen'
             | No contra => No $ \eq => contra $ fst $ injDP eq
-          Yes Refl  := decEq retLen retLen'
-            | No contra => No $ \eq => contra $ fst $ snd $ injDP eq
           Yes parEq := decEq par par'
-            | No contra => No $ \eq => contra $ fst $ snd $ snd $ injDP eq
+            | No contra => No $ \eq => contra $ fst $ snd $ injDP eq
           Yes retEq := decEq ret ret'
-            | No contra => No $ \eq => contra $ snd $ snd $ snd $ injDP eq
+            | No contra => No $ \eq => contra $ snd $ snd $ injDP eq
        in Yes $ congDP parEq retEq
 
     where
@@ -118,14 +130,14 @@ DecEq GoFuncType where
                (To par ret = To par' ret')
       congDP Refl Refl = Refl
 
-      injDP : forall parLen, parLen', retLen, retLen'.
+      injDP : forall parLen, parLen'.
               {0 par  : TypeVect parLen} ->
               {0 par' : TypeVect parLen'} ->
-              {0 ret  : TypeVect retLen} ->
-              {0 ret' : TypeVect retLen'} ->
+              {0 ret  : MaybeType} ->
+              {0 ret' : MaybeType} ->
               (0 _    : (To par ret = To par' ret')) ->
-              (parLen = parLen', retLen = retLen', par = par', ret = ret')
-      injDP Refl = (Refl, Refl, Refl, Refl)
+              (parLen = parLen', par = par', ret = ret')
+      injDP Refl = (Refl, Refl, Refl)
 
 -- data IsEmpty : forall len. TypeVect len -> Type where
 --   [search len]
@@ -196,9 +208,9 @@ data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
            ByType ty (tail :< head) (FS found)
 
 public export
-data ByRet : forall len, parLen, retLen.
+data ByRet : forall len, parLen.
              (par : TypeVect parLen) ->
-             (ret : TypeVect retLen) ->
+             (ret : MaybeType) ->
              Stack len ->
              Fin len ->
              Type
@@ -226,8 +238,7 @@ record Context where
   stackLen      : Nat
   stack         : Stack stackLen
   blockDepth    : Fin (S stackLen)
-  returnsLen    : Nat
-  returns       : TypeVect returnsLen
+  returns       : MaybeType
   isTerminating : Bool
 
 public export
@@ -295,6 +306,13 @@ namespace ExprList
            ExprList ctxt (headT :: tailT)
 
 
+namespace MaybeExpr
+  public export
+  data MaybeExpr : (ctxt : Context) -> (type : MaybeType) -> Type where
+    Just : forall ctxt, inner. Expr ctxt inner -> MaybeExpr ctxt (Just inner)
+    Nothing : forall ctxt, type. MaybeExpr ctxt type
+
+
 -- public export
 -- data Args: forall len.
 --            (ctxt  : Context) ->
@@ -311,33 +329,32 @@ namespace ExprList
 
 
 public export
-data Callable : forall ctxt, parTypes, retTypes.
-                (expr : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
+data Callable : forall ctxt, parTypes, retType.
+                (expr : Expr ctxt (GoFunc $ parTypes `To` retType)) ->
                 Type
 
 
 public export
-record Call {0 len : Nat} (ctxt : Context) (retTypes : TypeVect len) where
+record Call (ctxt : Context) (retType : MaybeType) where
   constructor MkCall
   {parLen : Nat}
   {parTypes : TypeVect parLen}
-  func : Expr ctxt (GoFunc $ parTypes `To` retTypes)
+  func : Expr ctxt (GoFunc $ parTypes `To` retType)
   {auto 0 s : Callable func}
   args : ExprList ctxt parTypes
 
 
 public export
-onAnonFunc: {parLen, retLen : Nat} ->
-            (ctxt     : Context) ->
+onAnonFunc: {parLen : Nat} ->
+            (ctxt : Context) ->
             (parTypes : TypeVect parLen) ->
-            (retTypes : TypeVect retLen) ->
+            (retType : MaybeType) ->
             Context
-onAnonFunc {parLen} ctxt newTypes retTypes =
+onAnonFunc {parLen} ctxt newTypes retType =
   { stackLen      $= (+ parLen)
   , stack         $= push Var newTypes
   , blockDepth    := natToFinLT @{prf parLen ctxt.stackLen} parLen
-  , returnsLen    := retLen
-  , returns       := retTypes
+  , returns       := retType
   , isTerminating := True
   } ctxt
 
@@ -354,11 +371,11 @@ namespace Expr
 -- @END HOLES
 
     ELambda     : forall ctxt.
-                  {parLen, retLen : Nat} ->
+                  {parLen : Nat} ->
                   {parTypes : TypeVect parLen} ->
-                  {retTypes : TypeVect retLen} ->
-                  (body : Statement (onAnonFunc ctxt parTypes retTypes)) ->
-                  Expr ctxt (GoFunc $ parTypes `To` retTypes)
+                  {retType : MaybeType} ->
+                  (body : Statement (onAnonFunc ctxt parTypes retType)) ->
+                  Expr ctxt (GoFunc $ parTypes `To` retType)
 
     ELiteral    : forall ctxt, resType.
                   (literal : Literal resType) ->
@@ -370,7 +387,7 @@ namespace Expr
                   Expr ctxt retType
 
     ECall       : forall ctxt, retType.
-                  (call : Call ctxt [retType]) ->
+                  (call : Call ctxt (Just retType)) ->
                   Expr ctxt retType
 
     EGetDecl    : forall ctxt, type.
@@ -394,13 +411,13 @@ namespace Expr
 --                   MultivaluedExpr ctxt retTypes
 
 
-data Callable : forall ctxt, parTypes, retTypes.
-                (expr : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
+data Callable : forall ctxt, parTypes, retType.
+                (expr : Expr ctxt (GoFunc $ parTypes `To` retType)) ->
                 Type where
 
-  FromFuncLiteral : forall ctxt, parTypes, retTypes.
-                    (body : Statement (onAnonFunc ctxt parTypes retTypes)) ->
-                    Callable {ctxt} {parTypes} {retTypes} (ELambda body)
+  FromFuncLiteral : forall ctxt, parTypes, retType.
+                    (body : Statement (onAnonFunc ctxt parTypes retType)) ->
+                    Callable {ctxt} {parTypes} {retType} (ELambda body)
 
   FromGetDecl     : forall ctxt, parTypes, retTypes.
                     (idx   : Fin ctxt.stackLen) ->
@@ -471,7 +488,7 @@ data Statement : (ctxt : Context) -> Type where
 
   SReturn     : forall ctxt.
                 (0 term : BoolEqual ctxt.isTerminating True) =>
-                (res : ExprList ctxt ctxt.returns) ->
+                (res : MaybeExpr ctxt ctxt.returns) ->
                 Statement ctxt
 
   SPrintLn    : forall ctxt.
@@ -487,9 +504,9 @@ data Statement : (ctxt : Context) -> Type where
                 Statement ctxt
 
   SCall       : forall ctxt.
-                {retType : GoType} ->
+                {retType : MaybeType} ->
                 (async : Bool) ->
-                (call : Call ctxt []) ->
+                (call : Call ctxt retType) ->
                 (cont : Statement ctxt) ->
                 Statement ctxt
 

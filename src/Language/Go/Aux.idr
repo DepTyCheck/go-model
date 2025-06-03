@@ -11,9 +11,9 @@ import Language.Go.Model
 
 
 public export
-funcTy : {parLen, retLen : Nat} ->
+funcTy : {parLen : Nat} ->
          (parTypes : TypeVect parLen) ->
-         (retTypes : TypeVect retLen) ->
+         (retType : MaybeType) ->
          GoType
 funcTy par ret = GoFunc $ par `To` ret
 
@@ -35,7 +35,8 @@ defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
         [< MkDecl Var GoInt
-         , MkDecl Var (funcTy [GoInt, GoBool] [GoInt])
+         , MkDecl Var (funcTy [GoInt] Nothing)
+         , MkDecl Var (funcTy [GoInt, GoBool] (Just GoInt))
         ]
    in (_ ** stack)
 
@@ -47,8 +48,7 @@ defaultContext =
       { stackLen      = stackDepth
       , stack         = stack
       , blockDepth    = last
-      , returnsLen    = _
-      , returns       = [GoFunc $ [GoInt] `To` [GoInt, GoInt]]
+      , returns       = Just (funcTy [GoInt, GoBool] (Just GoInt))
       , isTerminating = True
       }
 

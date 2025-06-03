@@ -58,10 +58,9 @@ parameters {auto opts : LayoutOpts}
   typesPP : forall len. TypeVect len -> List (Doc opts)
   typesPP ts = assert_total map typePP (asList ts)
 
-  returnTypesPP : forall len. TypeVect len -> Doc opts
-  returnTypesPP [] = empty
-  returnTypesPP [type] = typePP type
-  returnTypesPP types = goGeneralList "(" ")" "," (typesPP types)
+  returnTypesPP : MaybeType -> Doc opts
+  returnTypesPP Nothing = empty
+  returnTypesPP (Just type) = typePP type
 
   typePP GoInt  = pure "int"
   typePP GoBool = pure "bool"
@@ -90,16 +89,15 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  funcPP : forall retLen.
-           (name    : Doc opts) ->
-           (params  : List ResolvedDecl) ->
-           (retTypes : TypeVect retLen) ->
-           (body    : Doc opts) ->
+  funcPP : (name : Doc opts) ->
+           (params : List ResolvedDecl) ->
+           (retType : MaybeType) ->
+           (body : Doc opts) ->
            (Gen0 $ Doc opts)
-  funcPP name params retTypes body =
-    let params   := goList !(traverse nameTypePP params)
-        retTypes := returnTypesPP retTypes
-     in pure $ vsep [ "func" <++> params <+?+> retTypes <++> "{"
+  funcPP name params retType body =
+    let params := goList !(traverse nameTypePP params)
+        retType := returnTypesPP retType
+     in pure $ vsep [ "func" <++> params <+?+> retType <++> "{"
                     , indent' 4 body
                     , "}"
                     ]
@@ -134,6 +132,11 @@ parameters {ctxt      : Context}
                Gen0 (List (Doc opts))
   exprListPP exprs =
     assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
+
+  export
+  maybeExprPP : forall type. MaybeExpr ctxt type -> (Gen0 $ Doc opts)
+  maybeExprPP (Just expr) = exprPP expr
+  maybeExprPP Nothing = pure empty
 
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
@@ -222,14 +225,14 @@ parameters {ctxt      : Context}
 -- @END HOLES
 
 exprPP
-  {retType = (GoFunc $ parTypes `To` retTypes)}
+  {retType = (GoFunc $ parTypes `To` retType)}
   (ELambda {parLen} body)
 = do
   let newCtxt : Context
-      newCtxt = onAnonFunc ctxt parTypes retTypes
+      newCtxt = onAnonFunc ctxt parTypes retType
       params  := takeTopDecl parLen newCtxt.stack
-  body        <- assert_total $ statementPP {ctxt = newCtxt} body
-  funcPP empty params retTypes body
+  body <- assert_total $ statementPP {ctxt = newCtxt} body
+  funcPP empty params retType body
 
 exprPP (ELiteral lit) =
   pure $ literalPP lit
@@ -252,12 +255,7 @@ exprPP {ctxt} (EGetDecl idx) = do
 statementPP SStop = pure empty
 
 statementPP {ctxt} (SReturn res) =
-  -- TODO: when returns = [] we can ommit explicit return
-  -- TODO: wtf?
-  -- case (ctxt.returnsLen, res) of
-  --   (Z, NoValue) => pure "return"
-  --   (S _, Value x) => pure $ "return" <++> !(exprPP x)
-  pure $ "return" <+?+> hsepBy "," !(exprListPP res)
+  pure $ "return" <+?+> !(maybeExprPP res)
 
 statementPP (SPrintLn arg cont) = pure $ vsep
   [ !(funcE "println" [arg])
