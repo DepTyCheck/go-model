@@ -51,7 +51,7 @@ data GoType : Type where
   GoInt  : GoType
   GoBool : GoType
   GoFunc : GoFuncType -> GoType
-  GoChan : GoType -> GoType
+  -- GoChan : GoType -> GoType
   -- @WHEN ASSIGNABLE_ANY
 -- @   | GoAny
   -- @END ASSIGNABLE_ANY
@@ -71,9 +71,9 @@ export
 Injective GoFunc where
   injective Refl = Refl
 
-export
-Injective GoChan where
-  injective Refl = Refl
+-- export
+-- Injective GoChan where
+--   injective Refl = Refl
 
 
 export
@@ -87,19 +87,19 @@ DecEq GoType where
   decEq GoInt      GoInt       = Yes Refl
   decEq GoBool     GoBool      = Yes Refl
   decEq (GoFunc f) (GoFunc f') = decEqCong (decEq f f')
-  decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
+  -- decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
   decEq GoInt      GoBool      = No $ \case Refl impossible
   decEq GoInt      (GoFunc _)  = No $ \case Refl impossible
-  decEq GoInt      (GoChan _)  = No $ \case Refl impossible
+  -- decEq GoInt      (GoChan _)  = No $ \case Refl impossible
   decEq GoBool     GoInt       = No $ \case Refl impossible
   decEq GoBool     (GoFunc _)  = No $ \case Refl impossible
-  decEq GoBool     (GoChan _)  = No $ \case Refl impossible
+  -- decEq GoBool     (GoChan _)  = No $ \case Refl impossible
   decEq (GoFunc _) GoInt       = No $ \case Refl impossible
   decEq (GoFunc _) GoBool      = No $ \case Refl impossible
-  decEq (GoFunc _) (GoChan _)  = No $ \case Refl impossible
-  decEq (GoChan _) GoInt       = No $ \case Refl impossible
-  decEq (GoChan _) GoBool      = No $ \case Refl impossible
-  decEq (GoChan _) (GoFunc _)  = No $ \case Refl impossible
+  -- decEq (GoFunc _) (GoChan _)  = No $ \case Refl impossible
+  -- decEq (GoChan _) GoInt       = No $ \case Refl impossible
+  -- decEq (GoChan _) GoBool      = No $ \case Refl impossible
+  -- decEq (GoChan _) (GoFunc _)  = No $ \case Refl impossible
 
 -- %runElab derive "GoType" [Generic, DecEq]
 
@@ -282,8 +282,8 @@ data BuiltinFunc : forall parLen, retLen.
                    Type
   where
 
-  MakeChanUnbuf : forall t. BuiltinFunc (Just (GoChan t)) [] [GoChan t]
-  MakeChanBuf   : forall t. BuiltinFunc (Just (GoChan t)) [GoInt] [GoChan t]
+  -- MakeChanUnbuf : forall t. BuiltinFunc (Just (GoChan t)) [] [GoChan t]
+  -- MakeChanBuf   : forall t. BuiltinFunc (Just (GoChan t)) [GoInt] [GoChan t]
 
 -- @WHEN ASSIGNABLE_ANY
 -- @     Print : BuiltinFunc [GoAny] []
@@ -341,6 +341,16 @@ public export
 data Callable : forall ctxt, parTypes, retTypes.
                 (expr : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
                 Type
+
+
+public export
+record Call (ctxt : Context) (retType : GoType) where
+  constructor MkCall
+  {parLen : Nat}
+  {parTypes : TypeVect parLen}
+  func : Expr ctxt (GoFunc $ parTypes `To` [retType])
+  {auto 0 s : Callable func}
+  args : ExprList ctxt parTypes
 
 
 public export
@@ -403,12 +413,8 @@ namespace Expr
     --               (args : ExprList ctxt parTypes) ->
     --               Expr ctxt retType
 
-    Call        : forall ctxt, retType.
-                  {parLen   : Nat} ->
-                  {parTypes : TypeVect parLen} ->
-                  (func : Expr ctxt (GoFunc $ parTypes `To` [retType])) ->
-                  (0 s : Callable func) =>
-                  (args : ExprList ctxt parTypes) ->
+    CallNormal  : forall ctxt, retType.
+                  (call : Call ctxt retType) ->
                   Expr ctxt retType
 
     GetDecl     : forall ctxt, type.

@@ -47,6 +47,9 @@ parameters {auto opts : LayoutOpts}
   goEnclose left right content =
     goGeneralList left right empty [content]
 
+  goCall : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
+  goCall func args = func <+> goList args
+
 
   export
   typePP : GoType -> Doc opts
@@ -69,7 +72,7 @@ parameters {auto opts : LayoutOpts}
 -- @WHEN ASSIGNABLE_ANY
 -- @   typePP GoAny = pure "interface {}"
 -- @END ASSIGNABLE_ANY
-  typePP (GoChan t) = "chan" <++> typePP t
+  -- typePP (GoChan t) = "chan" <++> typePP t
 
 
   export
@@ -142,10 +145,6 @@ parameters {auto opts : LayoutOpts}
   -- builtinPP MakeChanUnbuf = "make"
   -- builtinPP MakeChanBuf   = "make"
 
-  export
-  callPP : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
-  callPP func args = func <+> goList args
-
 
 parameters {ctxt      : Context}
            {auto opts : LayoutOpts}
@@ -177,6 +176,12 @@ parameters {ctxt      : Context}
   --          (Gen0 $ List (Doc opts))
   -- argsPP (Comma args) = exprListPP args
   -- argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
+  export
+  callPP : {type : GoType} -> Call ctxt type -> (Gen0 $ Doc opts)
+  callPP (MkCall func args) = do
+    name <- exprPP func
+    args <- exprListPP args
+    pure $ goCall name args
 
   export
   maybeContPP : forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
@@ -218,12 +223,9 @@ exprPP (GetLiteral lit) =
 --   let typePar = case typePar of
 --                   Just t => [typePP t]
 --                   Nothing => []
---   pure $ callPP (builtinPP f) (typePar ++ args)
+--   pure $ goCall (builtinPP f) (typePar ++ args)
 
-exprPP (Call func args) = do
-  name <- exprPP func
-  args <- exprListPP args
-  pure $ callPP name args
+exprPP (CallNormal call) = callPP call
 
 exprPP {ctxt} (GetDecl idx) = do
   let decl = resolve idx ctxt.stack
@@ -233,7 +235,7 @@ exprPP {ctxt} (GetDecl idx) = do
 -- multivaluedPP (Call func args) = do
 --   name <- exprPP func
 --   args <- exprListPP args
---   pure $ callPP name args
+--   pure $ goCall name args
 
 
 statementPP JustStop = do
@@ -310,7 +312,7 @@ statementPP {ctxt} (Return res) =
 --   func <- exprPP func
 --   args <- maybeNoValuePP args
 --   pure $ vsep
---     [ "go" <++> callPP func args
+--     [ "go" <++> goCall func args
 --     , !(statementPP cont)
 --     ]
 
