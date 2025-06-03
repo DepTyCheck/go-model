@@ -249,6 +249,9 @@ setIsTerminating value = { isTerminating := value }
 public export
 data Statement : (ctxt : Context) -> Type
 
+namespace Expr
+  public export
+  data Expr : (ctxt : Context) -> (res : GoType) -> Type
 
 public export
 data Literal : (ty : GoType) -> Type where
@@ -256,17 +259,22 @@ data Literal : (ty : GoType) -> Type where
   MkBool : Bool -> Literal GoBool
 
 public export
-data BuiltinFunc : forall parLen.
-                   (parTypes : TypeVect parLen) ->
-                   (retType : GoType) ->
-                   Type where
+data BuiltinFunc : (ctxt : Context) -> (retType : GoType) -> Type where
 
-  IntAdd : BuiltinFunc [GoInt, GoInt] GoInt
+  IntAdd : forall ctxt. (lhv, rhv : Expr ctxt GoInt) -> BuiltinFunc ctxt GoInt
 
-  MakeChanUnbuf : (elemType : GoType) -> BuiltinFunc [] (GoChan elemType)
-  MakeChanBuf   : (elemType : GoType) -> BuiltinFunc [GoInt] (GoChan elemType)
+  MakeChanUnbuf : forall ctxt.
+                  (elemType : GoType) ->
+                  BuiltinFunc ctxt (GoChan elemType)
+  MakeChanBuf   : forall ctxt.
+                  (elemType : GoType) ->
+                  (cap : Expr ctxt GoInt) ->
+                  BuiltinFunc ctxt (GoChan elemType)
 
-  ChanLen, ChanCap : {elemType : GoType} -> BuiltinFunc [GoChan elemType] GoInt
+  ChanLen, ChanCap : forall ctxt.
+                     {elemType : GoType} ->
+                     (chan : Expr ctxt (GoChan elemType)) ->
+                     BuiltinFunc ctxt GoInt
 
 -- @WHEN EXTRA_BUILTINS
 -- @   BoolNot  : PrefixOp GoBool GoBool
@@ -278,11 +286,6 @@ data BuiltinFunc : forall parLen.
 -- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
 -- @   IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
   -- @END EXTRA_BUILTINS
-
-
-namespace Expr
-  public export
-  data Expr : (ctxt : Context) -> (res : GoType) -> Type
 
 -- namespace MultivaluedExpr
 --   public export
@@ -381,9 +384,8 @@ namespace Expr
                   (literal : Literal resType) ->
                   Expr ctxt resType
 
-    EBuiltin    : forall ctxt, parTypes, retType.
-                  (func : BuiltinFunc parTypes retType) ->
-                  (args : ExprList ctxt parTypes) ->
+    EBuiltin    : forall ctxt, retType.
+                  (func : BuiltinFunc ctxt retType) ->
                   Expr ctxt retType
 
     ECall       : forall ctxt, retType.

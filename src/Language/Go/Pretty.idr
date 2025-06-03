@@ -140,9 +140,10 @@ parameters {ctxt      : Context}
 
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
-           (args : ExprList ctxt [lhvType, rhvType]) ->
+           (lhv : Expr ctxt lhvType) ->
+           (rhv : Expr ctxt rhvType) ->
            (Gen0 $ Doc opts)
-  infixE op [lhv, rhv] = do
+  infixE op lhv rhv = do
     lhv <- assert_total exprPP lhv
     rhv <- assert_total exprPP rhv
     pure $ "(" <+> lhv <++> op <++> rhv <+> ")"
@@ -165,15 +166,14 @@ parameters {ctxt      : Context}
     pure $ goCall "make" (typeArg :: restArgs)
 
   export
-  builtinPP : forall parTypes, retType.
-              (func : BuiltinFunc parTypes retType) ->
-              (args : ExprList ctxt parTypes) ->
+  builtinPP : forall retType.
+              (func : BuiltinFunc ctxt retType) ->
               (Gen0 $ Doc opts)
-  builtinPP IntAdd = infixE "+"
-  builtinPP (MakeChanUnbuf elemType) = makeE (GoChan elemType)
-  builtinPP (MakeChanBuf elemType) = makeE (GoChan elemType)
-  builtinPP ChanLen = funcE "len"
-  builtinPP ChanCap = funcE "cap"
+  builtinPP (IntAdd lhv rhv) = infixE "+" lhv rhv
+  builtinPP (MakeChanUnbuf elemType) = makeE (GoChan elemType) []
+  builtinPP (MakeChanBuf elemType cap) = makeE (GoChan elemType) [cap]
+  builtinPP (ChanLen chan) = funcE "len" [chan]
+  builtinPP (ChanCap chan) = funcE "cap" [chan]
 -- @WHEN EXTRA_BUILTINS
 -- @   prefixName BoolNot  = "!"
 -- @   prefixName IntNeg   = "-"
@@ -237,7 +237,7 @@ exprPP
 exprPP (ELiteral lit) =
   pure $ literalPP lit
 
-exprPP (EBuiltin func args) = builtinPP func args
+exprPP (EBuiltin func) = builtinPP func
 
 exprPP (ECall call) = callPP call
 
