@@ -4,15 +4,10 @@ import Language.Go.Model
 
 import Deriving.DepTyCheck.Gen
 
--- export
--- GenOrderTuning "Call".dataCon where
---   isConstructor = itIsConstructor
---   deriveFirst _ _ = [`{s}]
-
--- export
--- GenOrderTuning "Var'".dataCon where
---   isConstructor = itIsConstructor
---   deriveFirst _ _ = [`{initial}]
+export
+GenOrderTuning "SVar1".dataCon where
+  isConstructor = itIsConstructor
+  deriveFirst _ _ = [`{initial}]
 
 -- @WHEN EXTRA_BUILTINS
 -- @ export
@@ -20,8 +15,3 @@ import Deriving.DepTyCheck.Gen
 -- @   isConstructor = itIsConstructor
 -- @   deriveFirst _ _ = [`{op}]
 -- @END EXTRA_BUILTINS
-
--- export
--- GenOrderTuning "CallBuiltin".dataCon where
---   isConstructor = itIsConstructor
---   deriveFirst _ _ = [`{func}]

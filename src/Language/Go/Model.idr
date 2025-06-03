@@ -56,13 +56,6 @@ data GoType : Type where
 -- @   | GoAny
   -- @END ASSIGNABLE_ANY
 
-namespace MaybeType
-  public export
-  data MaybeType
-    = Just GoType
-    | Nothing
-
-
 export
 Biinjective TypeVect.(::) where
   biinjective Refl = (Refl, Refl)
@@ -276,24 +269,25 @@ data InfixOp : (lhvTy, rhvTy, resTy : GoType) -> Type where
 
 public export
 data BuiltinFunc : forall parLen, retLen.
-                   (type     : MaybeType) ->
                    (parTypes : TypeVect parLen) ->
                    (retTypes : TypeVect retLen) ->
                    Type
   where
 
-  -- MakeChanUnbuf : forall t. BuiltinFunc (Just (GoChan t)) [] [GoChan t]
-  -- MakeChanBuf   : forall t. BuiltinFunc (Just (GoChan t)) [GoInt] [GoChan t]
+  -- MakeChanUnbuf : forall t. BuiltinFunc [] [GoChan t]
+  -- MakeChanBuf   : forall t. BuiltinFunc [GoInt] [GoChan t]
 
 -- @WHEN ASSIGNABLE_ANY
 -- @     Print : BuiltinFunc [GoAny] []
 -- @UNLESS ASSIGNABLE_ANY
-  Print : BuiltinFunc Nothing [GoInt] []
+  PrintLn : BuiltinFunc [GoInt] []
 -- @END ASSIGNABLE_ANY
 
 -- @WHEN EXTRA_BUILTINS
--- @   Max, Min : BuiltinFunc Nothing [GoInt, GoInt] [GoInt]
+-- @   Max, Min : BuiltinFunc MustUse [GoInt, GoInt] [GoInt]
 -- @END EXTRA_BUILTINS
+
+
 
 
 namespace Expr
@@ -344,11 +338,11 @@ data Callable : forall ctxt, parTypes, retTypes.
 
 
 public export
-record Call (ctxt : Context) (retType : GoType) where
+record Call {0 len : Nat} (ctxt : Context) (retTypes : TypeVect len) where
   constructor MkCall
   {parLen : Nat}
   {parTypes : TypeVect parLen}
-  func : Expr ctxt (GoFunc $ parTypes `To` [retType])
+  func : Expr ctxt (GoFunc $ parTypes `To` retTypes)
   {auto 0 s : Callable func}
   args : ExprList ctxt parTypes
 
@@ -414,7 +408,7 @@ namespace Expr
     --               Expr ctxt retType
 
     CallNormal  : forall ctxt, retType.
-                  (call : Call ctxt retType) ->
+                  (call : Call ctxt [retType]) ->
                   Expr ctxt retType
 
     GetDecl     : forall ctxt, type.
@@ -494,16 +488,24 @@ data Statement : (ctxt : Context) -> Type where
                 (res    : ExprList ctxt ctxt.returns) ->
                 Statement ctxt
 
+  SBuiltin    : forall ctxt.
+                {parLen : Nat} ->
+                {parTypes : TypeVect parLen} ->
+                (func : BuiltinFunc parTypes []) ->
+                (args : ExprList ctxt parTypes) ->
+                Statement ctxt
+
+  SVar1       : forall ctxt.
+                {newType : GoType} ->
+                (initial : Expr ctxt newType) ->
+                (cont    : Statement (onDeclare ctxt Var [newType])) ->
+                Statement ctxt
+
   -- Var         : forall ctxt.
   --               {count'   : Nat} ->
   --               (newTypes : TypeVect (S count')) ->
   --               (initial  : Args ctxt newTypes) ->
   --               (cont     : Statement (onDeclare ctxt Var newTypes)) ->
-  --               Statement ctxt
-
-  -- Void        : forall ctxt.
-  --               (value : MultivaluedExpr ctxt []) ->
-  --               (cont  : Statement ctxt) ->
   --               Statement ctxt
 
   -- @WHEN IF_STMTS

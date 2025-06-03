@@ -135,9 +135,9 @@ parameters {auto opts : LayoutOpts}
 -- @   infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
 
-  -- export
-  -- builtinPP : forall t, par, ret. BuiltinFunc t par ret -> Doc opts
-  -- builtinPP Print = "print"
+  export
+  builtinPP : forall par, ret. BuiltinFunc par ret -> Doc opts
+  builtinPP PrintLn = "println"
 -- @WHEN EXTRA_BUILTINS
 -- @   builtinPP Max   = "max"
 -- @   builtinPP Min   = "min"
@@ -177,7 +177,10 @@ parameters {ctxt      : Context}
   -- argsPP (Comma args) = exprListPP args
   -- argsPP (Many expr) = pure [ !(multivaluedPP expr) ]
   export
-  callPP : {type : GoType} -> Call ctxt type -> (Gen0 $ Doc opts)
+  callPP : {len : Nat} ->
+           {types : TypeVect len} ->
+           Call ctxt types ->
+           (Gen0 $ Doc opts)
   callPP (MkCall func args) = do
     name <- exprPP func
     args <- exprListPP args
@@ -254,18 +257,21 @@ statementPP {ctxt} (Return res) =
 --               , assert_total !(statementPP cont)
 --               ]
 
--- statementPP {ctxt} (Var {count} newTypes initial cont) = do
---   -- TODO: try use `context cont` here
---   let newCtxt : Context; newCtxt = onDeclare ctxt Var newTypes
---   let newVars := hsepBy comma
---                    !(traverse namePP $ takeTopDecl count newCtxt.stack)
---   initial     <- exprPP initial
---   let holes   := hsepBy comma $ replicate count "_"
---   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
---   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
---               , holes <++> "=" <++> newVars
---               , cont
---               ]
+statementPP {ctxt} (SBuiltin func args) =
+  pure $ goCall (builtinPP func) !(exprListPP args)
+
+statementPP {ctxt} (SVar1 {newType} initial cont) = do
+  let count := 1
+  let newCtxt : Context; newCtxt = onDeclare ctxt Var [newType]
+  let newVars := hsepBy comma
+                   !(traverse namePP $ takeTopDecl count newCtxt.stack)
+  initial     <- exprPP initial
+  let holes   := hsepBy comma $ replicate count "_"
+  cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
+  pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
+              , holes <++> "=" <++> newVars
+              , cont
+              ]
 
 -- @WHEN IF_STMTS
 -- @ statementPP (If test then_ else_ cont) = do
