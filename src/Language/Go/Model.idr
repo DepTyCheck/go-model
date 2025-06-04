@@ -223,6 +223,20 @@ data ByRet : forall len, parLen.
            (there : ByRet par ret tail found) ->
            ByRet par ret (tail :< head) (FS found)
 
+public export
+data ByElem : forall len.
+              (elemType : GoType) ->
+              (stack : Stack len) ->
+              (idx : Fin len) ->
+              Type where
+
+  HereE  : forall elemType, kind, tail.
+           ByElem elemType (tail :< MkDecl kind (GoChan elemType)) FZ
+
+  ThereE : forall elemType, head, tail, found.
+           (there : ByElem elemType tail found) ->
+           ByElem elemType (tail :< head) (FS found)
+
 
 public export
 byRetToByType : forall par, ret, stack, idx.
@@ -253,28 +267,28 @@ namespace Expr
   public export
   data Expr : (ctxt : Context) -> (res : GoType) -> Type
 
+
+public export
+record GetChanDecl (ctxt : Context) (elemType : GoType) where
+  constructor ChanAt
+  idx : Fin ctxt.stackLen
+  {auto 0 be : ByElem elemType ctxt.stack idx}
+
+
 public export
 data Literal : (ty : GoType) -> Type where
   MkInt  : Nat  -> Literal GoInt
   MkBool : Bool -> Literal GoBool
+
 
 public export
 data BuiltinFunc : (ctxt : Context) -> (retType : GoType) -> Type where
 
   IntAdd : forall ctxt. (lhv, rhv : Expr ctxt GoInt) -> BuiltinFunc ctxt GoInt
 
-  MakeChanUnbuf : forall ctxt.
-                  (elemType : GoType) ->
-                  BuiltinFunc ctxt (GoChan elemType)
-  MakeChanBuf   : forall ctxt.
-                  (elemType : GoType) ->
-                  (cap : Expr ctxt GoInt) ->
-                  BuiltinFunc ctxt (GoChan elemType)
-
-  ChanLen, ChanCap : forall ctxt.
-                     {elemType : GoType} ->
-                     (chan : Expr ctxt (GoChan elemType)) ->
-                     BuiltinFunc ctxt GoInt
+  ChanLen : forall ctxt, elemType.
+            (chan : GetChanDecl ctxt elemType) ->
+            BuiltinFunc ctxt GoInt
 
 -- @WHEN EXTRA_BUILTINS
 -- @   BoolNot  : PrefixOp GoBool GoBool
@@ -345,6 +359,7 @@ record Call (ctxt : Context) (retType : MaybeType) where
   func : Expr ctxt (GoFunc $ parTypes `To` retType)
   {auto 0 s : Callable func}
   args : ExprList ctxt parTypes
+
 
 
 public export
@@ -459,36 +474,39 @@ onDeclare ctxt kind newTypes =
   } ctxt
 
 
+-- public export
+-- data ChanBuf : (ctxt : Context) -> Type where
+--   Buffered : forall ctxt. (cap : Expr ctxt GoInt) -> ChanBuf ctxt
+--   Unbuffered : forall ctxt. ChanBuf ctxt
+
+
 public export
-data SendRecv : (ctxt : Context) -> Type where
-  Send    : forall ctxt.
+data ChanOp : (ctxt : Context) -> Type where
+  Open    : forall ctxt.
             {elemType : GoType} ->
-            (chan  : Expr ctxt (GoChan elemType)) ->
+            -- (chanBuf : ChanBuf ctxt) ->
+            (cap : Expr ctxt GoInt) ->
+            ChanOp ctxt
+
+  Send    : forall ctxt, elemType.
+            (chan  : GetChanDecl ctxt elemType) ->
             (value : Expr ctxt elemType) ->
-            SendRecv ctxt
+            ChanOp ctxt
 
-  -- Recv0   : forall ctxt.
-  --           {elemType : GoType} ->
-  --           (chan : Expr ctxt (GoChan elemType)) ->
-  --           SendRecv ctxt
-
-  Recv1   : forall ctxt.
+  Recv    : forall ctxt.
+            (varCount : Fin 3) ->
             {elemType : GoType} ->
-            (chan : Expr ctxt (GoChan elemType)) ->
-            SendRecv ctxt
-
-  -- Recv2   : forall ctxt.
-  --           {elemType : GoType} ->
-  --           (chan : Expr ctxt (GoChan elemType)) ->
-  --           SendRecv ctxt
+            (chan  : GetChanDecl ctxt elemType) ->
+            ChanOp ctxt
 
 
 public export
-onSendRecv : (ctxt : Context) -> (op : SendRecv ctxt) -> Context
-onSendRecv ctxt (Send _ _) = ctxt
--- onSendRecv ctxt (Recv0 _)  = ctxt
-onSendRecv ctxt (Recv1 {elemType} _) = onDeclare ctxt Var [elemType]
--- onSendRecv ctxt (Recv2 {elemType} _) = onDeclare ctxt Var [elemType, GoBool]
+onChanOp : (ctxt : Context) -> (op : ChanOp ctxt) -> Context
+onChanOp ctxt (Open {elemType} _) = onDeclare ctxt Var [GoChan elemType]
+onChanOp ctxt (Send _ _) = ctxt
+onChanOp ctxt (Recv 0 _)  = ctxt
+onChanOp ctxt (Recv 1 {elemType} _) = onDeclare ctxt Var [elemType]
+onChanOp ctxt (Recv 2 {elemType} _) = onDeclare ctxt Var [elemType, GoBool]
 
 
 data Statement : (ctxt : Context) -> Type where
@@ -520,9 +538,9 @@ data Statement : (ctxt : Context) -> Type where
                 (cont : Statement ctxt) ->
                 Statement ctxt
 
-  SSendRecv   : forall ctxt.
-                (op : SendRecv ctxt) ->
-                (cont : Statement (onSendRecv ctxt op)) ->
+  SChanOp   : forall ctxt.
+                (op : ChanOp ctxt) ->
+                (cont : Statement (onChanOp ctxt op)) ->
                 Statement ctxt
 
 

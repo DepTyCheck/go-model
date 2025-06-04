@@ -141,14 +141,6 @@ namespace ExprList
     (t ** e) :: asList es
 
 
-export
-chan : forall ctxt. SendRecv ctxt -> Exists (\t => Expr ctxt (GoChan t))
-chan (Send chan _) = Evidence _ chan
--- chan (Recv0 chan) = Evidence _ chan
-chan (Recv1 chan) = Evidence _ chan
--- chan (Recv2 chan) = Evidence _ chan
-
-
 namespace Statement
   export
   isEmpty : forall ctxt. Statement ctxt -> Bool

@@ -89,6 +89,11 @@ parameters {auto opts : LayoutOpts}
 
 
   export
+  getDeclPP : (ctxt : Context) -> (idx : Fin ctxt.stackLen) -> (Gen0 $ Doc opts)
+  getDeclPP ctxt idx = namePP (resolve idx ctxt.stack)
+
+
+  export
   funcPP : (name : Doc opts) ->
            (params : List ResolvedDecl) ->
            (retType : MaybeType) ->
@@ -151,6 +156,10 @@ parameters {ctxt      : Context}
   maybeExprPP (Just expr) = exprPP expr
   maybeExprPP Nothing = pure empty
 
+  export
+  getChanPP : forall elemType. GetChanDecl ctxt elemType -> (Gen0 $ Doc opts)
+  getChanPP (ChanAt idx) = getDeclPP ctxt idx
+
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
            (lhv : Expr ctxt lhvType) ->
@@ -168,25 +177,13 @@ parameters {ctxt      : Context}
           (Gen0 $ Doc opts)
   funcE func args = pure $ goCall func !(exprListPP args)
 
-  makeE : forall len.
-          {types : TypeVect len} ->
-          (typeArg : GoType) ->
-          (restArgs : ExprList ctxt types) ->
-          (Gen0 $ Doc opts)
-  makeE typeArg restArgs = do
-    let typeArg := typePP typeArg
-    restArgs <- exprListPP restArgs
-    pure $ goCall "make" (typeArg :: restArgs)
-
   export
   builtinPP : forall retType.
               (func : BuiltinFunc ctxt retType) ->
               (Gen0 $ Doc opts)
   builtinPP (IntAdd lhv rhv) = infixE "+" lhv rhv
-  builtinPP (MakeChanUnbuf elemType) = makeE (GoChan elemType) []
-  builtinPP (MakeChanBuf elemType cap) = makeE (GoChan elemType) [cap]
-  builtinPP (ChanLen chan) = funcE "len" [chan]
-  builtinPP (ChanCap chan) = funcE "cap" [chan]
+  builtinPP (ChanLen chan) = do
+    pure $ goCall "len" [!(getChanPP chan)]
 -- @WHEN EXTRA_BUILTINS
 -- @   prefixName BoolNot  = "!"
 -- @   prefixName IntNeg   = "-"
@@ -229,7 +226,7 @@ parameters {ctxt      : Context}
   maybeContPP Nothing     = pure empty
 
   export
-  sendRecvPP : SendRecv ctxt -> (Gen0 $ Doc opts)
+  sendRecvPP : ChanOp ctxt -> (Gen0 $ Doc opts)
 
 
   export
@@ -257,9 +254,7 @@ exprPP (EBuiltin func) = builtinPP func
 
 exprPP (ECall call) = callPP call
 
-exprPP {ctxt} (EGetDecl idx) = do
-  let decl = resolve idx ctxt.stack
-  namePP decl
+exprPP {ctxt} (EGetDecl idx) = getDeclPP ctxt idx
 
 
 -- multivaluedPP (Call func args) = do
@@ -292,7 +287,7 @@ statementPP (SCall async call cont) = do
     , !(assert_total $ statementPP cont)
     ]
 
-statementPP (SSendRecv op cont) = pure $ vsep
+statementPP (SChanOp op cont) = pure $ vsep
     [ !(sendRecvPP op)
     , !(assert_total $ statementPP cont)
     ]
@@ -338,14 +333,18 @@ statementPP (SSendRecv op cont) = pure $ vsep
 --               , cont
 --               ]
 
+
+sendRecvPP {ctxt} op@(Open {elemType} cap) = do
+  cap <- exprPP cap
+  varPP ("<-" <++> goCall "make" [typePP (GoChan elemType), cap]) (onChanOp ctxt op) 1
+
 sendRecvPP {ctxt} (Send chan value) =
-  pure $ !(exprPP chan) <++> "<-" <++> !(exprPP value)
--- sendRecvPP {ctxt} (Recv0 chan) =
---   pure $ "<-" <++> !(exprPP chan)
-sendRecvPP {ctxt} (Recv1 chan) = do
-  varPP ("<-" <++> !(exprPP chan)) (onSendRecv ctxt (Recv1 chan)) 1
--- sendRecvPP {ctxt} (Recv2 chan) = do
---   varPP ("<-" <++> !(exprPP chan)) (onSendRecv ctxt (Recv2 chan)) 2
+  pure $ !(getChanPP chan) <++> "<-" <++> !(exprPP value)
+
+sendRecvPP {ctxt} op@(Recv varCount chan) = do
+  let initial := "<-" <++> !(getChanPP chan)
+  varPP initial (onChanOp ctxt op) (finToNat varCount)
+
 
 wrapStatement {ctxt} stmt = do
   let rets   := returnTypesPP ctxt.returns
