@@ -52,23 +52,25 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  typePP : forall ord. GType ord -> Doc opts
+  scalarPP : Scalar -> Doc opts
+  scalarPP GInt  = pure "int"
+  scalarPP GBool = pure "bool"
 
   export
   typesPP : forall len. TypeVect len -> List (Doc opts)
-  typesPP ts = assert_total map typePP (asList ts)
+  typesPP ts = assert_total map scalarPP (asList ts)
 
   returnTypesPP : MaybeType -> Doc opts
   returnTypesPP Nothing = empty
-  returnTypesPP (Just type) = typePP type
+  returnTypesPP (Just type) = scalarPP type
 
-  typePP GInt  = pure "int"
-  typePP GBool = pure "bool"
+  typePP : GType -> Doc opts
+  typePP (GS s) = scalarPP s
   typePP (GFunc $ params `To` rets) =
     let params := goList (typesPP params)
         rets   := returnTypesPP rets
      in "func" <++> params <+?+> rets
-  typePP (GChan t) = "chan" <++> typePP t
+  typePP (GChan t) = "chan" <++> scalarPP t
 
 
   export
@@ -82,7 +84,7 @@ parameters {auto opts : LayoutOpts}
 
   export
   nameTypePP : ResolvedDecl -> (Gen0 $ Doc opts)
-  nameTypePP decl = pure $ !(namePP decl) <++> typePP (snd decl.type)
+  nameTypePP decl = pure $ !(namePP decl) <++> typePP decl.type
 
 
   export
@@ -276,7 +278,7 @@ statementPP (SPrintLn arg cont) = pure $ vsep
   ]
 
 statementPP {ctxt} (SVar1 {newType} initial cont) = do
-  let newCtxt : Context; newCtxt = onDeclare1 ctxt Var (GN newType)
+  let newCtxt : Context; newCtxt = onDeclare1 ctxt Var newType
   initial <- exprPP initial
   pure $ vsep [ !(varPP initial newCtxt 1)
               , !(assert_total $ statementPP {ctxt = newCtxt} cont)

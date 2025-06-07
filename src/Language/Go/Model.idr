@@ -31,18 +31,26 @@ data IsZero : Nat -> Type where
   ItIsZero : IsZero Z
 
 
+------------------------------------------------------------
+--                    Typing
+------------------------------------------------------------
+
+
 public export
-data GType : (ord : Nat) -> Type
+data Scalar = GInt | GBool
+
+
+namespace MaybeType
+  public export
+  data MaybeType = Just Scalar | Nothing
+
 
 namespace TypeVect
   public export
   data TypeVect : (len : Nat) -> Type where
     Nil  : TypeVect 0
-    (::) : forall len. GType 0 -> TypeVect len -> TypeVect (S len)
+    (::) : forall len. Scalar -> TypeVect len -> TypeVect (S len)
 
-namespace MaybeType
-  public export
-  data MaybeType = Just (GType 0) | Nothing
 
 public export
 record GFuncType where
@@ -51,18 +59,12 @@ record GFuncType where
   par : TypeVect parLen
   ret : MaybeType
 
-data GType : (ord : Nat) -> Type where
-  GInt  : GType 0
-  GBool : GType 0
-  GFunc : GFuncType -> GType 0
-  GChan : forall ord. GType ord -> GType (S ord)
-
 
 public export
-record GTypeN where
-  constructor GN
-  {ord : Nat}
-  snd : GType ord
+data GType : Type where
+  GS : Scalar -> GType
+  GFunc : GFuncType -> GType
+  GChan : Scalar -> GType
 
 
 export
@@ -74,6 +76,10 @@ Injective MaybeType.Just where
   injective Refl = Refl
 
 export
+Injective GS where
+  injective Refl = Refl
+
+export
 Injective GFunc where
   injective Refl = Refl
 
@@ -82,45 +88,27 @@ Injective GChan where
   injective Refl = Refl
 
 
-test : forall ord. GType ord -> Nat
-test GInt = 0
-test GBool = 0
-test (GFunc _) = 0
-test (GChan c) = S (test c)
+export
+DecEq Scalar where
+  decEq GInt  GInt  = Yes Refl
+  decEq GBool GBool = Yes Refl
+  decEq GInt  GBool = No $ \case Refl impossible
+  decEq GBool GInt  = No $ \case Refl impossible
 
 export
-{0 len : Nat} -> DecEq (TypeVect len)
-
-export
-DecEq MaybeType
-
-export
-DecEq GFuncType
-
-export
-{0 ord : Nat} -> DecEq (GType ord) where
-  decEq GInt      GInt       = Yes Refl
-  decEq GBool     GBool      = Yes Refl
-  decEq (GFunc f) (GFunc f') = decEqCong (decEq f f')
-  decEq (GChan t) (GChan t') = decEqCong (decEq t t')
-  decEq GInt      GBool      = No $ \case Refl impossible
-  decEq GInt      (GFunc _)  = No $ \case Refl impossible
-  decEq GBool     GInt       = No $ \case Refl impossible
-  decEq GBool     (GFunc _)  = No $ \case Refl impossible
-  decEq (GFunc _) GInt       = No $ \case Refl impossible
-  decEq (GFunc _) GBool      = No $ \case Refl impossible
-
 {0 len : Nat} -> DecEq (TypeVect len) where
   decEq Nil Nil = Yes Refl
   decEq (t1 :: ts1) (t2 :: ts2) =
     assert_total decEqCong2 (decEq t1 t2) (decEq ts1 ts2)
 
+export
 DecEq MaybeType where
   decEq (Just t1) (Just t2) = assert_total decEqCong (decEq t1 t2)
   decEq (Just _) Nothing = No $ \case Refl impossible
   decEq Nothing (Just _) = No $ \case Refl impossible
   decEq Nothing Nothing = Yes Refl
 
+export
 DecEq GFuncType where
   decEq (To {parLen} par ret) (To {parLen = parLen'} par' ret') =
       let Yes Refl  := decEq parLen parLen'
@@ -147,6 +135,18 @@ DecEq GFuncType where
               (parLen = parLen', par = par', ret = ret')
       injDP Refl = (Refl, Refl, Refl)
 
+export
+DecEq GType where
+  decEq (GS s1) (GS s2) = decEqCong (decEq s1 s2)
+  decEq (GFunc f) (GFunc f') = decEqCong (decEq f f')
+  decEq (GChan t) (GChan t') = decEqCong (decEq t t')
+  decEq (GS _) (GFunc _) = No $ \case Refl impossible
+  decEq (GS _) (GChan _) = No $ \case Refl impossible
+  decEq (GFunc _) (GS _)    = No $ \case Refl impossible
+  decEq (GFunc _) (GChan _) = No $ \case Refl impossible
+  decEq (GChan _) (GS _)    = No $ \case Refl impossible
+  decEq (GChan _) (GFunc _) = No $ \case Refl impossible
+
 -- data IsEmpty : forall len. TypeVect len -> Type where
 --   [search len]
 --   ItIsEmpty : IsEmpty []
@@ -167,7 +167,7 @@ public export
 record Decl where
   constructor MkDecl
   kind : Kind
-  type : GTypeN
+  type : GType
 
 
 namespace Stack
@@ -177,7 +177,7 @@ namespace Stack
     (:<) : forall len. Stack len -> Decl -> Stack (S len)
 
 
-push1 : forall len. Kind -> GTypeN -> Stack len -> Stack (S len)
+push1 : forall len. Kind -> GType -> Stack len -> Stack (S len)
 push1 kind t stack = stack :< MkDecl kind t
 
 push : forall len, count.
@@ -188,13 +188,13 @@ push : forall len, count.
 push _ [] stack = rewrite plusZeroRightNeutral len in stack
 push {len} {count = S count'} kind (t :: ts) stack =
   rewrite sym $ plusSuccRightSucc len count' in
-    push kind ts $ stack :< MkDecl kind (GN t)
+    push kind ts $ stack :< MkDecl kind (GS t)
 
 
 public export
-data ByType : forall len. GType 0 -> Stack len -> Fin len -> Type where
+data ByType : forall len. GType -> Stack len -> Fin len -> Type where
   HereT  : forall ty, kind, tail.
-           ByType ty (tail :< MkDecl kind (GN ty)) FZ
+           ByType ty (tail :< MkDecl kind ty) FZ
 
   ThereT : forall ty, head, tail, found.
            (there : ByType ty tail found) ->
@@ -212,7 +212,7 @@ data ByRet : forall len, parLen.
   HereR  : forall par, ret, kind, tail.
            ByRet
              par ret
-             (tail :< MkDecl kind (GN $ GFunc $ par `To` ret))
+             (tail :< MkDecl kind (GFunc $ par `To` ret))
              FZ
 
   ThereR : forall par, ret, head, tail, found.
@@ -221,13 +221,13 @@ data ByRet : forall len, parLen.
 
 public export
 data ByElem : forall len.
-              (elemType : GType 0) ->
+              (elemType : Scalar) ->
               (stack : Stack len) ->
               (idx : Fin len) ->
               Type where
 
   HereE  : forall elemType, kind, tail.
-           ByElem elemType (tail :< MkDecl kind (GN $ GChan elemType)) FZ
+           ByElem elemType (tail :< MkDecl kind (GChan elemType)) FZ
 
   ThereE : forall elemType, head, tail, found.
            (there : ByElem elemType tail found) ->
@@ -261,28 +261,28 @@ data Statement : (ctxt : Context) -> Type
 
 namespace Expr
   public export
-  data Expr : (ctxt : Context) -> (res : GType 0) -> Type
+  data Expr : (ctxt : Context) -> (res : GType) -> Type
 
 
 public export
-record GetChanDecl (ctxt : Context) (elemType : GType 0) where
+record GetChanDecl (ctxt : Context) (elemType : Scalar) where
   constructor ChanAt
   idx : Fin ctxt.stackLen
   {auto 0 be : ByElem elemType ctxt.stack idx}
 
 
 public export
-data Literal : (ty : GType 0) -> Type where
+data Literal : (ty : Scalar) -> Type where
   MkInt  : Nat  -> Literal GInt
   MkBool : Bool -> Literal GBool
 
 
 public export
-data Unary : (argType, resType : GType 0) -> Type where
+data Unary : (argType, resType : Scalar) -> Type where
   IntNeg : Unary GInt GInt
 
 public export
-data Binary : (lhvType, rhvType, resType : GType 0) -> Type where
+data Binary : (lhvType, rhvType, resType : Scalar) -> Type where
   IntAdd : Binary GInt GInt GInt
   IntGE : Binary GInt GInt GBool
 
@@ -314,7 +314,7 @@ namespace ExprList
     Nil  : forall ctxt. ExprList ctxt []
 
     (::) : forall ctxt, headT, tailT.
-           (head : Expr ctxt headT) ->
+           (head : Expr ctxt (GS headT)) ->
            (tail : ExprList ctxt tailT) ->
            ExprList ctxt (headT :: tailT)
 
@@ -322,7 +322,11 @@ namespace ExprList
 namespace MaybeExpr
   public export
   data MaybeExpr : (ctxt : Context) -> (type : MaybeType) -> Type where
-    Just : forall ctxt, inner. Expr ctxt inner -> MaybeExpr ctxt (Just inner)
+
+    Just : forall ctxt, inner.
+           Expr ctxt (GS inner) ->
+           MaybeExpr ctxt (Just inner)
+
     Nothing : forall ctxt. MaybeExpr ctxt Nothing
 
 
@@ -378,7 +382,7 @@ onAnonFunc {parLen} ctxt newTypes retType =
 
 
 namespace Expr
-  data Expr : (ctxt : Context) -> (res : GType 0) -> Type where
+  data Expr : (ctxt : Context) -> (res : GType) -> Type where
 -- @WHEN HOLES
 -- @    Hole       : forall ctxt, res. Expr ctxt res
 -- @END HOLES
@@ -392,24 +396,24 @@ namespace Expr
 
     ELiteral    : forall ctxt, resType.
                   (literal : Literal resType) ->
-                  Expr ctxt resType
+                  Expr ctxt (GS resType)
 
     EUnary      : forall ctxt, retType.
-                  {argType : GType 0} ->
+                  {argType : Scalar} ->
                   (func : Unary argType retType) ->
-                  (arg : Expr ctxt argType) ->
-                  Expr ctxt retType
+                  (arg : Expr ctxt (GS argType)) ->
+                  Expr ctxt (GS retType)
 
     EBinary     : forall ctxt, retType.
-                  {lhvType, rhvType : GType 0} ->
+                  {lhvType, rhvType : Scalar} ->
                   (func : Binary lhvType rhvType retType) ->
-                  (lhv : Expr ctxt lhvType) ->
-                  (rhv : Expr ctxt rhvType) ->
-                  Expr ctxt retType
+                  (lhv : Expr ctxt (GS lhvType)) ->
+                  (rhv : Expr ctxt (GS rhvType)) ->
+                  Expr ctxt (GS retType)
 
     ECall       : forall ctxt, retType.
                   (call : Call ctxt (Just retType)) ->
-                  Expr ctxt retType
+                  Expr ctxt (GS retType)
 
     EGetDecl    : forall ctxt, type.
                   (idx : Fin ctxt.stackLen) ->
@@ -477,7 +481,7 @@ data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
 public export
 onDeclare1 : (ctxt    : Context) ->
              (kind    : Kind) ->
-             (newType : GTypeN) ->
+             (newType : GType) ->
              Context
 onDeclare1 ctxt kind newType =
   { stackLen   $= S
@@ -495,31 +499,31 @@ onDeclare1 ctxt kind newType =
 public export
 data ChanOp : (ctxt : Context) -> Type where
   Open    : forall ctxt.
-            {elemType : GType 0} ->
+            {elemType : Scalar} ->
             -- (chanBuf : ChanBuf ctxt) ->
-            (cap : Expr ctxt GInt) ->
+            (cap : Expr ctxt (GS GInt)) ->
             ChanOp ctxt
 
   Send    : forall ctxt, elemType.
             (chan  : GetChanDecl ctxt elemType) ->
-            (value : Expr ctxt elemType) ->
+            (value : Expr ctxt (GS elemType)) ->
             ChanOp ctxt
 
   Recv    : forall ctxt.
             (varCount : Fin 3) ->
-            {elemType : GType 0} ->
+            {elemType : Scalar} ->
             (chan  : GetChanDecl ctxt elemType) ->
             ChanOp ctxt
 
 
 public export
 onChanOp : (ctxt : Context) -> (op : ChanOp ctxt) -> Context
-onChanOp ctxt (Open {elemType} _) = onDeclare1 ctxt Var (GN $ GChan elemType)
+onChanOp ctxt (Open {elemType} _) = onDeclare1 ctxt Var (GChan elemType)
 onChanOp ctxt (Send _ _) = ctxt
 onChanOp ctxt (Recv 0 _)  = ctxt
-onChanOp ctxt (Recv 1 {elemType} _) = onDeclare1 ctxt Var (GN elemType)
+onChanOp ctxt (Recv 1 {elemType} _) = onDeclare1 ctxt Var (GS elemType)
 onChanOp ctxt (Recv 2 {elemType} _) =
-  onDeclare1 (onDeclare1 ctxt Var $ GN elemType) Var (GN GBool)
+  onDeclare1 (onDeclare1 ctxt Var $ GS elemType) Var (GS GBool)
 
 
 data Statement : (ctxt : Context) -> Type where
@@ -533,15 +537,15 @@ data Statement : (ctxt : Context) -> Type where
                 Statement ctxt
 
   SPrintLn    : forall ctxt.
-                {argType : GType 0} ->
-                (arg : Expr ctxt argType) ->
+                {argType : Scalar} ->
+                (arg : Expr ctxt (GS argType)) ->
                 (cont : Statement ctxt) ->
                 Statement ctxt
 
   SVar1       : forall ctxt.
-                {newType : GType 0} ->
+                {newType : GType} ->
                 (initial : Expr ctxt newType) ->
-                (cont    : Statement (onDeclare1 ctxt Var $ GN newType)) ->
+                (cont    : Statement (onDeclare1 ctxt Var $ newType)) ->
                 Statement ctxt
 
   SCall       : forall ctxt.
@@ -561,7 +565,7 @@ data Statement : (ctxt : Context) -> Type where
   If          : forall ctxt.
                 {tt, et : Bool} ->
                 (0 term : IfTerm ctxt.isTerminating tt et) =>
-                (test  : Expr ctxt GBool) ->
+                (test  : Expr ctxt (GS GBool)) ->
                 (then_ : Statement $ setIsTerminating tt ctxt) ->
                 (else_ : Statement $ setIsTerminating et ctxt) ->
                 (cont  : MaybeCont ctxt.isTerminating ctxt) ->
