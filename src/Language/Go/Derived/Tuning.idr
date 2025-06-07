@@ -10,6 +10,11 @@ GenOrderTuning "SVar1".dataCon where
   deriveFirst _ _ = [`{initial}]
 
 export
-GenOrderTuning "EBuiltin".dataCon where
+GenOrderTuning "EUnary".dataCon where
+  isConstructor = itIsConstructor
+  deriveFirst _ _ = [`{func}]
+
+export
+GenOrderTuning "EBinary".dataCon where
   isConstructor = itIsConstructor
   deriveFirst _ _ = [`{func}]

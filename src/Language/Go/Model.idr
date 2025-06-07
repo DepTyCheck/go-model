@@ -278,16 +278,13 @@ data Literal : (ty : GType 0) -> Type where
 
 
 public export
-data BuiltinFunc : forall len.
-                   (paramTypes : TypeVect len) ->
-                   (resType : GType 0) ->
-                   Type where
+data Unary : (argType, resType : GType 0) -> Type where
+  IntNeg : Unary GInt GInt
 
-  IntNeg : BuiltinFunc [GInt] GInt
-
-  IntAdd : BuiltinFunc [GInt, GInt] GInt
-
-  IntGE : BuiltinFunc [GInt, GInt] GBool
+public export
+data Binary : (lhvType, rhvType, resType : GType 0) -> Type where
+  IntAdd : Binary GInt GInt GInt
+  IntGE : Binary GInt GInt GBool
 
 -- @WHEN EXTRA_BUILTINS
 -- @  BoolNot : BuiltinFunc [GBool] GBool
@@ -397,10 +394,17 @@ namespace Expr
                   (literal : Literal resType) ->
                   Expr ctxt resType
 
-    EBuiltin    : forall ctxt, argsLen, retType.
-                  {argTypes : TypeVect argsLen} ->
-                  (func : BuiltinFunc argTypes retType) ->
-                  (args : ExprList ctxt argTypes) ->
+    EUnary      : forall ctxt, retType.
+                  {argType : GType 0} ->
+                  (func : Unary argType retType) ->
+                  (arg : Expr ctxt argType) ->
+                  Expr ctxt retType
+
+    EBinary     : forall ctxt, retType.
+                  {lhvType, rhvType : GType 0} ->
+                  (func : Binary lhvType rhvType retType) ->
+                  (lhv : Expr ctxt lhvType) ->
+                  (rhv : Expr ctxt rhvType) ->
                   Expr ctxt retType
 
     ECall       : forall ctxt, retType.

@@ -159,17 +159,18 @@ parameters {ctxt      : Context}
 
   prefixE : forall argTy.
             (op : Doc opts) ->
-            (args : ExprList ctxt [argTy]) ->
+            (arg : Expr ctxt argTy) ->
             (Gen0 $ Doc opts)
-  prefixE op [arg] = do
+  prefixE op arg = do
     arg <- assert_total exprPP arg
     pure $ "(" <+> op <+> arg <+> ")"
 
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
-           (args : ExprList ctxt [lhvType, rhvType]) ->
+           (lhv : Expr ctxt lhvType) ->
+           (rhv : Expr ctxt rhvType) ->
            (Gen0 $ Doc opts)
-  infixE op [lhv, rhv] = do
+  infixE op lhv rhv = do
     lhv <- assert_total exprPP lhv
     rhv <- assert_total exprPP rhv
     pure $ "(" <+> lhv <++> op <++> rhv <+> ")"
@@ -181,35 +182,6 @@ parameters {ctxt      : Context}
           (Gen0 $ Doc opts)
   funcE func args = pure $ goCall func !(exprListPP args)
 
-
-  builtinPP : forall retType, len.
-              {paramTypes : TypeVect len} ->
-              (func : BuiltinFunc paramTypes retType) ->
-              (args : ExprList ctxt paramTypes) ->
-              (Gen0 $ Doc opts)
-  builtinPP IntNeg = prefixE "-"
-  builtinPP IntAdd = infixE "+"
-  builtinPP IntGE = infixE ">="
-
-  -- builtinPP (ChanLen chan) = do
-  --   pure $ goCall "len" [!(getChanPP chan)]
--- @WHEN EXTRA_BUILTINS
--- @   prefixName BoolNot  = "!"
--- @   prefixName IntNeg   = "-"
--- @END EXTRA_BUILTINS
-
--- @WHEN EXTRA_BUILTINS
--- @   infixPP IntSub  = "-"
--- @   infixPP IntMul  = "*"
--- @   infixPP BoolAnd = "&&"
--- @   infixPP BoolOr  = "||"
--- @   infixPP IntEq   = "=="
--- @   infixPP IntNE   = "!="
--- @   infixPP IntLt   = "<"
--- @   infixPP IntLE   = "<="
--- @   infixPP IntGt   = ">"
--- @   infixPP IntGE   = ">="
--- @END EXTRA_BUILTINS
 
   -- export
   -- argsPP : {len : Nat} ->
@@ -257,7 +229,30 @@ exprPP
 exprPP (ELiteral lit) =
   pure $ literalPP lit
 
-exprPP (EBuiltin func args) = builtinPP func args
+exprPP (EUnary IntNeg arg) = prefixE "-" arg
+
+exprPP (EBinary IntAdd lhv rhv) = infixE "+" lhv rhv
+exprPP (EBinary IntGE lhv rhv) = infixE ">=" lhv rhv
+
+  -- builtinPP (ChanLen chan) = do
+  --   pure $ goCall "len" [!(getChanPP chan)]
+-- @WHEN EXTRA_BUILTINS
+-- @   prefixName BoolNot  = "!"
+-- @   prefixName IntNeg   = "-"
+-- @END EXTRA_BUILTINS
+
+-- @WHEN EXTRA_BUILTINS
+-- @   infixPP IntSub  = "-"
+-- @   infixPP IntMul  = "*"
+-- @   infixPP BoolAnd = "&&"
+-- @   infixPP BoolOr  = "||"
+-- @   infixPP IntEq   = "=="
+-- @   infixPP IntNE   = "!="
+-- @   infixPP IntLt   = "<"
+-- @   infixPP IntLE   = "<="
+-- @   infixPP IntGt   = ">"
+-- @   infixPP IntGE   = ">="
+-- @END EXTRA_BUILTINS
 
 exprPP (ECall call) = callPP call
 
