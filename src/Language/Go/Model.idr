@@ -32,30 +32,38 @@ data IsZero : Nat -> Type where
 
 
 public export
-data GoType : Type
+data GType : (ord : Nat) -> Type
 
 namespace TypeVect
   public export
   data TypeVect : (len : Nat) -> Type where
     Nil  : TypeVect 0
-    (::) : forall len. GoType -> TypeVect len -> TypeVect (S len)
+    (::) : forall len. GType 0 -> TypeVect len -> TypeVect (S len)
 
 namespace MaybeType
   public export
-  data MaybeType = Just GoType | Nothing
+  data MaybeType = Just (GType 0) | Nothing
 
 public export
-record GoFuncType where
+record GFuncType where
   constructor To
   {parLen : Nat}
   par : TypeVect parLen
   ret : MaybeType
 
-data GoType : Type where
-  GoInt  : GoType
-  GoBool : GoType
-  GoFunc : GoFuncType -> GoType
-  GoChan : GoType -> GoType
+data GType : (ord : Nat) -> Type where
+  GInt  : GType 0
+  GBool : GType 0
+  GFunc : GFuncType -> GType 0
+  GChan : forall ord. GType ord -> GType (S ord)
+
+
+public export
+record GTypeN where
+  constructor GN
+  {ord : Nat}
+  snd : GType ord
+
 
 export
 Biinjective TypeVect.(::) where
@@ -66,13 +74,19 @@ Injective MaybeType.Just where
   injective Refl = Refl
 
 export
-Injective GoFunc where
+Injective GFunc where
   injective Refl = Refl
 
 export
-Injective GoChan where
+Injective GChan where
   injective Refl = Refl
 
+
+test : forall ord. GType ord -> Nat
+test GInt = 0
+test GBool = 0
+test (GFunc _) = 0
+test (GChan c) = S (test c)
 
 export
 {0 len : Nat} -> DecEq (TypeVect len)
@@ -81,26 +95,20 @@ export
 DecEq MaybeType
 
 export
-DecEq GoFuncType
+DecEq GFuncType
 
 export
-DecEq GoType where
-  decEq GoInt      GoInt       = Yes Refl
-  decEq GoBool     GoBool      = Yes Refl
-  decEq (GoFunc f) (GoFunc f') = decEqCong (decEq f f')
-  decEq (GoChan t) (GoChan t') = decEqCong (decEq t t')
-  decEq GoInt      GoBool      = No $ \case Refl impossible
-  decEq GoInt      (GoFunc _)  = No $ \case Refl impossible
-  decEq GoInt      (GoChan _)  = No $ \case Refl impossible
-  decEq GoBool     GoInt       = No $ \case Refl impossible
-  decEq GoBool     (GoFunc _)  = No $ \case Refl impossible
-  decEq GoBool     (GoChan _)  = No $ \case Refl impossible
-  decEq (GoFunc _) GoInt       = No $ \case Refl impossible
-  decEq (GoFunc _) GoBool      = No $ \case Refl impossible
-  decEq (GoFunc _) (GoChan _)  = No $ \case Refl impossible
-  decEq (GoChan _) GoInt       = No $ \case Refl impossible
-  decEq (GoChan _) GoBool      = No $ \case Refl impossible
-  decEq (GoChan _) (GoFunc _)  = No $ \case Refl impossible
+{0 ord : Nat} -> DecEq (GType ord) where
+  decEq GInt      GInt       = Yes Refl
+  decEq GBool     GBool      = Yes Refl
+  decEq (GFunc f) (GFunc f') = decEqCong (decEq f f')
+  decEq (GChan t) (GChan t') = decEqCong (decEq t t')
+  decEq GInt      GBool      = No $ \case Refl impossible
+  decEq GInt      (GFunc _)  = No $ \case Refl impossible
+  decEq GBool     GInt       = No $ \case Refl impossible
+  decEq GBool     (GFunc _)  = No $ \case Refl impossible
+  decEq (GFunc _) GInt       = No $ \case Refl impossible
+  decEq (GFunc _) GBool      = No $ \case Refl impossible
 
 {0 len : Nat} -> DecEq (TypeVect len) where
   decEq Nil Nil = Yes Refl
@@ -113,7 +121,7 @@ DecEq MaybeType where
   decEq Nothing (Just _) = No $ \case Refl impossible
   decEq Nothing Nothing = Yes Refl
 
-DecEq GoFuncType where
+DecEq GFuncType where
   decEq (To {parLen} par ret) (To {parLen = parLen'} par' ret') =
       let Yes Refl  := decEq parLen parLen'
             | No contra => No $ \eq => contra $ fst $ injDP eq
@@ -149,24 +157,6 @@ DecEq GoFuncType where
 --   IsNonEmpty : forall head, tail. NonEmpty (head :: tail)
 
 
--- @WHEN ASSIGNABLE_ANY
--- @ public export
--- @ data Assignable1 : (lhv, rhv : GoType) -> Type where
--- @   AssignSame : forall t. Assignable1 t t
-
--- @   AssignToAny :  forall t. Assignable1 GoAny t
-
--- @ public export
--- @ data Assignable : (lhv, rhv : GoTypes) -> Type where
--- @   Nil : Assignable [] []
-
--- @   (::) : forall t1, t2, ts1, ts2.
--- @          (head : Assignable1 t1 t2) ->
--- @          (tail : Assignable ts1 ts2) ->
--- @          Assignable (t1 :: ts1) (t2 :: ts2)
--- @END ASSIGNABLE_ANY
-
-
 public export
 data Kind
   = Var
@@ -177,7 +167,7 @@ public export
 record Decl where
   constructor MkDecl
   kind : Kind
-  type : GoType
+  type : GTypeN
 
 
 namespace Stack
@@ -187,6 +177,9 @@ namespace Stack
     (:<) : forall len. Stack len -> Decl -> Stack (S len)
 
 
+push1 : forall len. Kind -> GTypeN -> Stack len -> Stack (S len)
+push1 kind t stack = stack :< MkDecl kind t
+
 push : forall len, count.
        Kind ->
        TypeVect count ->
@@ -195,13 +188,13 @@ push : forall len, count.
 push _ [] stack = rewrite plusZeroRightNeutral len in stack
 push {len} {count = S count'} kind (t :: ts) stack =
   rewrite sym $ plusSuccRightSucc len count' in
-    push kind ts $ stack :< MkDecl kind t
+    push kind ts $ stack :< MkDecl kind (GN t)
 
 
 public export
-data ByType : forall len. GoType -> Stack len -> Fin len -> Type where
+data ByType : forall len. GType 0 -> Stack len -> Fin len -> Type where
   HereT  : forall ty, kind, tail.
-           ByType ty (tail :< MkDecl kind ty) FZ
+           ByType ty (tail :< MkDecl kind (GN ty)) FZ
 
   ThereT : forall ty, head, tail, found.
            (there : ByType ty tail found) ->
@@ -217,7 +210,10 @@ data ByRet : forall len, parLen.
   where
 
   HereR  : forall par, ret, kind, tail.
-           ByRet par ret (tail :< MkDecl kind (GoFunc $ par `To` ret)) FZ
+           ByRet
+             par ret
+             (tail :< MkDecl kind (GN $ GFunc $ par `To` ret))
+             FZ
 
   ThereR : forall par, ret, head, tail, found.
            (there : ByRet par ret tail found) ->
@@ -225,13 +221,13 @@ data ByRet : forall len, parLen.
 
 public export
 data ByElem : forall len.
-              (elemType : GoType) ->
+              (elemType : GType 0) ->
               (stack : Stack len) ->
               (idx : Fin len) ->
               Type where
 
   HereE  : forall elemType, kind, tail.
-           ByElem elemType (tail :< MkDecl kind (GoChan elemType)) FZ
+           ByElem elemType (tail :< MkDecl kind (GN $ GChan elemType)) FZ
 
   ThereE : forall elemType, head, tail, found.
            (there : ByElem elemType tail found) ->
@@ -241,7 +237,7 @@ data ByElem : forall len.
 public export
 byRetToByType : forall par, ret, stack, idx.
                 ByRet par ret stack idx ->
-                ByType (GoFunc $ par `To` ret) stack idx
+                ByType (GFunc $ par `To` ret) stack idx
 byRetToByType HereR = HereT
 byRetToByType (ThereR there) = ThereT (byRetToByType there)
 
@@ -265,41 +261,44 @@ data Statement : (ctxt : Context) -> Type
 
 namespace Expr
   public export
-  data Expr : (ctxt : Context) -> (res : GoType) -> Type
+  data Expr : (ctxt : Context) -> (res : GType 0) -> Type
 
 
 public export
-record GetChanDecl (ctxt : Context) (elemType : GoType) where
+record GetChanDecl (ctxt : Context) (elemType : GType 0) where
   constructor ChanAt
   idx : Fin ctxt.stackLen
   {auto 0 be : ByElem elemType ctxt.stack idx}
 
 
 public export
-data Literal : (ty : GoType) -> Type where
-  MkInt  : Nat  -> Literal GoInt
-  MkBool : Bool -> Literal GoBool
+data Literal : (ty : GType 0) -> Type where
+  MkInt  : Nat  -> Literal GInt
+  MkBool : Bool -> Literal GBool
 
 
 public export
-data BuiltinFunc : (ctxt : Context) -> (retType : GoType) -> Type where
+data BuiltinFunc : forall len.
+                   (paramTypes : TypeVect len) ->
+                   (resType : GType 0) ->
+                   Type where
 
-  IntAdd : forall ctxt. (lhv, rhv : Expr ctxt GoInt) -> BuiltinFunc ctxt GoInt
+  IntNeg : BuiltinFunc [GInt] GInt
 
-  ChanLen : forall ctxt, elemType.
-            (chan : GetChanDecl ctxt elemType) ->
-            BuiltinFunc ctxt GoInt
+  IntAdd : BuiltinFunc [GInt, GInt] GInt
+
+  IntGE : BuiltinFunc [GInt, GInt] GBool
 
 -- @WHEN EXTRA_BUILTINS
--- @   BoolNot  : PrefixOp GoBool GoBool
--- @   IntNeg   : PrefixOp GoInt GoInt
+-- @  BoolNot : BuiltinFunc [GBool] GBool
+-- @  IntSub, IntMul  : InfixOp GInt GInt GInt
+-- @  BoolAnd, BoolOr : InfixOp GBool GBool GBool
+-- @  IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GInt GInt GBool
 -- @END EXTRA_BUILTINS
 
-  -- @WHEN EXTRA_BUILTINS
--- @   IntSub, IntMul  : InfixOp GoInt GoInt GoInt
--- @   BoolAnd, BoolOr : InfixOp GoBool GoBool GoBool
--- @   IntEq, IntNE, IntLt, IntLE, IntGt, IntGE : InfixOp GoInt GoInt GoBool
-  -- @END EXTRA_BUILTINS
+  -- ChanLen : forall ctxt, elemType.
+  --           (chan : GetChanDecl ctxt elemType) ->
+  --           BuiltinFunc ctxt GInt
 
 -- namespace MultivaluedExpr
 --   public export
@@ -318,8 +317,8 @@ namespace ExprList
     Nil  : forall ctxt. ExprList ctxt []
 
     (::) : forall ctxt, headT, tailT.
-           (head    : Expr ctxt headT) ->
-           (tail    : ExprList ctxt tailT) ->
+           (head : Expr ctxt headT) ->
+           (tail : ExprList ctxt tailT) ->
            ExprList ctxt (headT :: tailT)
 
 
@@ -347,7 +346,7 @@ namespace MaybeExpr
 
 public export
 data Callable : forall ctxt, parTypes, retType.
-                (expr : Expr ctxt (GoFunc $ parTypes `To` retType)) ->
+                (expr : Expr ctxt (GFunc $ parTypes `To` retType)) ->
                 Type
 
 
@@ -356,10 +355,9 @@ record Call (ctxt : Context) (retType : MaybeType) where
   constructor MkCall
   {parLen : Nat}
   {parTypes : TypeVect parLen}
-  func : Expr ctxt (GoFunc $ parTypes `To` retType)
+  func : Expr ctxt (GFunc $ parTypes `To` retType)
   {auto 0 s : Callable func}
   args : ExprList ctxt parTypes
-
 
 
 public export
@@ -383,7 +381,7 @@ onAnonFunc {parLen} ctxt newTypes retType =
 
 
 namespace Expr
-  data Expr : (ctxt : Context) -> (res : GoType) -> Type where
+  data Expr : (ctxt : Context) -> (res : GType 0) -> Type where
 -- @WHEN HOLES
 -- @    Hole       : forall ctxt, res. Expr ctxt res
 -- @END HOLES
@@ -393,14 +391,16 @@ namespace Expr
                   {parTypes : TypeVect parLen} ->
                   {retType : MaybeType} ->
                   (body : Statement (onAnonFunc ctxt parTypes retType)) ->
-                  Expr ctxt (GoFunc $ parTypes `To` retType)
+                  Expr ctxt (GFunc $ parTypes `To` retType)
 
     ELiteral    : forall ctxt, resType.
                   (literal : Literal resType) ->
                   Expr ctxt resType
 
-    EBuiltin    : forall ctxt, retType.
-                  (func : BuiltinFunc ctxt retType) ->
+    EBuiltin    : forall ctxt, argsLen, retType.
+                  {argTypes : TypeVect argsLen} ->
+                  (func : BuiltinFunc argTypes retType) ->
+                  (args : ExprList ctxt argTypes) ->
                   Expr ctxt retType
 
     ECall       : forall ctxt, retType.
@@ -422,14 +422,14 @@ namespace Expr
 --     Call        : forall ctxt, retTypes.
 --                   {parLen   : Nat} ->
 --                   {parTypes : TypeVect parLen} ->
---                   (func : Expr ctxt (GoFunc $ parTypes `To` retTypes)) ->
+--                   (func : Expr ctxt (GFunc $ parTypes `To` retTypes)) ->
 --                   (0 s : Callable func) =>
 --                   (args : Args ctxt parTypes) ->
 --                   MultivaluedExpr ctxt retTypes
 
 
 data Callable : forall ctxt, parTypes, retType.
-                (expr : Expr ctxt (GoFunc $ parTypes `To` retType)) ->
+                (expr : Expr ctxt (GFunc $ parTypes `To` retType)) ->
                 Type where
 
   FromFuncLiteral : forall ctxt, parTypes, retType.
@@ -450,42 +450,50 @@ namespace MaybeCont
 
 
 -- @WHEN IF_STMTS
--- @ public export
--- @ data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
--- @   TTT : IfTerm True True True
--- @   FAA : forall th, el. IfTerm False th el
-
-
+public export
+data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
+  TTT : IfTerm True True True
+  FAA : forall th, el. IfTerm False th el
 -- @END IF_STMTS
 
+-- public export
+-- onDeclare : {count    : Nat} ->
+--             (ctxt     : Context) ->
+--             (kind     : Kind) ->
+--             (newTypes : TypeVect count) ->
+--             Context
+-- onDeclare ctxt kind newTypes =
+--   { stackLen   $= (+ count)
+--   , stack      $= push kind newTypes
+--   , blockDepth := rewrite plusCommutative ctxt.stackLen count in
+--                     rewrite plusSuccRightSucc count ctxt.stackLen in
+--                       shift count ctxt.blockDepth
+--   } ctxt
 
 public export
-onDeclare : {count    : Nat} ->
-            (ctxt     : Context) ->
-            (kind     : Kind) ->
-            (newTypes : TypeVect count) ->
-            Context
-onDeclare ctxt kind newTypes =
-  { stackLen   $= (+ count)
-  , stack      $= push kind newTypes
-  , blockDepth := rewrite plusCommutative ctxt.stackLen count in
-                    rewrite plusSuccRightSucc count ctxt.stackLen in
-                      shift count ctxt.blockDepth
+onDeclare1 : (ctxt    : Context) ->
+             (kind    : Kind) ->
+             (newType : GTypeN) ->
+             Context
+onDeclare1 ctxt kind newType =
+  { stackLen   $= S
+  , stack      $= push1 kind newType
+  , blockDepth $= FS
   } ctxt
 
 
 -- public export
 -- data ChanBuf : (ctxt : Context) -> Type where
---   Buffered : forall ctxt. (cap : Expr ctxt GoInt) -> ChanBuf ctxt
+--   Buffered : forall ctxt. (cap : Expr ctxt GInt) -> ChanBuf ctxt
 --   Unbuffered : forall ctxt. ChanBuf ctxt
 
 
 public export
 data ChanOp : (ctxt : Context) -> Type where
   Open    : forall ctxt.
-            {elemType : GoType} ->
+            {elemType : GType 0} ->
             -- (chanBuf : ChanBuf ctxt) ->
-            (cap : Expr ctxt GoInt) ->
+            (cap : Expr ctxt GInt) ->
             ChanOp ctxt
 
   Send    : forall ctxt, elemType.
@@ -495,18 +503,19 @@ data ChanOp : (ctxt : Context) -> Type where
 
   Recv    : forall ctxt.
             (varCount : Fin 3) ->
-            {elemType : GoType} ->
+            {elemType : GType 0} ->
             (chan  : GetChanDecl ctxt elemType) ->
             ChanOp ctxt
 
 
 public export
 onChanOp : (ctxt : Context) -> (op : ChanOp ctxt) -> Context
-onChanOp ctxt (Open {elemType} _) = onDeclare ctxt Var [GoChan elemType]
+onChanOp ctxt (Open {elemType} _) = onDeclare1 ctxt Var (GN $ GChan elemType)
 onChanOp ctxt (Send _ _) = ctxt
 onChanOp ctxt (Recv 0 _)  = ctxt
-onChanOp ctxt (Recv 1 {elemType} _) = onDeclare ctxt Var [elemType]
-onChanOp ctxt (Recv 2 {elemType} _) = onDeclare ctxt Var [elemType, GoBool]
+onChanOp ctxt (Recv 1 {elemType} _) = onDeclare1 ctxt Var (GN elemType)
+onChanOp ctxt (Recv 2 {elemType} _) =
+  onDeclare1 (onDeclare1 ctxt Var $ GN elemType) Var (GN GBool)
 
 
 data Statement : (ctxt : Context) -> Type where
@@ -520,15 +529,15 @@ data Statement : (ctxt : Context) -> Type where
                 Statement ctxt
 
   SPrintLn    : forall ctxt.
-                {argType : GoType} ->
+                {argType : GType 0} ->
                 (arg : Expr ctxt argType) ->
                 (cont : Statement ctxt) ->
                 Statement ctxt
 
   SVar1       : forall ctxt.
-                {newType : GoType} ->
+                {newType : GType 0} ->
                 (initial : Expr ctxt newType) ->
-                (cont    : Statement (onDeclare ctxt Var [newType])) ->
+                (cont    : Statement (onDeclare1 ctxt Var $ GN newType)) ->
                 Statement ctxt
 
   SCall       : forall ctxt.
@@ -538,21 +547,21 @@ data Statement : (ctxt : Context) -> Type where
                 (cont : Statement ctxt) ->
                 Statement ctxt
 
-  SChanOp   : forall ctxt.
-                (op : ChanOp ctxt) ->
-                (cont : Statement (onChanOp ctxt op)) ->
-                Statement ctxt
+  -- SChanOp     : forall ctxt.
+  --               (op : ChanOp ctxt) ->
+  --               (cont : Statement (onChanOp ctxt op)) ->
+  --               Statement ctxt
 
 
   -- @WHEN IF_STMTS
--- @   If          : forall ctxt.
--- @                 {tt, et : Bool} ->
--- @                 (0 term : IfTerm ctxt.isTerminating tt et) =>
--- @                 (test  : Expr ctxt GoBool) ->
--- @                 (then_ : Statement $ setIsTerminating tt ctxt) ->
--- @                 (else_ : Statement $ setIsTerminating et ctxt) ->
--- @                 (cont  : MaybeCont ctxt.isTerminating ctxt) ->
--- @                 Statement ctxt
+  If          : forall ctxt.
+                {tt, et : Bool} ->
+                (0 term : IfTerm ctxt.isTerminating tt et) =>
+                (test  : Expr ctxt GBool) ->
+                (then_ : Statement $ setIsTerminating tt ctxt) ->
+                (else_ : Statement $ setIsTerminating et ctxt) ->
+                (cont  : MaybeCont ctxt.isTerminating ctxt) ->
+                Statement ctxt
 -- @END IF_STMTS
 
 export

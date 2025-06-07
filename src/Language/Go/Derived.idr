@@ -16,7 +16,6 @@ import Syntax.PreorderReasoning
 %logging "deptycheck.derive" 15
 
 
--- @WHEN GEN_STMT
 Language.Go.Model.genStatements = deriveGen
 
 -- %language ElabReflection

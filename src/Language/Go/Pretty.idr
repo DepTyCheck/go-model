@@ -52,7 +52,7 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  typePP : GoType -> Doc opts
+  typePP : forall ord. GType ord -> Doc opts
 
   export
   typesPP : forall len. TypeVect len -> List (Doc opts)
@@ -62,16 +62,13 @@ parameters {auto opts : LayoutOpts}
   returnTypesPP Nothing = empty
   returnTypesPP (Just type) = typePP type
 
-  typePP GoInt  = pure "int"
-  typePP GoBool = pure "bool"
-  typePP (GoFunc $ params `To` rets) =
+  typePP GInt  = pure "int"
+  typePP GBool = pure "bool"
+  typePP (GFunc $ params `To` rets) =
     let params := goList (typesPP params)
         rets   := returnTypesPP rets
      in "func" <++> params <+?+> rets
--- @WHEN ASSIGNABLE_ANY
--- @   typePP GoAny = pure "interface {}"
--- @END ASSIGNABLE_ANY
-  typePP (GoChan t) = "chan" <++> typePP t
+  typePP (GChan t) = "chan" <++> typePP t
 
 
   export
@@ -85,7 +82,7 @@ parameters {auto opts : LayoutOpts}
 
   export
   nameTypePP : ResolvedDecl -> (Gen0 $ Doc opts)
-  nameTypePP decl = pure $ !(namePP decl) <++> typePP decl.type
+  nameTypePP decl = pure $ !(namePP decl) <++> typePP (snd decl.type)
 
 
   export
@@ -160,12 +157,19 @@ parameters {ctxt      : Context}
   getChanPP : forall elemType. GetChanDecl ctxt elemType -> (Gen0 $ Doc opts)
   getChanPP (ChanAt idx) = getDeclPP ctxt idx
 
+  prefixE : forall argTy.
+            (op : Doc opts) ->
+            (args : ExprList ctxt [argTy]) ->
+            (Gen0 $ Doc opts)
+  prefixE op [arg] = do
+    arg <- assert_total exprPP arg
+    pure $ "(" <+> op <+> arg <+> ")"
+
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
-           (lhv : Expr ctxt lhvType) ->
-           (rhv : Expr ctxt rhvType) ->
+           (args : ExprList ctxt [lhvType, rhvType]) ->
            (Gen0 $ Doc opts)
-  infixE op lhv rhv = do
+  infixE op [lhv, rhv] = do
     lhv <- assert_total exprPP lhv
     rhv <- assert_total exprPP rhv
     pure $ "(" <+> lhv <++> op <++> rhv <+> ")"
@@ -177,13 +181,18 @@ parameters {ctxt      : Context}
           (Gen0 $ Doc opts)
   funcE func args = pure $ goCall func !(exprListPP args)
 
-  export
-  builtinPP : forall retType.
-              (func : BuiltinFunc ctxt retType) ->
+
+  builtinPP : forall retType, len.
+              {paramTypes : TypeVect len} ->
+              (func : BuiltinFunc paramTypes retType) ->
+              (args : ExprList ctxt paramTypes) ->
               (Gen0 $ Doc opts)
-  builtinPP (IntAdd lhv rhv) = infixE "+" lhv rhv
-  builtinPP (ChanLen chan) = do
-    pure $ goCall "len" [!(getChanPP chan)]
+  builtinPP IntNeg = prefixE "-"
+  builtinPP IntAdd = infixE "+"
+  builtinPP IntGE = infixE ">="
+
+  -- builtinPP (ChanLen chan) = do
+  --   pure $ goCall "len" [!(getChanPP chan)]
 -- @WHEN EXTRA_BUILTINS
 -- @   prefixName BoolNot  = "!"
 -- @   prefixName IntNeg   = "-"
@@ -201,8 +210,6 @@ parameters {ctxt      : Context}
 -- @   infixPP IntGt   = ">"
 -- @   infixPP IntGE   = ">="
 -- @END EXTRA_BUILTINS
-
-
 
   -- export
   -- argsPP : {len : Nat} ->
@@ -238,7 +245,7 @@ parameters {ctxt      : Context}
 -- @END HOLES
 
 exprPP
-  {retType = (GoFunc $ parTypes `To` retType)}
+  {retType = (GFunc $ parTypes `To` retType)}
   (ELambda {parLen} body)
 = do
   let newCtxt : Context
@@ -250,7 +257,7 @@ exprPP
 exprPP (ELiteral lit) =
   pure $ literalPP lit
 
-exprPP (EBuiltin func) = builtinPP func
+exprPP (EBuiltin func args) = builtinPP func args
 
 exprPP (ECall call) = callPP call
 
@@ -274,7 +281,7 @@ statementPP (SPrintLn arg cont) = pure $ vsep
   ]
 
 statementPP {ctxt} (SVar1 {newType} initial cont) = do
-  let newCtxt : Context; newCtxt = onDeclare ctxt Var [newType]
+  let newCtxt : Context; newCtxt = onDeclare1 ctxt Var (GN newType)
   initial <- exprPP initial
   pure $ vsep [ !(varPP initial newCtxt 1)
               , !(assert_total $ statementPP {ctxt = newCtxt} cont)
@@ -287,32 +294,32 @@ statementPP (SCall async call cont) = do
     , !(assert_total $ statementPP cont)
     ]
 
-statementPP (SChanOp op cont) = pure $ vsep
-    [ !(sendRecvPP op)
-    , !(assert_total $ statementPP cont)
-    ]
+-- statementPP (SChanOp op cont) = pure $ vsep
+--     [ !(sendRecvPP op)
+--     , !(assert_total $ statementPP cont)
+--     ]
 
 -- @WHEN IF_STMTS
--- @ statementPP (If test then_ else_ cont) = do
--- @   test  <- exprPP test
--- @   then_ <- assert_total statementPP then_
--- @   cont  <- maybeContPP cont
--- @   let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
--- @   if skipElse
--- @      then pure $ vsep
--- @        [ "if" <++> test  <++> "{"
--- @        , indent' 4 then_
--- @        , "}"
--- @        , cont
--- @        ]
--- @      else pure $ vsep
--- @        [ "if" <++> test  <++> "{"
--- @        , indent' 4 then_
--- @        , "} else {"
--- @        , indent' 4 !(assert_total statementPP else_)
--- @        , "}"
--- @        , cont
--- @        ]
+statementPP (If test then_ else_ cont) = do
+  test  <- exprPP test
+  then_ <- assert_total statementPP then_
+  cont  <- maybeContPP cont
+  let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
+  if skipElse
+     then pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "}"
+       , cont
+       ]
+     else pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "} else {"
+       , indent' 4 !(assert_total statementPP else_)
+       , "}"
+       , cont
+       ]
 -- @END IF_STMTS
 
 -- statementPP (ChanSend chan value cont) =
@@ -322,7 +329,7 @@ statementPP (SChanOp op cont) = pure $ vsep
 --     ]
 
 -- statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
---   let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GoBool]
+--   let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GBool]
 --   let newVars := hsepBy comma
 --                    !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
 --   initial     <- exprPP initial
@@ -336,7 +343,7 @@ statementPP (SChanOp op cont) = pure $ vsep
 
 sendRecvPP {ctxt} op@(Open {elemType} cap) = do
   cap <- exprPP cap
-  varPP ("<-" <++> goCall "make" [typePP (GoChan elemType), cap]) (onChanOp ctxt op) 1
+  varPP ("<-" <++> goCall "make" [typePP (GChan elemType), cap]) (onChanOp ctxt op) 1
 
 sendRecvPP {ctxt} (Send chan value) =
   pure $ !(getChanPP chan) <++> "<-" <++> !(exprPP value)

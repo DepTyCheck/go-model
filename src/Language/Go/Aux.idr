@@ -14,8 +14,8 @@ public export
 funcTy : {parLen : Nat} ->
          (parTypes : TypeVect parLen) ->
          (retType : MaybeType) ->
-         GoType
-funcTy par ret = GoFunc $ par `To` ret
+         GType 0
+funcTy par ret = GFunc $ par `To` ret
 
 -- enumerate : forall t. {default 0 start : Nat} -> List t -> List (Nat, t)
 -- enumerate Nil = Nil
@@ -25,7 +25,7 @@ funcTy par ret = GoFunc $ par `To` ret
 
 namespace TypeVect
   export
-  asList : forall len. TypeVect len -> List GoType
+  asList : forall len. TypeVect len -> List (GType 0)
   asList [] = []
   asList (t :: ts) = t :: asList ts
 
@@ -34,9 +34,9 @@ public export
 defaultStack : (len : Nat ** Stack len)
 defaultStack =
   let stack :=
-        [< MkDecl Var GoInt
-         , MkDecl Var (funcTy [GoInt] Nothing)
-         , MkDecl Var (funcTy [GoInt, GoBool] (Just GoInt))
+        [< MkDecl Var $ GN GInt
+         , MkDecl Var $ GN (funcTy [GInt] Nothing)
+         , MkDecl Var $ GN (funcTy [GInt, GBool] (Just GInt))
         ]
    in (_ ** stack)
 
@@ -48,7 +48,7 @@ defaultContext =
       { stackLen      = stackDepth
       , stack         = stack
       , blockDepth    = last
-      , returns       = Just (funcTy [GoInt, GoBool] (Just GoInt))
+      , returns       = Just (funcTy [GInt, GBool] (Just GInt))
       , isTerminating = True
       }
 
@@ -95,7 +95,7 @@ record ResolvedDecl where
   constructor MkDecl
   kind : Kind
   name : Nat
-  type : GoType
+  type : GTypeN
 
 
 export
@@ -135,7 +135,7 @@ namespace ExprList
   asList : forall ctxt, len.
            {types : TypeVect len} ->
            ExprList ctxt types ->
-           List (type : GoType ** Expr ctxt type)
+           List (type : GType 0 ** Expr ctxt type)
   asList [] = []
   asList {types = t :: ts} (e :: es) =
     (t ** e) :: asList es
@@ -156,4 +156,3 @@ namespace Statement
                 (0 stmt : Statement ctxt) ->
                 (context stmt = ctxt)
   contextSpec _ = Refl
-

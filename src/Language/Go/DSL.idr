@@ -12,13 +12,13 @@ import Language.Go.Aux
 parameters {0 ctxt : Context}
   export
   %inline
-  fromInteger : Integer -> Expr ctxt [GoInt]
+  fromInteger : Integer -> Expr ctxt [GInt]
   fromInteger x = GetLiteral $ MkInt $ fromInteger x
 
 
   export
   %inline
-  true, false : Expr ctxt [GoBool]
+  true, false : Expr ctxt [GBool]
   true = GetLiteral $ MkBool True
   false = GetLiteral $ MkBool False
 
@@ -27,7 +27,7 @@ parameters {0 ctxt : Context}
   infixl 8 .+.
 
   export
-  (.+.) : Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
+  (.+.) : Expr ctxt [GInt] -> Expr ctxt [GInt] -> Expr ctxt [GInt]
   (.+.) = ApplyInfix IntAdd
 
   -- @WHEN EXTRA_BUILTINS
@@ -45,13 +45,13 @@ parameters {0 ctxt : Context}
 
 -- @   export
 -- @   (.-.), (.*.) : {ctxt : Context} ->
--- @                  Expr ctxt [GoInt] -> Expr ctxt [GoInt] -> Expr ctxt [GoInt]
+-- @                  Expr ctxt [GInt] -> Expr ctxt [GInt] -> Expr ctxt [GInt]
 -- @   (.-.) = ApplyInfix IntSub
 -- @   (.*.) = ApplyInfix IntMul
   -- @END EXTRA_BUILTINS
 
   export
-  print : Expr ctxt [GoInt] -> Expr ctxt []
+  print : Expr ctxt [GInt] -> Expr ctxt []
   print = CallBuiltin Print
 
 -- export
