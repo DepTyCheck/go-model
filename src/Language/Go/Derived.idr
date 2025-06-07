@@ -16,7 +16,7 @@ import Syntax.PreorderReasoning
 %logging "deptycheck.derive" 15
 
 
-Language.Go.Model.genStatements = deriveGen
+Language.Go.Model.genStmts = deriveGen
 
 -- %language ElabReflection
 

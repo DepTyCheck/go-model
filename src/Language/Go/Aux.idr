@@ -49,7 +49,6 @@ defaultContext =
       , stack         = stack
       , blockDepth    = last
       , returns       = Just GInt
-      , isTerminating = True
       }
 
 
@@ -141,18 +140,8 @@ namespace ExprList
     (t ** e) :: asList es
 
 
-namespace Statement
+namespace Stmt
   export
-  isEmpty : forall ctxt. Statement ctxt -> Bool
-  isEmpty SStop = True
+  isEmpty : forall ctxt, isTerm. Stmt ctxt isTerm -> Bool
+  isEmpty SNop = True
   isEmpty _ = False
-
-  public export
-  context : {ctxt : Context} -> (0 _ : Statement ctxt) -> Context
-  context {ctxt} _ = ctxt
-
-  public export
-  contextSpec : forall ctxt.
-                (0 stmt : Statement ctxt) ->
-                (context stmt = ctxt)
-  contextSpec _ = Refl

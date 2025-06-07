@@ -131,7 +131,7 @@ parameters {ctxt      : Context}
            {auto opts : LayoutOpts}
 
   export
-  statementPP : Statement ctxt -> (Gen0 $ Doc opts)
+  statementPP : forall term. Stmt ctxt term -> (Gen0 $ Doc opts)
 
   export
   exprPP: forall retType. Expr ctxt retType -> (Gen0 $ Doc opts)
@@ -202,16 +202,11 @@ parameters {ctxt      : Context}
     funcE name args
 
   export
-  maybeContPP : forall isTerm. MaybeCont isTerm ctxt -> (Gen0 $ Doc opts)
-  maybeContPP (Just cont) = statementPP cont
-  maybeContPP Nothing     = pure empty
-
-  export
   sendRecvPP : ChanOp ctxt -> (Gen0 $ Doc opts)
 
 
   export
-  wrapStatement : (stmt : Statement ctxt) -> (Gen0 $ Doc opts)
+  wrapStmt : forall term. (stmt : Stmt ctxt term) -> (Gen0 $ Doc opts)
 
 -- @WHEN HOLES
 -- @ exprPP {rets} Hole =
@@ -231,10 +226,10 @@ exprPP
 exprPP (ELiteral lit) =
   pure $ literalPP lit
 
-exprPP (EUnary IntNeg arg) = prefixE "-" arg
+-- exprPP (EUnary IntNeg arg) = prefixE "-" arg
 
-exprPP (EBinary IntAdd lhv rhv) = infixE "+" lhv rhv
-exprPP (EBinary IntGE lhv rhv) = infixE ">=" lhv rhv
+-- exprPP (EBinary IntAdd lhv rhv) = infixE "+" lhv rhv
+-- exprPP (EBinary IntGE lhv rhv) = infixE ">=" lhv rhv
 
   -- builtinPP (ChanLen chan) = do
   --   pure $ goCall "len" [!(getChanPP chan)]
@@ -267,47 +262,40 @@ exprPP {ctxt} (EGetDecl idx) = getDeclPP ctxt idx
 --   pure $ goCall name args
 
 
-statementPP SStop = pure empty
+statementPP SNop = pure empty
 
 statementPP {ctxt} (SReturn res) =
   pure $ "return" <+?+> !(maybeExprPP res)
 
-statementPP (SPrintLn arg cont) = pure $ vsep
-  [ !(funcE "println" [arg])
-  , !(assert_total $ statementPP cont)
-  ]
+statementPP (SPrintLn arg) = funcE "println" [arg]
 
-statementPP {ctxt} (SVar1 {newType} initial cont) = do
+statementPP {ctxt} (SVar1 {newType} initial) = do
   let newCtxt : Context; newCtxt = onDeclare1 ctxt Var newType
   initial <- exprPP initial
-  pure $ vsep [ !(varPP initial newCtxt 1)
-              , !(assert_total $ statementPP {ctxt = newCtxt} cont)
-              ]
+  varPP initial newCtxt 1
 
-statementPP (SCall async call cont) = do
+statementPP (SCall async call) = do
   let pre = if async then "go" <+> space else empty
-  pure $ vsep
-    [ pre <+> !(callPP call)
-    , !(assert_total $ statementPP cont)
-    ]
+  pure $ pre <+> !(callPP call)
 
 -- statementPP (SChanOp op cont) = pure $ vsep
 --     [ !(sendRecvPP op)
 --     , !(assert_total $ statementPP cont)
 --     ]
 
+statementPP (SSeq fst snd) =
+  pure $ !(statementPP fst) `vappend` !(statementPP snd)
+
 -- @WHEN IF_STMTS
-statementPP (If test then_ else_ cont) = do
+statementPP (If test then_ else_) = do
   test  <- exprPP test
   then_ <- assert_total statementPP then_
-  cont  <- maybeContPP cont
   let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
   if skipElse
      then pure $ vsep
        [ "if" <++> test  <++> "{"
        , indent' 4 then_
        , "}"
-       , cont
        ]
      else pure $ vsep
        [ "if" <++> test  <++> "{"
@@ -315,7 +303,6 @@ statementPP (If test then_ else_ cont) = do
        , "} else {"
        , indent' 4 !(assert_total statementPP else_)
        , "}"
-       , cont
        ]
 -- @END IF_STMTS
 
@@ -350,7 +337,7 @@ sendRecvPP {ctxt} op@(Recv varCount chan) = do
   varPP initial (onChanOp ctxt op) (finToNat varCount)
 
 
-wrapStatement {ctxt} stmt = do
+wrapStmt {ctxt} stmt = do
   let rets   := returnTypesPP ctxt.returns
       params := goList !(traverse nameTypePP $
                   takeTopDecl (finToNat ctxt.blockDepth) ctxt.stack)

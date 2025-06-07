@@ -23,4 +23,3 @@ modules = Language.Go
         , Language.Go.Derived
         , Language.Go.Aux
         , Language.Go.Pretty
-        , Utils.MkVect

@@ -249,15 +249,10 @@ record Context where
   stack         : Stack stackLen
   blockDepth    : Fin (S stackLen)
   returns       : MaybeType
-  isTerminating : Bool
-
-public export
-setIsTerminating : Bool -> Context -> Context
-setIsTerminating value = { isTerminating := value }
 
 
 public export
-data Statement : (ctxt : Context) -> Type
+data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type
 
 namespace Expr
   public export
@@ -372,7 +367,6 @@ onAnonFunc {parLen} ctxt newTypes retType =
   , stack         $= push Var newTypes
   , blockDepth    := natToFinLT @{prf parLen ctxt.stackLen} parLen
   , returns       := retType
-  , isTerminating := True
   } ctxt
 
   where
@@ -391,25 +385,25 @@ namespace Expr
                   {parLen : Nat} ->
                   {parTypes : TypeVect parLen} ->
                   {retType : MaybeType} ->
-                  (body : Statement (onAnonFunc ctxt parTypes retType)) ->
+                  (body : Stmt (onAnonFunc ctxt parTypes retType) True) ->
                   Expr ctxt (GFunc $ parTypes `To` retType)
 
     ELiteral    : forall ctxt, resType.
                   (literal : Literal resType) ->
                   Expr ctxt (GS resType)
 
-    EUnary      : forall ctxt, retType.
-                  {argType : Scalar} ->
-                  (func : Unary argType retType) ->
-                  (arg : Expr ctxt (GS argType)) ->
-                  Expr ctxt (GS retType)
+    -- EUnary      : forall ctxt, retType.
+    --               {argType : Scalar} ->
+    --               (func : Unary argType retType) ->
+    --               (arg : Expr ctxt (GS argType)) ->
+    --               Expr ctxt (GS retType)
 
-    EBinary     : forall ctxt, retType.
-                  {lhvType, rhvType : Scalar} ->
-                  (func : Binary lhvType rhvType retType) ->
-                  (lhv : Expr ctxt (GS lhvType)) ->
-                  (rhv : Expr ctxt (GS rhvType)) ->
-                  Expr ctxt (GS retType)
+    -- EBinary     : forall ctxt, retType.
+    --               {lhvType, rhvType : Scalar} ->
+    --               (func : Binary lhvType rhvType retType) ->
+    --               (lhv : Expr ctxt (GS lhvType)) ->
+    --               (rhv : Expr ctxt (GS rhvType)) ->
+    --               Expr ctxt (GS retType)
 
     ECall       : forall ctxt, retType.
                   (call : Call ctxt (Just retType)) ->
@@ -441,20 +435,13 @@ data Callable : forall ctxt, parTypes, retType.
                 Type where
 
   FromFuncLiteral : forall ctxt, parTypes, retType.
-                    (body : Statement (onAnonFunc ctxt parTypes retType)) ->
+                    (body : Stmt (onAnonFunc ctxt parTypes retType) True) ->
                     Callable {ctxt} {parTypes} {retType} (ELambda body)
 
   FromGetDecl     : forall ctxt, parTypes, retTypes.
                     (idx   : Fin ctxt.stackLen) ->
                     (0 br  : ByRet parTypes retTypes ctxt.stack idx) =>
                     Callable {ctxt} (EGetDecl idx @{byRetToByType br})
-
-
-namespace MaybeCont
-  public export
-  data MaybeCont : (isTerm : Bool) -> (newCtxt : Context) -> Type where
-    Just    : forall ctxt. (cont : Statement ctxt) -> MaybeCont False ctxt
-    Nothing : forall ctxt. MaybeCont True ctxt
 
 
 -- @WHEN IF_STMTS
@@ -526,51 +513,59 @@ onChanOp ctxt (Recv 2 {elemType} _) =
   onDeclare1 (onDeclare1 ctxt Var $ GS elemType) Var (GS GBool)
 
 
-data Statement : (ctxt : Context) -> Type where
-  SStop       : forall ctxt.
-                (0 nt : BoolEqual ctxt.isTerminating False) =>
-                Statement ctxt
+onStmt : forall isTerm. {ctxt : Context} -> Stmt ctxt isTerm -> Context
 
+
+data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
   SReturn     : forall ctxt.
-                (0 term : BoolEqual ctxt.isTerminating True) =>
                 (res : MaybeExpr ctxt ctxt.returns) ->
-                Statement ctxt
+                Stmt ctxt True
+
+  SNop        : forall ctxt.
+                Stmt ctxt False
 
   SPrintLn    : forall ctxt.
                 {argType : Scalar} ->
                 (arg : Expr ctxt (GS argType)) ->
-                (cont : Statement ctxt) ->
-                Statement ctxt
+                Stmt ctxt False
 
   SVar1       : forall ctxt.
                 {newType : GType} ->
                 (initial : Expr ctxt newType) ->
-                (cont    : Statement (onDeclare1 ctxt Var $ newType)) ->
-                Statement ctxt
+                Stmt ctxt False
 
   SCall       : forall ctxt.
                 {retType : MaybeType} ->
                 (async : Bool) ->
                 (call : Call ctxt retType) ->
-                (cont : Statement ctxt) ->
-                Statement ctxt
+                Stmt ctxt False
 
   -- SChanOp     : forall ctxt.
   --               (op : ChanOp ctxt) ->
-  --               (cont : Statement (onChanOp ctxt op)) ->
-  --               Statement ctxt
+  --               (cont : Stmt (onChanOp ctxt op)) ->
+  --               Stmt ctxt
 
+  SSeq        : forall ctxt, isTerm.
+                (fst : Stmt ctxt False) ->
+                (snd : Stmt (onStmt fst) isTerm) ->
+                Stmt ctxt isTerm
 
   -- @WHEN IF_STMTS
-  If          : forall ctxt.
+  If          : forall ctxt, isTerm.
                 {tt, et : Bool} ->
-                (0 term : IfTerm ctxt.isTerminating tt et) =>
-                (test  : Expr ctxt (GS GBool)) ->
-                (then_ : Statement $ setIsTerminating tt ctxt) ->
-                (else_ : Statement $ setIsTerminating et ctxt) ->
-                (cont  : MaybeCont ctxt.isTerminating ctxt) ->
-                Statement ctxt
+                (0 branch : IfTerm isTerm tt et) =>
+                (test : Expr ctxt (GS GBool)) ->
+                (then_ : Stmt ctxt tt) ->
+                (else_ : Stmt ctxt et) ->
+                Stmt ctxt isTerm
 -- @END IF_STMTS
 
+
+onStmt {ctxt} (SVar1 {newType} _) = onDeclare1 ctxt Var newType
+onStmt {ctxt} (SSeq fst snd) = onStmt snd
+onStmt {ctxt} _ = ctxt
+
+
 export
-genStatements : Fuel -> (ctxt : Context) -> Gen MaybeEmpty $ Statement ctxt
+genStmts : Fuel -> (ctxt : Context) -> (isTerm : Bool) ->
+           Gen MaybeEmpty $ Stmt ctxt isTerm
