@@ -282,24 +282,36 @@ statementPP (SCall async call) = do
 statementPP (SChanOp op) = sendRecvPP op
 
 -- @WHEN IF_STMTS
--- @ statementPP (SIf test then_ else_) = do
--- @   test  <- exprPP test
--- @   then_ <- assert_total statementPP then_
--- @   let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
--- @   if skipElse
--- @      then pure $ vsep
--- @        [ "if" <++> test  <++> "{"
--- @        , indent' 4 then_
--- @        , "}"
--- @        ]
--- @      else pure $ vsep
--- @        [ "if" <++> test  <++> "{"
--- @        , indent' 4 then_
--- @        , "} else {"
--- @        , indent' 4 !(assert_total statementPP else_)
--- @        , "}"
--- @        ]
+statementPP (SIf test then_ else_) = do
+  test  <- exprPP test
+  then_ <- assert_total blockPP then_
+  let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
+  if skipElse
+     then pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "}"
+       ]
+     else pure $ vsep
+       [ "if" <++> test  <++> "{"
+       , indent' 4 then_
+       , "} else {"
+       , indent' 4 !(assert_total blockPP else_)
+       , "}"
+       ]
 -- @END IF_STMTS
+
+statementPP {ctxt} (SLoop type elems body) = do
+  elems <- assert_total exprListPP elems
+  let rhv := "[]" <+> scalarPP type <+> goGeneralList "{" "}" "," elems
+  let newCtxt : Context; newCtxt = onDeclare1 ctxt Var (GS type)
+  let newVar := hsepBy comma !(traverse namePP $ takeTopDecl 1 newCtxt.stack)
+  pure $ vsep
+    [ "for" <++> newVar <++> "in range" <++> rhv <++> "{"
+    , indent' 4 !(assert_total blockPP body)
+    , "}"
+    ]
+
 
 sendRecvPP {ctxt} op@(Open {elemType} cap) = do
   cap <- exprPP cap

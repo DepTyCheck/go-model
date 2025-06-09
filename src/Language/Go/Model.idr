@@ -147,6 +147,14 @@ DecEq GType where
   decEq (GChan _) (GS _)    = No $ \case Refl impossible
   decEq (GChan _) (GFunc _) = No $ \case Refl impossible
 
+
+namespace TypeVect
+  public export
+  replicate : (len : Nat) -> (type : Scalar) -> TypeVect len
+  replicate 0 _ = []
+  replicate (S len') type = type :: replicate len' type
+
+
 -- data IsEmpty : forall len. TypeVect len -> Type where
 --   [search len]
 --   ItIsEmpty : IsEmpty []
@@ -446,10 +454,10 @@ data Callable : forall ctxt, parTypes, retType.
 
 
 -- @WHEN IF_STMTS
--- @ public export
--- @ data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
--- @   TTT : IfTerm True True True
--- @   FAA : forall th, el. IfTerm False th el
+public export
+data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
+  TTT : IfTerm True True True
+  FAA : forall th, el. IfTerm False th el
 -- @END IF_STMTS
 
 -- public export
@@ -512,39 +520,41 @@ onChanOp {ctxt} (Recv {elemType} _) =
 
 public export
 data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
-  SReturn     : forall ctxt.
-                (res : MaybeExpr ctxt ctxt.returns) ->
-                Stmt ctxt True
+  SReturn : forall ctxt.
+            (res : MaybeExpr ctxt ctxt.returns) ->
+            Stmt ctxt True
 
-  -- SPrintLn    : forall ctxt.
-  --               {argType : Scalar} ->
-  --               (arg : Expr ctxt (GS argType)) ->
-  --               Stmt ctxt False
+  SChanOp : forall ctxt.
+            (op : ChanOp ctxt) ->
+            Stmt ctxt False
 
-  SVar1       : forall ctxt.
-                {newType : GType} ->
-                (initial : Expr ctxt newType) ->
-                Stmt ctxt False
+  SVar1 : forall ctxt.
+          {newType : GType} ->
+          (initial : Expr ctxt newType) ->
+          Stmt ctxt False
 
-  SCall       : forall ctxt.
-                {retType : MaybeType} ->
-                (async : Bool) ->
-                (call : Call ctxt retType) ->
-                Stmt ctxt False
-
-  SChanOp     : forall ctxt.
-                (op : ChanOp ctxt) ->
-                Stmt ctxt False
+  SCall : forall ctxt.
+          {retType : MaybeType} ->
+          (async : Bool) ->
+          (call : Call ctxt retType) ->
+          Stmt ctxt False
 
 -- @WHEN IF_STMTS
--- @ SIf         : forall ctxt, isTerm.
--- @               {tt, et : Bool} ->
--- @               (0 branch : IfTerm isTerm tt et) =>
--- @               (test : Expr ctxt (GS GBool)) ->
--- @               (then_ : Stmt ctxt tt) ->
--- @               (else_ : Stmt ctxt et) ->
--- @               Stmt ctxt isTerm
+  SIf         : forall ctxt, isTerm.
+                {tt, et : Bool} ->
+                (0 branch : IfTerm isTerm tt et) =>
+                (test : Expr ctxt (GS GBool)) ->
+                (then_ : Block ctxt tt) ->
+                (else_ : Block ctxt et) ->
+                Stmt ctxt isTerm
 -- @END IF_STMTS
+
+  SLoop : forall ctxt.
+          (elemType : Scalar) ->
+          {sliceLen : Nat} ->
+          (elems : ExprList ctxt $ replicate sliceLen elemType) ->
+          (body : Block (onDeclare1 ctxt Var (GS elemType)) False) ->
+          Stmt ctxt False
 
 
 public export
