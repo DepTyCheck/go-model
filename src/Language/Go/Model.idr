@@ -251,8 +251,9 @@ record Context where
   returns       : MaybeType
 
 
-public export
-data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type
+namespace Block
+  public export
+  data Block : (ctxt : Context) -> (isTerm : Bool) -> Type
 
 namespace Expr
   public export
@@ -385,7 +386,7 @@ namespace Expr
                   {parLen : Nat} ->
                   {parTypes : TypeVect parLen} ->
                   {retType : MaybeType} ->
-                  (body : Stmt (onAnonFunc ctxt parTypes retType) True) ->
+                  (body : Block (onAnonFunc ctxt parTypes retType) True) ->
                   Expr ctxt (GFunc $ parTypes `To` retType)
 
     ELiteral    : forall ctxt, resType.
@@ -435,7 +436,7 @@ data Callable : forall ctxt, parTypes, retType.
                 Type where
 
   FromFuncLiteral : forall ctxt, parTypes, retType.
-                    (body : Stmt (onAnonFunc ctxt parTypes retType) True) ->
+                    (body : Block (onAnonFunc ctxt parTypes retType) True) ->
                     Callable {ctxt} {parTypes} {retType} (ELambda body)
 
   FromGetDecl     : forall ctxt, parTypes, retTypes.
@@ -445,10 +446,10 @@ data Callable : forall ctxt, parTypes, retType.
 
 
 -- @WHEN IF_STMTS
-public export
-data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
-  TTT : IfTerm True True True
-  FAA : forall th, el. IfTerm False th el
+-- @ public export
+-- @ data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
+-- @   TTT : IfTerm True True True
+-- @   FAA : forall th, el. IfTerm False th el
 -- @END IF_STMTS
 
 -- public export
@@ -487,7 +488,6 @@ public export
 data ChanOp : (ctxt : Context) -> Type where
   Open    : forall ctxt.
             {elemType : Scalar} ->
-            -- (chanBuf : ChanBuf ctxt) ->
             (cap : Expr ctxt (GS GInt)) ->
             ChanOp ctxt
 
@@ -497,37 +497,29 @@ data ChanOp : (ctxt : Context) -> Type where
             ChanOp ctxt
 
   Recv    : forall ctxt.
-            (varCount : Fin 3) ->
             {elemType : Scalar} ->
-            (chan  : GetChanDecl ctxt elemType) ->
+            (chan : GetChanDecl ctxt elemType) ->
             ChanOp ctxt
 
 
 public export
-onChanOp : (ctxt : Context) -> (op : ChanOp ctxt) -> Context
-onChanOp ctxt (Open {elemType} _) = onDeclare1 ctxt Var (GChan elemType)
-onChanOp ctxt (Send _ _) = ctxt
-onChanOp ctxt (Recv 0 _)  = ctxt
-onChanOp ctxt (Recv 1 {elemType} _) = onDeclare1 ctxt Var (GS elemType)
-onChanOp ctxt (Recv 2 {elemType} _) =
+onChanOp : {ctxt : Context} -> (op : ChanOp ctxt) -> Context
+onChanOp {ctxt} (Open {elemType} _) = onDeclare1 ctxt Var (GChan elemType)
+onChanOp {ctxt} (Send _ _) = ctxt
+onChanOp {ctxt} (Recv {elemType} _) =
   onDeclare1 (onDeclare1 ctxt Var $ GS elemType) Var (GS GBool)
 
 
-onStmt : forall isTerm. {ctxt : Context} -> Stmt ctxt isTerm -> Context
-
-
+public export
 data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
   SReturn     : forall ctxt.
                 (res : MaybeExpr ctxt ctxt.returns) ->
                 Stmt ctxt True
 
-  SNop        : forall ctxt.
-                Stmt ctxt False
-
-  SPrintLn    : forall ctxt.
-                {argType : Scalar} ->
-                (arg : Expr ctxt (GS argType)) ->
-                Stmt ctxt False
+  -- SPrintLn    : forall ctxt.
+  --               {argType : Scalar} ->
+  --               (arg : Expr ctxt (GS argType)) ->
+  --               Stmt ctxt False
 
   SVar1       : forall ctxt.
                 {newType : GType} ->
@@ -540,32 +532,42 @@ data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
                 (call : Call ctxt retType) ->
                 Stmt ctxt False
 
-  -- SChanOp     : forall ctxt.
-  --               (op : ChanOp ctxt) ->
-  --               (cont : Stmt (onChanOp ctxt op)) ->
-  --               Stmt ctxt
+  SChanOp     : forall ctxt.
+                (op : ChanOp ctxt) ->
+                Stmt ctxt False
 
-  SSeq        : forall ctxt, isTerm.
-                (fst : Stmt ctxt False) ->
-                (snd : Stmt (onStmt fst) isTerm) ->
-                Stmt ctxt isTerm
-
-  -- @WHEN IF_STMTS
-  If          : forall ctxt, isTerm.
-                {tt, et : Bool} ->
-                (0 branch : IfTerm isTerm tt et) =>
-                (test : Expr ctxt (GS GBool)) ->
-                (then_ : Stmt ctxt tt) ->
-                (else_ : Stmt ctxt et) ->
-                Stmt ctxt isTerm
+-- @WHEN IF_STMTS
+-- @ SIf         : forall ctxt, isTerm.
+-- @               {tt, et : Bool} ->
+-- @               (0 branch : IfTerm isTerm tt et) =>
+-- @               (test : Expr ctxt (GS GBool)) ->
+-- @               (then_ : Stmt ctxt tt) ->
+-- @               (else_ : Stmt ctxt et) ->
+-- @               Stmt ctxt isTerm
 -- @END IF_STMTS
 
 
+public export
+onStmt : forall isTerm. {ctxt : Context} -> Stmt ctxt isTerm -> Context
 onStmt {ctxt} (SVar1 {newType} _) = onDeclare1 ctxt Var newType
-onStmt {ctxt} (SSeq fst snd) = onStmt snd
+onStmt {ctxt} (SChanOp op) = onChanOp op
 onStmt {ctxt} _ = ctxt
 
 
+namespace Block
+  data Block : (ctxt : Context) -> (isTerm : Bool) -> Type where
+    End : forall ctxt. Block ctxt False
+
+    Term : forall ctxt.
+           (last : Stmt ctxt True) ->
+           Block ctxt True
+
+    Seq : forall ctxt, isTerm.
+          (head : Stmt ctxt False) ->
+          (tail : Block (onStmt head) isTerm) ->
+          Block ctxt isTerm
+
+
 export
-genStmts : Fuel -> (ctxt : Context) -> (isTerm : Bool) ->
-           Gen MaybeEmpty $ Stmt ctxt isTerm
+genBlocks : Fuel -> (ctxt : Context) -> (isTerm : Bool) ->
+              Gen MaybeEmpty $ Block ctxt isTerm

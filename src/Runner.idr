@@ -87,16 +87,12 @@ cliOpts =
 --- Running ---
 ---------------
 
-runStmtsGen : {opts : _} -> Config -> IO (LazyList $ Doc opts)
-runStmtsGen conf = do
-  seed <- conf.usedSeed
-  pure $ unGenTryN conf.testsCnt seed $ do
-    stmt <- genStmts conf.modelFuel conf.context True
-    wrapStmt {ctxt = conf.context} stmt
-
 run : Config -> IO ()
 run conf = do
-  vals <- runStmtsGen conf
+  seed <- conf.usedSeed
+  let vals := unGenTryN conf.testsCnt seed $ do
+    stmt <- genBlocks conf.modelFuel conf.context True
+    wrapBlock {ctxt = conf.context} {opts = conf.layoutOpts} stmt
   Lazy.for_ vals $ \val => do
     putStrLn "// -------------------\n"
     putStr $ render conf.layoutOpts val

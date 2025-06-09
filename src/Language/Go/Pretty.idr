@@ -134,6 +134,9 @@ parameters {ctxt      : Context}
   statementPP : forall term. Stmt ctxt term -> (Gen0 $ Doc opts)
 
   export
+  blockPP : forall term. Block ctxt term -> (Gen0 $ Doc opts)
+
+  export
   exprPP: forall retType. Expr ctxt retType -> (Gen0 $ Doc opts)
 
   -- export
@@ -206,7 +209,7 @@ parameters {ctxt      : Context}
 
 
   export
-  wrapStmt : forall term. (stmt : Stmt ctxt term) -> (Gen0 $ Doc opts)
+  wrapBlock : forall term. (stmt : Block ctxt term) -> (Gen0 $ Doc opts)
 
 -- @WHEN HOLES
 -- @ exprPP {rets} Hole =
@@ -220,7 +223,7 @@ exprPP
   let newCtxt : Context
       newCtxt = onAnonFunc ctxt parTypes retType
       params  := takeTopDecl parLen newCtxt.stack
-  body <- assert_total $ statementPP {ctxt = newCtxt} body
+  body <- assert_total $ blockPP {ctxt = newCtxt} body
   funcPP empty params retType body
 
 exprPP (ELiteral lit) =
@@ -262,12 +265,10 @@ exprPP {ctxt} (EGetDecl idx) = getDeclPP ctxt idx
 --   pure $ goCall name args
 
 
-statementPP SNop = pure empty
-
 statementPP {ctxt} (SReturn res) =
   pure $ "return" <+?+> !(maybeExprPP res)
 
-statementPP (SPrintLn arg) = funcE "println" [arg]
+-- statementPP (SPrintLn arg) = funcE "println" [arg]
 
 statementPP {ctxt} (SVar1 {newType} initial) = do
   let newCtxt : Context; newCtxt = onDeclare1 ctxt Var newType
@@ -278,74 +279,55 @@ statementPP (SCall async call) = do
   let pre = if async then "go" <+> space else empty
   pure $ pre <+> !(callPP call)
 
--- statementPP (SChanOp op cont) = pure $ vsep
---     [ !(sendRecvPP op)
---     , !(assert_total $ statementPP cont)
---     ]
-
-statementPP (SSeq fst snd) =
-  pure $ !(statementPP fst) `vappend` !(statementPP snd)
+statementPP (SChanOp op) = sendRecvPP op
 
 -- @WHEN IF_STMTS
-statementPP (If test then_ else_) = do
-  test  <- exprPP test
-  then_ <- assert_total statementPP then_
-  let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
-  if skipElse
-     then pure $ vsep
-       [ "if" <++> test  <++> "{"
-       , indent' 4 then_
-       , "}"
-       ]
-     else pure $ vsep
-       [ "if" <++> test  <++> "{"
-       , indent' 4 then_
-       , "} else {"
-       , indent' 4 !(assert_total statementPP else_)
-       , "}"
-       ]
+-- @ statementPP (SIf test then_ else_) = do
+-- @   test  <- exprPP test
+-- @   then_ <- assert_total statementPP then_
+-- @   let skipElse = isEmpty else_ && !(chooseAnyOf Bool)
+-- @   if skipElse
+-- @      then pure $ vsep
+-- @        [ "if" <++> test  <++> "{"
+-- @        , indent' 4 then_
+-- @        , "}"
+-- @        ]
+-- @      else pure $ vsep
+-- @        [ "if" <++> test  <++> "{"
+-- @        , indent' 4 then_
+-- @        , "} else {"
+-- @        , indent' 4 !(assert_total statementPP else_)
+-- @        , "}"
+-- @        ]
 -- @END IF_STMTS
-
--- statementPP (ChanSend chan value cont) =
---   pure $ vsep
---     [ !(exprPP chan) <++> "<-" <++> !(exprPP value)
---     , !(statementPP cont)
---     ]
-
--- statementPP {ctxt} (ChanSpecVar {type} initial cont) = do
---   let newCtxt : Context; newCtxt = onDeclare ctxt Var [type, GBool]
---   let newVars := hsepBy comma
---                    !(traverse namePP $ takeTopDecl 2 newCtxt.stack)
---   initial     <- exprPP initial
---   let holes   := hsepBy comma $ replicate 2 "_"
---   cont        <- assert_total $ statementPP {ctxt = newCtxt} cont
---   pure $ vsep [ "var" <++> newVars <++> "=" <++> initial
---               , holes <++> "=" <++> newVars
---               , cont
---               ]
-
 
 sendRecvPP {ctxt} op@(Open {elemType} cap) = do
   cap <- exprPP cap
-  varPP ("<-" <++> goCall "make" [typePP (GChan elemType), cap]) (onChanOp ctxt op) 1
+  varPP (goCall "make" [typePP (GChan elemType), cap]) (onChanOp op) 1
 
 sendRecvPP {ctxt} (Send chan value) =
   pure $ !(getChanPP chan) <++> "<-" <++> !(exprPP value)
 
-sendRecvPP {ctxt} op@(Recv varCount chan) = do
+sendRecvPP {ctxt} op@(Recv chan) = do
   let initial := "<-" <++> !(getChanPP chan)
-  varPP initial (onChanOp ctxt op) (finToNat varCount)
+  varPP initial (onChanOp op) 2
 
 
-wrapStmt {ctxt} stmt = do
+blockPP {ctxt} End = pure empty
+blockPP {ctxt} (Term last) = statementPP last
+blockPP {ctxt} (Seq head tail) =
+  pure $ !(statementPP head) `vappend` !(blockPP tail)
+
+
+wrapBlock {ctxt} block = do
   let rets   := returnTypesPP ctxt.returns
       params := goList !(traverse nameTypePP $
                   takeTopDecl (finToNat ctxt.blockDepth) ctxt.stack)
-  stmt <- statementPP stmt
+  block <- blockPP block
   pure $ vsep [ "package main"
               , ""
               , "func testFunc" <+> params <+?+> rets <++> "{"
-              , indent' 4 stmt
+              , indent' 4 block
               , "}"
               , ""
               , "func main() {"

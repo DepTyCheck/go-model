@@ -33,11 +33,11 @@ namespace TypeVect
 public export
 defaultStack : (len : Nat ** Stack len)
 defaultStack =
-  let stack :=
-        [< MkDecl Var $ GS GInt
-         , MkDecl Var $ funcTy [GInt] Nothing
-         , MkDecl Var $ funcTy [GInt, GBool] (Just GInt)
-        ]
+  let stack := [<]
+        -- [< MkDecl Var $ GS GInt
+        --  , MkDecl Var $ funcTy [GInt] Nothing
+        --  , MkDecl Var $ funcTy [GInt, GBool] (Just GInt)
+        -- ]
    in (_ ** stack)
 
 public export
@@ -140,8 +140,8 @@ namespace ExprList
     (t ** e) :: asList es
 
 
-namespace Stmt
+namespace Block
   export
-  isEmpty : forall ctxt, isTerm. Stmt ctxt isTerm -> Bool
-  isEmpty SNop = True
+  isEmpty : forall ctxt, isTerm. Block ctxt isTerm -> Bool
+  isEmpty End = True
   isEmpty _ = False
