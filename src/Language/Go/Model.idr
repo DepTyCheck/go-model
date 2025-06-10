@@ -185,9 +185,11 @@ namespace Stack
     (:<) : forall len. Stack len -> Decl -> Stack (S len)
 
 
+public export
 push1 : forall len. Kind -> GType -> Stack len -> Stack (S len)
 push1 kind t stack = stack :< MkDecl kind t
 
+public export
 push : forall len, count.
        Kind ->
        TypeVect count ->
@@ -457,7 +459,8 @@ data Callable : forall ctxt, parTypes, retType.
 public export
 data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
   TTT : IfTerm True True True
-  FAA : forall th, el. IfTerm False th el
+  FFT : forall el. IfTerm False False el
+  FTF : forall th. IfTerm False th False
 -- @END IF_STMTS
 
 -- public export
@@ -499,7 +502,8 @@ data ChanOp : (ctxt : Context) -> Type where
             (cap : Expr ctxt (GS GInt)) ->
             ChanOp ctxt
 
-  Send    : forall ctxt, elemType.
+  Send    : forall ctxt.
+            {elemType : Scalar} ->
             (chan  : GetChanDecl ctxt elemType) ->
             (value : Expr ctxt (GS elemType)) ->
             ChanOp ctxt
@@ -540,21 +544,21 @@ data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
           Stmt ctxt False
 
 -- @WHEN IF_STMTS
-  SIf         : forall ctxt, isTerm.
-                {tt, et : Bool} ->
-                (0 branch : IfTerm isTerm tt et) =>
-                (test : Expr ctxt (GS GBool)) ->
-                (then_ : Block ctxt tt) ->
-                (else_ : Block ctxt et) ->
-                Stmt ctxt isTerm
+  SIf : forall ctxt, isTerm.
+        {tt, et : Bool} ->
+        (branch : IfTerm isTerm tt et) =>
+        (test : Expr ctxt (GS GBool)) ->
+        (then_ : Block ctxt tt) ->
+        (else_ : Block ctxt et) ->
+        Stmt ctxt isTerm
 -- @END IF_STMTS
 
-  SLoop : forall ctxt.
-          (elemType : Scalar) ->
-          {sliceLen : Nat} ->
-          (elems : ExprList ctxt $ replicate sliceLen elemType) ->
-          (body : Block (onDeclare1 ctxt Var (GS elemType)) False) ->
-          Stmt ctxt False
+  -- SLoop : forall ctxt.
+  --         (elemType : Scalar) ->
+  --         {sliceLen : Nat} ->
+  --         (elems : ExprList ctxt $ replicate sliceLen elemType) ->
+  --         (body : Block (onDeclare1 ctxt Var (GS elemType)) False) ->
+  --         Stmt ctxt False
 
 
 public export

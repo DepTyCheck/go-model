@@ -51,10 +51,10 @@ ProbabilityTuning `{SIf}.dataCon where
   tuneWeight = const 1
 -- @END IF_STMTS
 
-export
-ProbabilityTuning `{SLoop}.dataCon where
-  isConstructor = itIsConstructor
-  tuneWeight = const 1
+-- export
+-- ProbabilityTuning `{SLoop}.dataCon where
+--   isConstructor = itIsConstructor
+--   tuneWeight = const 1
 
 export
 ProbabilityTuning `{Model.Open}.dataCon where

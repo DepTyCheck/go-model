@@ -23,3 +23,4 @@ modules = Language.Go
         , Language.Go.Derived
         , Language.Go.Aux
         , Language.Go.Pretty
+        , Language.Go.Eval

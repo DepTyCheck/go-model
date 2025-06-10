@@ -140,8 +140,28 @@ namespace ExprList
     (t ** e) :: asList es
 
 
+export
+onChanOpReturns : forall ctxt.
+                  (op : ChanOp ctxt) ->
+                  (ctxt.returns = (onChanOp op).returns)
+onChanOpReturns {ctxt = MkContext {}} (Open cap) = Refl
+onChanOpReturns (Send chan value) = Refl
+onChanOpReturns {ctxt = MkContext {}} (Recv {elemType} chan) = Refl
+
+
 namespace Block
   export
   isEmpty : forall ctxt, isTerm. Block ctxt isTerm -> Bool
   isEmpty End = True
   isEmpty _ = False
+
+  export
+  onStmtReturns : forall ctxt, isTerm.
+                  (stmt : Stmt ctxt isTerm) ->
+                  (ctxt.returns = (onStmt stmt).returns)
+  onStmtReturns {ctxt = MkContext {}} (SVar1 {newType} _) = Refl
+  onStmtReturns (SChanOp op) = onChanOpReturns op
+  onStmtReturns (SReturn res) = Refl
+  onStmtReturns (SCall async call) = Refl
+  onStmtReturns (SIf test then_ else_) = Refl
+

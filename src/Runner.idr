@@ -92,10 +92,14 @@ run conf = do
   seed <- conf.usedSeed
   let vals := unGenTryN conf.testsCnt seed $ do
     stmt <- genBlocks conf.modelFuel conf.context True
-    wrapBlock {ctxt = conf.context} {opts = conf.layoutOpts} stmt
-  Lazy.for_ vals $ \val => do
-    putStrLn "// -------------------\n"
-    putStr $ render conf.layoutOpts val
+    code <- wrapBlock {ctxt = conf.context} {opts = conf.layoutOpts} stmt
+    let desc := eval stmt
+    pure (code, desc)
+  Lazy.for_ vals $ \(code, desc) => do
+    putStrLn "-//- CODE -//-\n"
+    putStrLn $ render conf.layoutOpts code
+    putStrLn "-//- DESCRIPTION -//-\n"
+    putStrLn desc
 
 ---------------
 --- Startup ---
