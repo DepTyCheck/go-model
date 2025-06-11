@@ -41,9 +41,12 @@ data GValueStack : forall len. Stack len -> Type where
 public export
 record GFuncValue {parLen : _} (paramTypes : TypeVect parLen) (retType : MaybeType) where
   constructor MkFuncValue
+  outerCnt : Nat
   outerCtxt : Context
   outerEStack : GValueStack outerCtxt.stack
-  body : Block (onAnonFunc outerCtxt paramTypes retType) True
+  body : Block (lambdaCnt outerCnt paramTypes)
+               (lambdaCtxt outerCnt outerCtxt paramTypes retType)
+               True
 
 
 data GValue : GType -> Type where
@@ -98,39 +101,45 @@ push : forall len, count.
        (0 kind : _) ->
        {0 types : TypeVect count} ->
        {0 stack : Stack len} ->
+       (0 name : Nat) ->
        (values : GValueVect types) ->
        (estack : GValueStack stack) ->
-       GValueStack (push kind types stack)
-push _ [] stack = rewrite plusZeroRightNeutral len in stack
-push kind {count = S count'} (v :: vs) estack =
+       GValueStack (push kind name types stack)
+push _ _ [] stack = rewrite plusZeroRightNeutral len in stack
+push kind name {count = S count'} (v :: vs) estack =
   rewrite sym $ plusSuccRightSucc len count' in
-    push kind vs $ estack :< v
+    push kind (S name) vs $ estack :< v
 
-onAnonFunc : (0 ctxt : Context) ->
+lambdaCtxt : (0 cnt : Nat) ->
+             (0 ctxt : Context) ->
              {parLen : Nat} ->
              (0 parTypes : TypeVect parLen) ->
              (0 retType : MaybeType) ->
              (values : GValueVect parTypes) ->
              (estack : GValueStack ctxt.stack) ->
-             GValueStack (onAnonFunc ctxt parTypes retType).stack
-onAnonFunc (MkContext {}) _ _ values estack = push Var values estack
+             GValueStack (lambdaCtxt cnt ctxt parTypes retType).stack
+lambdaCtxt _ (MkContext {}) _ _ values estack =
+  push Var _ values estack
 
 push1 : forall len.
         (0 kind : _) ->
+        (0 name : Nat) ->
         {0 newType : GType} ->
-        {0 stack : Stack len} ->
         (value : GValue newType) ->
+        {0 stack : Stack len} ->
         (estack : GValueStack stack) ->
-        GValueStack (push1 kind newType stack)
-push1 _ newValue estack = estack :< newValue
+        GValueStack (push1 kind name newType stack)
+push1 _ _ newValue estack = estack :< newValue
 
-onDeclare1 : (0 ctxt    : Context) ->
-             (0 kind    : Kind) ->
+decl1Ctxt : (0 cnt : Nat) ->
+             (0 ctxt : Context) ->
+             (0 kind : Kind) ->
              (0 newType : GType) ->
              (newValue : GValue newType) ->
              (estack : GValueStack ctxt.stack) ->
-             GValueStack (onDeclare1 ctxt kind newType).stack
-onDeclare1 (MkContext {}) kind _ newValue estack = push1 kind newValue estack
+             GValueStack (decl1Ctxt cnt ctxt kind newType).stack
+decl1Ctxt _ (MkContext {}) kind _ newValue estack =
+  push1 kind _ newValue estack
 
 
 public export
@@ -142,54 +151,62 @@ tellStr s = tell [s]
 
 
 export
-eval : {ctxt : Context} ->
-       {isTerm : Bool} ->
-       (block : Block ctxt isTerm) ->
+eval : {cnt : _} -> {ctxt : _} -> {isTerm : _} ->
+       (block : Block cnt ctxt isTerm) ->
        String
 
 
-parameters {ctxt : Context}
+parameters {cnt : Nat}
+           {ctxt : Context}
            (estack : GValueStack ctxt.stack)
 
-  evalExpr : {type : _} -> Expr ctxt type -> Eval (GValue type)
+  evalExpr : {type : _} -> Expr cnt ctxt type -> Eval (GValue type)
 
-  evalChanOp : (op : ChanOp ctxt) ->
-               Eval (GValueStack (onChanOp op).stack)
+  evalChanOp : (op : ChanOp cnt ctxt) ->
+               Eval (GValueStack (chanOpCtxt op).stack)
 
   evalStmt : {isTerm : _} ->
-             (stmt : Stmt ctxt isTerm) ->
-             Eval ( GValueStack (onStmt stmt).stack
+             (stmt : Stmt cnt ctxt isTerm) ->
+             Eval ( GValueStack (stmtCtxt stmt).stack
                   , GBlockValue ctxt.returns isTerm)
 
   evalBlock : {isTerm : _} ->
-              Block ctxt isTerm ->
+              Block cnt ctxt isTerm ->
               Eval (GBlockValue ctxt.returns isTerm)
 
   evalVect : forall len.
              {types : TypeVect len} ->
-             ExprList ctxt types ->
+             ExprList cnt ctxt types ->
              Eval (GValueVect types)
 
-  evalCall : {retType : _} -> Call ctxt retType -> Eval (GMaybeValue retType)
+  evalCall : {retType : _} ->
+             Call cnt ctxt retType ->
+             Eval (GMaybeValue retType)
 
 
-evalChanOp {ctxt = ctxt@(MkContext {})} estack (Open cap) = do
-  tellStr "CREATE CHAN \{show ctxt.stackLen}"
-  pure $ onDeclare1 ctxt _ _ VChan estack
+evalChanOp {ctxt = ctxt@(MkContext {})} estack (Open _ cap) = do
+  let newName : Nat; newName = openName cap
+  tellStr "CREATE CHAN \{show newName}"
+  pure $ decl1Ctxt newName ctxt _ _ VChan estack
 
-evalChanOp {ctxt = MkContext {}} estack (Send chan value) = do
+evalChanOp {ctxt} estack (Send chan value) = do
   value <- evalExpr estack value
-  tellStr "SEND_TO \{show chan.idx} \{show value}"
+  let name := (get chan.idx ctxt.stack).name
+  tellStr "SEND_TO \{show name} \{show value}"
   pure estack
 
 evalChanOp {ctxt = ctxt@(MkContext {})} estack (Recv {elemType} chan) = do
-  tellStr "RECV_FROM \{show chan.idx}"
-  let 0 ctxt1 : Context; ctxt1 = onDeclare1 ctxt Var (GS elemType)
-      0 ctxt2 : Context; ctxt2 = onDeclare1 ctxt1 Var (GS GBool)
+  let name := (get chan.idx ctxt.stack).name
+  let 0 ctxt1 : Context; ctxt1 = decl1Ctxt cnt ctxt Var (GS elemType)
+      0 ctxt2 : Context; ctxt2 = decl1Ctxt _ ctxt1 Var (GS GBool)
+      valName, okName : Nat
+      valName = recvName1 cnt
+      okName = S valName
       est1 : GValueStack ctxt1.stack
-      est1 = onDeclare1 ctxt _ _ (VUnknown "FROM CHAN \{show chan.idx}") estack
+      est1 = decl1Ctxt valName ctxt _ _ (VUnknown "V\{show valName}") estack
       est2 : GValueStack ctxt2.stack
-      est2 = onDeclare1 ctxt1 _ _ (VUnknown "IS_FULL \{show chan.idx}") est1
+      est2 = decl1Ctxt okName ctxt1 _ _ (VUnknown "V\{show okName}") est1
+  tellStr "RECV_FROM \{show name} V\{show valName} V\{show okName}"
   pure est2
 
 
@@ -203,9 +220,9 @@ evalStmt estack (SChanOp op) = pure (!(evalChanOp estack op), NoRet)
 evalStmt {ctxt} estack stmt@(SVar1 initial) = do
   initial <- evalExpr estack initial
   let newCtxt : Context
-      newCtxt = onStmt stmt
+      newCtxt = stmtCtxt stmt
   let newEStack : GValueStack newCtxt.stack
-      newEStack = onDeclare1 _ _ _ initial estack
+      newEStack = decl1Ctxt _ _ _ _ initial estack
   pure (newEStack, NoRet)
 
 evalStmt estack (SCall async call) = do
@@ -261,10 +278,10 @@ evalBlock estack (Term last) = do
 
 evalBlock {ctxt} {isTerm} estack (Seq head tail) = do
   let newCtxt : Context
-      newCtxt = onStmt head
+      newCtxt = stmtCtxt head
   (newEStack, NoRet) <- evalStmt estack head
       | (_, Ret value) => pure $ Ret value
-  rewrite onStmtReturns head
+  rewrite stmtCtxtReturns head
   evalBlock {ctxt = newCtxt} newEStack tail
 
 
@@ -280,11 +297,12 @@ call : {parLen : _} ->
        (func : GFuncValue paramTypes retType) ->
        (args : GValueVect paramTypes) ->
        Eval (GMaybeValue retType)
-call {paramTypes} {retType} (MkFuncValue { outerCtxt, outerEStack, body }) args = do
+call {paramTypes} {retType} func args = do
+  let MkFuncValue { outerCnt, outerCtxt, outerEStack, body } := func
   let MkContext {} := outerCtxt
   let newCtxt : Context
-      newCtxt = onAnonFunc outerCtxt paramTypes retType
-  let estack := onAnonFunc outerCtxt paramTypes retType args outerEStack
+      newCtxt = lambdaCtxt outerCnt outerCtxt paramTypes retType
+  let estack := lambdaCtxt outerCnt outerCtxt paramTypes retType args outerEStack
   Ret res <- assert_total evalBlock estack body
   pure res
 
@@ -302,7 +320,8 @@ evalCall estack (MkCall func args) = do
 
 evalExpr estack (ELambda body) =
   pure $ VFunc $ MkFuncValue
-    { outerCtxt = ctxt
+    { outerCnt = cnt
+    , outerCtxt = ctxt
     , outerEStack = estack
     , body = body
     }

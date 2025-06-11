@@ -20,53 +20,63 @@ GenOrderTuning "SVar1".dataCon where
 --   deriveFirst _ _ = [`{func}]
 
 export
+GenOrderTuning "ChanOp.Send".dataCon where
+  isConstructor = itIsConstructor
+  deriveFirst _ _ = [`{chan}]
+
+export
+GenOrderTuning "Call.MkCall".dataCon where
+  isConstructor = itIsConstructor
+  deriveFirst _ _ = [`{s}]
+
+export
 ProbabilityTuning `{Block.Term}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 
 export
-ProbabilityTuning `{SReturn}.dataCon where
+ProbabilityTuning `{Stmt.SReturn}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 
 export
-ProbabilityTuning `{SVar1}.dataCon where
+ProbabilityTuning `{Stmt.SVar1}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 
 export
-ProbabilityTuning `{SCall}.dataCon where
+ProbabilityTuning `{Stmt.SCall}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 
 export
-ProbabilityTuning `{SChanOp}.dataCon where
+ProbabilityTuning `{Stmt.SChanOp}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 6
 
 -- @WHEN IF_STMTS
 export
-ProbabilityTuning `{SIf}.dataCon where
+ProbabilityTuning `{Stmt.SIf}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 -- @END IF_STMTS
 
 -- export
--- ProbabilityTuning `{SLoop}.dataCon where
+-- ProbabilityTuning `{Stmt.SLoop}.dataCon where
 --   isConstructor = itIsConstructor
 --   tuneWeight = const 1
 
 export
-ProbabilityTuning `{Model.Open}.dataCon where
+ProbabilityTuning `{ChanOp.Open}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 1
 
 export
-ProbabilityTuning `{Model.Send}.dataCon where
+ProbabilityTuning `{ChanOp.Send}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 16
 
 export
-ProbabilityTuning `{Model.Recv}.dataCon where
+ProbabilityTuning `{ChanOp.Recv}.dataCon where
   isConstructor = itIsConstructor
   tuneWeight = const 16

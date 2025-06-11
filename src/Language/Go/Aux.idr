@@ -52,29 +52,21 @@ defaultContext =
       }
 
 
--- dip'' : forall len.
---         (depth   : Nat) ->
---         (0 bound : LT depth len) =>
---         (st      : Stack len) ->
---         (Exists Decl)
--- dip'' 0 (_ :< decl) =
---   Evidence _ decl
--- dip'' {len = S restLen} (S i) @{bound} (rest :< decl) =
---   let 0 lt' : (LT i restLen) = fromLteSucc bound
---    in dip'' i rest
--- dip'' i @{bound} [<] = void (absurd bound)
-
-
 export
-dip :  forall len.
-     (depth : Fin len) ->
-     (stack : Stack len) ->
-     (Stack (finToNat $ complement depth), Decl)
+dip : forall len.
+      (depth : Fin len) ->
+      (stack : Stack len) ->
+      (Stack (finToNat $ complement depth), Decl)
 dip {len = S top} FZ (rest :< decl) =
   rewrite finToNatLastIsBound {n = top} in (rest, decl)
 dip {len = S top} (FS d) (rest :< _) =
   rewrite finToNatWeakenNeutral {n = complement {n = top} d}
        in dip d rest
+
+
+export
+get : forall len. (depth : Fin len) -> (stack : Stack len) -> Decl
+get depth stack = snd $ dip depth stack
 
 
 -- public export
@@ -89,79 +81,57 @@ dip {len = S top} (FS d) (rest :< _) =
 --    in rewrite sym (complementInvolutive i) in dip depth stack
 
 
-public export
-record ResolvedDecl where
-  constructor MkDecl
-  kind : Kind
-  name : Nat
-  type : GType
-
-
-export
-resolve : {len : Nat} ->
-          (depth : Fin len) ->
-          (stack : Stack len) ->
-          ResolvedDecl
-resolve depth stack =
-  let name := finToNat $ complement depth
-      decl := snd $ dip depth stack
-   in MkDecl
-        { kind = decl.kind
-        , name = name
-        , type = decl.type
-        }
-
-
 takeTopRev : {len : Nat} ->
              (count : Nat) ->
              (stack : Stack len) ->
-             List ResolvedDecl
+             List Decl
 takeTopRev Z _ = []
 takeTopRev _ [<] = []
-takeTopRev (S i) stack@(rest :< _) =
-  resolve 0 stack :: takeTopRev i rest
+takeTopRev (S i) stack@(rest :< top) =
+  top :: takeTopRev i rest
 
 export
 takeTopDecl : {len : Nat} ->
               (count : Nat) ->
               (stack : Stack len) ->
-              List ResolvedDecl
+              List Decl
 takeTopDecl count stack = reverse $ takeTopRev count stack
 
 
 namespace ExprList
   export
-  asList : forall ctxt, len.
-           {types : TypeVect len} ->
-           ExprList ctxt types ->
-           List (type : Scalar ** Expr ctxt (GS type))
-  asList [] = []
-  asList {types = t :: ts} (e :: es) =
-    (t ** e) :: asList es
+  traverse : forall m, b, len.
+             {cnt : _} -> {ctxt : _} -> {types : TypeVect len} ->
+             Applicative m =>
+             ({cnt' : Nat} -> {type : GType} -> Expr cnt' ctxt type -> m b) ->
+             ExprList cnt ctxt types ->
+             m (List b)
+  traverse f [] = pure []
+  traverse f (e :: es) = [| f e :: traverse f es |]
 
 
 export
-onChanOpReturns : forall ctxt.
-                  (op : ChanOp ctxt) ->
-                  (ctxt.returns = (onChanOp op).returns)
-onChanOpReturns {ctxt = MkContext {}} (Open cap) = Refl
-onChanOpReturns (Send chan value) = Refl
-onChanOpReturns {ctxt = MkContext {}} (Recv {elemType} chan) = Refl
+onChanOpReturns : forall cnt, ctxt.
+                  (op : ChanOp cnt ctxt) ->
+                  (ctxt.returns = (chanOpCtxt op).returns)
+onChanOpReturns {ctxt = MkContext {}} (Open _ _) = Refl
+onChanOpReturns (Send _ _) = Refl
+onChanOpReturns {ctxt = MkContext {}} (Recv _) = Refl
 
 
 namespace Block
   export
-  isEmpty : forall ctxt, isTerm. Block ctxt isTerm -> Bool
+  isEmpty : forall cnt, ctxt, isTerm. Block cnt ctxt isTerm -> Bool
   isEmpty End = True
   isEmpty _ = False
 
   export
-  onStmtReturns : forall ctxt, isTerm.
-                  (stmt : Stmt ctxt isTerm) ->
-                  (ctxt.returns = (onStmt stmt).returns)
-  onStmtReturns {ctxt = MkContext {}} (SVar1 {newType} _) = Refl
-  onStmtReturns (SChanOp op) = onChanOpReturns op
-  onStmtReturns (SReturn res) = Refl
-  onStmtReturns (SCall async call) = Refl
-  onStmtReturns (SIf test then_ else_) = Refl
+  stmtCtxtReturns : forall cnt, ctxt, isTerm.
+                    (stmt : Stmt cnt ctxt isTerm) ->
+                    (ctxt.returns = (stmtCtxt stmt).returns)
+  stmtCtxtReturns {ctxt = MkContext {}} (SVar1 {newType} _) = Refl
+  stmtCtxtReturns (SChanOp op) = onChanOpReturns op
+  stmtCtxtReturns (SReturn res) = Refl
+  stmtCtxtReturns (SCall async call) = Refl
+  stmtCtxtReturns (SIf test then_ else_) = Refl
 

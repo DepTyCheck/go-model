@@ -91,7 +91,7 @@ run : Config -> IO ()
 run conf = do
   seed <- conf.usedSeed
   let vals := unGenTryN conf.testsCnt seed $ do
-    stmt <- genBlocks conf.modelFuel conf.context True
+    stmt <- genBlocks conf.modelFuel 0 conf.context True
     code <- wrapBlock {ctxt = conf.context} {opts = conf.layoutOpts} stmt
     let desc := eval stmt
     pure (code, desc)

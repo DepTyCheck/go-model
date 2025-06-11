@@ -74,7 +74,7 @@ parameters {auto opts : LayoutOpts}
 
 
   export
-  namePP : ResolvedDecl -> (Gen0 $ Doc opts)
+  namePP : Decl -> (Gen0 $ Doc opts)
   namePP decl = do
     let pre := case decl.kind of
                  Var   => "v"
@@ -83,18 +83,18 @@ parameters {auto opts : LayoutOpts}
     pure $ line $ pre <+> show decl.name
 
   export
-  nameTypePP : ResolvedDecl -> (Gen0 $ Doc opts)
+  nameTypePP : Decl -> (Gen0 $ Doc opts)
   nameTypePP decl = pure $ !(namePP decl) <++> typePP decl.type
 
 
   export
   getDeclPP : (ctxt : Context) -> (idx : Fin ctxt.stackLen) -> (Gen0 $ Doc opts)
-  getDeclPP ctxt idx = namePP (resolve idx ctxt.stack)
+  getDeclPP ctxt idx = namePP (get idx ctxt.stack)
 
 
   export
   funcPP : (name : Doc opts) ->
-           (params : List ResolvedDecl) ->
+           (params : List Decl) ->
            (retType : MaybeType) ->
            (body : Doc opts) ->
            (Gen0 $ Doc opts)
@@ -113,6 +113,14 @@ parameters {auto opts : LayoutOpts}
   literalPP (MkBool True)  = "true"
   literalPP (MkBool False) = "false"
 
+
+  export
+  getChanPP : {ctxt : _} -> {0 elemType : _} ->
+              GetChanDecl ctxt elemType ->
+              (Gen0 $ Doc opts)
+  getChanPP (ChanAt idx) = getDeclPP ctxt idx
+
+
   export
   varPP : (initial : Doc opts) ->
           (newCtxt : Context) ->
@@ -127,17 +135,18 @@ parameters {auto opts : LayoutOpts}
                 ]
 
 
-parameters {ctxt      : Context}
+parameters {cnt : Nat}
+           {ctxt : Context}
            {auto opts : LayoutOpts}
 
   export
-  statementPP : forall term. Stmt ctxt term -> (Gen0 $ Doc opts)
+  statementPP : forall term. Stmt cnt ctxt term -> (Gen0 $ Doc opts)
 
   export
-  blockPP : forall term. Block ctxt term -> (Gen0 $ Doc opts)
+  blockPP : forall term. Block cnt ctxt term -> (Gen0 $ Doc opts)
 
   export
-  exprPP: forall retType. Expr ctxt retType -> (Gen0 $ Doc opts)
+  exprPP: forall retType. Expr cnt ctxt retType -> (Gen0 $ Doc opts)
 
   -- export
   -- multivaluedPP: {len : Nat} ->
@@ -148,23 +157,17 @@ parameters {ctxt      : Context}
   export
   exprListPP : forall len.
                {types : TypeVect len} ->
-               ExprList ctxt types ->
+               ExprList cnt ctxt types ->
                Gen0 (List (Doc opts))
-  exprListPP exprs =
-    assert_total traverse (\(_ ** e) => exprPP e) (asList exprs)
 
   export
-  maybeExprPP : forall type. MaybeExpr ctxt type -> (Gen0 $ Doc opts)
+  maybeExprPP : forall type. MaybeExpr cnt ctxt type -> (Gen0 $ Doc opts)
   maybeExprPP (Just expr) = exprPP expr
   maybeExprPP Nothing = pure empty
 
-  export
-  getChanPP : forall elemType. GetChanDecl ctxt elemType -> (Gen0 $ Doc opts)
-  getChanPP (ChanAt idx) = getDeclPP ctxt idx
-
   prefixE : forall argTy.
             (op : Doc opts) ->
-            (arg : Expr ctxt argTy) ->
+            (arg : Expr cnt ctxt argTy) ->
             (Gen0 $ Doc opts)
   prefixE op arg = do
     arg <- assert_total exprPP arg
@@ -172,18 +175,14 @@ parameters {ctxt      : Context}
 
   infixE : forall lhvType, rhvType.
            (op : Doc opts) ->
-           (lhv : Expr ctxt lhvType) ->
-           (rhv : Expr ctxt rhvType) ->
+           (lhv : Expr cnt ctxt lhvType) ->
+           (rhv : Expr (tick lhv) ctxt rhvType) ->
            (Gen0 $ Doc opts)
-  infixE op lhv rhv = do
-    lhv <- assert_total exprPP lhv
-    rhv <- assert_total exprPP rhv
-    pure $ "(" <+> lhv <++> op <++> rhv <+> ")"
 
   funcE : forall len.
           {types : TypeVect len} ->
           (func : Doc opts) ->
-          (args : ExprList ctxt types) ->
+          (args : ExprList cnt ctxt types) ->
           (Gen0 $ Doc opts)
   funcE func args = pure $ goCall func !(exprListPP args)
 
@@ -198,18 +197,30 @@ parameters {ctxt      : Context}
 
   export
   callPP : forall types.
-           Call ctxt types ->
+           Call cnt ctxt types ->
            (Gen0 $ Doc opts)
-  callPP (MkCall func args) = do
-    name <- exprPP func
-    funcE name args
 
   export
-  sendRecvPP : ChanOp ctxt -> (Gen0 $ Doc opts)
+  sendRecvPP : ChanOp cnt ctxt -> (Gen0 $ Doc opts)
 
 
   export
-  wrapBlock : forall term. (stmt : Block ctxt term) -> (Gen0 $ Doc opts)
+  wrapBlock : forall term. (stmt : Block cnt ctxt term) -> (Gen0 $ Doc opts)
+
+
+exprListPP exprs = assert_total $ traverse exprPP exprs
+
+
+infixE op lhv rhv = do
+  lhv <- assert_total exprPP lhv
+  rhv <- assert_total exprPP rhv
+  pure $ "(" <+> lhv <++> op <++> rhv <+> ")"
+
+
+callPP (MkCall func args) = do
+  name <- exprPP func
+  funcE name args
+
 
 -- @WHEN HOLES
 -- @ exprPP {rets} Hole =
@@ -221,7 +232,7 @@ exprPP
   (ELambda {parLen} body)
 = do
   let newCtxt : Context
-      newCtxt = onAnonFunc ctxt parTypes retType
+      newCtxt = lambdaCtxt cnt ctxt parTypes retType
       params  := takeTopDecl parLen newCtxt.stack
   body <- assert_total $ blockPP {ctxt = newCtxt} body
   funcPP empty params retType body
@@ -271,7 +282,7 @@ statementPP {ctxt} (SReturn res) =
 -- statementPP (SPrintLn arg) = funcE "println" [arg]
 
 statementPP {ctxt} (SVar1 {newType} initial) = do
-  let newCtxt : Context; newCtxt = onDeclare1 ctxt Var newType
+  let newCtxt : Context; newCtxt = decl1Ctxt (tick initial) ctxt Var newType
   initial <- exprPP initial
   varPP initial newCtxt 1
 
@@ -313,16 +324,16 @@ statementPP (SIf test then_ else_) = do
 --     ]
 
 
-sendRecvPP {ctxt} op@(Open {elemType} cap) = do
+sendRecvPP {ctxt} op@(Open elemType cap) = do
   cap <- exprPP cap
-  varPP (goCall "make" [typePP (GChan elemType), cap]) (onChanOp op) 1
+  varPP (goCall "make" [typePP (GChan elemType), cap]) (chanOpCtxt op) 1
 
 sendRecvPP {ctxt} (Send chan value) =
   pure $ !(getChanPP chan) <++> "<-" <++> !(exprPP value)
 
 sendRecvPP {ctxt} op@(Recv chan) = do
   let initial := "<-" <++> !(getChanPP chan)
-  varPP initial (onChanOp op) 2
+  varPP initial (chanOpCtxt op) 2
 
 
 blockPP {ctxt} End = pure empty

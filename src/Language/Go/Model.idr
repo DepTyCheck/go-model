@@ -175,6 +175,7 @@ public export
 record Decl where
   constructor MkDecl
   kind : Kind
+  name : Nat
   type : GType
 
 
@@ -186,25 +187,26 @@ namespace Stack
 
 
 public export
-push1 : forall len. Kind -> GType -> Stack len -> Stack (S len)
-push1 kind t stack = stack :< MkDecl kind t
+push1 : forall len. Kind -> Nat -> GType -> Stack len -> Stack (S len)
+push1 kind name type stack = stack :< MkDecl kind name type
 
 public export
 push : forall len, count.
        Kind ->
+       Nat ->
        TypeVect count ->
        Stack len ->
        Stack (len + count)
-push _ [] stack = rewrite plusZeroRightNeutral len in stack
-push {len} {count = S count'} kind (t :: ts) stack =
+push _ _ [] stack = rewrite plusZeroRightNeutral len in stack
+push {len} {count = S count'} kind name (t :: ts) stack =
   rewrite sym $ plusSuccRightSucc len count' in
-    push kind ts $ stack :< MkDecl kind (GS t)
+    push kind (S name) ts $ stack :< MkDecl kind name (GS t)
 
 
 public export
 data ByType : forall len. GType -> Stack len -> Fin len -> Type where
-  HereT  : forall ty, kind, tail.
-           ByType ty (tail :< MkDecl kind ty) FZ
+  HereT  : forall ty, name, kind, tail.
+           ByType ty (tail :< MkDecl kind name ty) FZ
 
   ThereT : forall ty, head, tail, found.
            (there : ByType ty tail found) ->
@@ -219,10 +221,10 @@ data ByRet : forall len, parLen.
              Type
   where
 
-  HereR  : forall par, ret, kind, tail.
+  HereR  : forall par, ret, kind, name, tail.
            ByRet
              par ret
-             (tail :< MkDecl kind (GFunc $ par `To` ret))
+             (tail :< MkDecl kind name (GFunc $ par `To` ret))
              FZ
 
   ThereR : forall par, ret, head, tail, found.
@@ -236,8 +238,8 @@ data ByElem : forall len.
               (idx : Fin len) ->
               Type where
 
-  HereE  : forall elemType, kind, tail.
-           ByElem elemType (tail :< MkDecl kind (GChan elemType)) FZ
+  HereE  : forall elemType, kind, name, tail.
+           ByElem elemType (tail :< MkDecl kind name (GChan elemType)) FZ
 
   ThereE : forall elemType, head, tail, found.
            (there : ByElem elemType tail found) ->
@@ -263,11 +265,20 @@ record Context where
 
 namespace Block
   public export
-  data Block : (ctxt : Context) -> (isTerm : Bool) -> Type
+  data Block : (cnt : Nat) -> (ctxt : Context) -> (isTerm : Bool) -> Type
+
+
+  public export
+  tick : forall ctxt, isTerm. {cnt : Nat} -> Block cnt ctxt isTerm -> Nat
+
 
 namespace Expr
   public export
-  data Expr : (ctxt : Context) -> (res : GType) -> Type
+  data Expr : (cnt : Nat) -> (ctxt : Context) -> (res : GType) -> Type
+
+
+  public export
+  tick : forall ctxt, ret. {cnt : Nat} -> Expr cnt ctxt ret -> Nat
 
 
 public export
@@ -313,27 +324,40 @@ data Binary : (lhvType, rhvType, resType : Scalar) -> Type where
 namespace ExprList
   public export
   data ExprList : forall len.
+                  (cnt : Nat) ->
                   (ctxt  : Context) ->
                   (types : TypeVect len) ->
                   Type where
 
-    Nil  : forall ctxt. ExprList ctxt []
+    Nil  : forall cnt, ctxt. ExprList cnt ctxt []
 
-    (::) : forall ctxt, headT, tailT.
-           (head : Expr ctxt (GS headT)) ->
-           (tail : ExprList ctxt tailT) ->
-           ExprList ctxt (headT :: tailT)
+    (::) : forall cnt, ctxt, headT, tailT.
+           (head : Expr cnt ctxt (GS headT)) ->
+           (tail : ExprList (tick head) ctxt tailT) ->
+           ExprList cnt ctxt (headT :: tailT)
+
+
+  public export
+  tick : forall ctxt, types. {cnt : Nat} -> ExprList cnt ctxt types -> Nat
+  tick {cnt} Nil = cnt
+  tick (head :: tail) = tick tail
 
 
 namespace MaybeExpr
   public export
-  data MaybeExpr : (ctxt : Context) -> (type : MaybeType) -> Type where
+  data MaybeExpr : (cnt : Nat) -> (ctxt : Context) -> (type : MaybeType) -> Type where
 
-    Just : forall ctxt, inner.
-           Expr ctxt (GS inner) ->
-           MaybeExpr ctxt (Just inner)
+    Just : forall cnt, ctxt, inner.
+           Expr cnt ctxt (GS inner) ->
+           MaybeExpr cnt ctxt (Just inner)
 
-    Nothing : forall ctxt. MaybeExpr ctxt Nothing
+    Nothing : forall cnt, ctxt. MaybeExpr cnt ctxt Nothing
+
+
+  public export
+  tick : forall ctxt, type. {cnt : Nat} -> MaybeExpr cnt ctxt type -> Nat
+  tick (Just expr) = tick expr
+  tick {cnt} Nothing = cnt
 
 
 -- public export
@@ -352,30 +376,44 @@ namespace MaybeExpr
 
 
 public export
-data Callable : forall ctxt, parTypes, retType.
-                (expr : Expr ctxt (GFunc $ parTypes `To` retType)) ->
+data Callable : forall cnt, ctxt, parTypes, retType.
+                (expr : Expr cnt ctxt (GFunc $ parTypes `To` retType)) ->
                 Type
 
 
-public export
-record Call (ctxt : Context) (retType : MaybeType) where
-  constructor MkCall
-  {parLen : Nat}
-  {parTypes : TypeVect parLen}
-  func : Expr ctxt (GFunc $ parTypes `To` retType)
-  {auto 0 s : Callable func}
-  args : ExprList ctxt parTypes
+namespace Call
+  public export
+  record Call (cnt : Nat) (ctxt : Context) (retType : MaybeType) where
+    constructor MkCall
+    {parLen : Nat}
+    {parTypes : TypeVect parLen}
+    func : Expr cnt ctxt (GFunc $ parTypes `To` retType)
+    {auto 0 s : Callable func}
+    args : ExprList (tick func) ctxt parTypes
+
+
+  public export
+  tick : forall ctxt, ret. {cnt : Nat} -> Call cnt ctxt ret -> Nat
+  tick (MkCall func args) = tick args
 
 
 public export
-onAnonFunc: {parLen : Nat} ->
-            (ctxt : Context) ->
+lambdaCnt : (cnt : Nat) ->
+            {parLen : Nat} ->
             (parTypes : TypeVect parLen) ->
-            (retType : MaybeType) ->
-            Context
-onAnonFunc {parLen} ctxt newTypes retType =
+            Nat
+lambdaCnt cnt {parLen} _ = cnt + parLen
+
+public export
+lambdaCtxt : {parLen : Nat} ->
+             (cnt : Nat) ->
+             (ctxt : Context) ->
+             (parTypes : TypeVect parLen) ->
+             (retType : MaybeType) ->
+             Context
+lambdaCtxt {parLen} cnt ctxt newTypes retType =
   { stackLen      $= (+ parLen)
-  , stack         $= push Var newTypes
+  , stack         $= push Var cnt newTypes
   , blockDepth    := natToFinLT @{prf parLen ctxt.stackLen} parLen
   , returns       := retType
   } ctxt
@@ -387,43 +425,51 @@ onAnonFunc {parLen} ctxt newTypes retType =
 
 
 namespace Expr
-  data Expr : (ctxt : Context) -> (res : GType) -> Type where
+  data Expr : (cnt : Nat) -> (ctxt : Context) -> (res : GType) -> Type where
 -- @WHEN HOLES
 -- @    Hole       : forall ctxt, res. Expr ctxt res
 -- @END HOLES
 
-    ELambda     : forall ctxt.
-                  {parLen : Nat} ->
-                  {parTypes : TypeVect parLen} ->
-                  {retType : MaybeType} ->
-                  (body : Block (onAnonFunc ctxt parTypes retType) True) ->
-                  Expr ctxt (GFunc $ parTypes `To` retType)
+    ELambda : forall cnt, ctxt.
+              {parLen : Nat} ->
+              {parTypes : TypeVect parLen} ->
+              {retType : MaybeType} ->
+              (body : Block (lambdaCnt cnt parTypes)
+                            (lambdaCtxt cnt ctxt parTypes retType)
+                            True) ->
+              Expr cnt ctxt (GFunc $ parTypes `To` retType)
 
-    ELiteral    : forall ctxt, resType.
+    ELiteral    : forall cnt, ctxt, resType.
                   (literal : Literal resType) ->
-                  Expr ctxt (GS resType)
+                  Expr cnt ctxt (GS resType)
 
-    -- EUnary      : forall ctxt, retType.
+    -- EUnary      : forall cnt, ctxt, retType.
     --               {argType : Scalar} ->
     --               (func : Unary argType retType) ->
     --               (arg : Expr ctxt (GS argType)) ->
-    --               Expr ctxt (GS retType)
+    --               Expr cnt ctxt (GS retType)
 
-    -- EBinary     : forall ctxt, retType.
+    -- EBinary     : forall cnt, ctxt, retType.
     --               {lhvType, rhvType : Scalar} ->
     --               (func : Binary lhvType rhvType retType) ->
     --               (lhv : Expr ctxt (GS lhvType)) ->
-    --               (rhv : Expr ctxt (GS rhvType)) ->
-    --               Expr ctxt (GS retType)
+    --               (rhv : Expr (tick lhv) (GS rhvType)) ->
+    --               Expr cnt ctxt (GS retType)
 
-    ECall       : forall ctxt, retType.
-                  (call : Call ctxt (Just retType)) ->
-                  Expr ctxt (GS retType)
+    ECall       : forall cnt, ctxt, retType.
+                  (call : Call cnt ctxt (Just retType)) ->
+                  Expr cnt ctxt (GS retType)
 
-    EGetDecl    : forall ctxt, type.
+    EGetDecl    : forall cnt, ctxt, type.
                   (idx : Fin ctxt.stackLen) ->
                   (0 bt : ByType type ctxt.stack idx) =>
-                  Expr ctxt type
+                  Expr cnt ctxt type
+
+
+  tick (ELambda body) = tick body
+  tick {cnt} (ELiteral _) = cnt
+  tick (ECall call) = tick call
+  tick {cnt} (EGetDecl idx) = cnt
 
 
 -- namespace MultivaluedExpr
@@ -441,13 +487,15 @@ namespace Expr
 --                   MultivaluedExpr ctxt retTypes
 
 
-data Callable : forall ctxt, parTypes, retType.
-                (expr : Expr ctxt (GFunc $ parTypes `To` retType)) ->
+data Callable : forall cnt, ctxt, parTypes, retType.
+                (expr : Expr cnt ctxt (GFunc $ parTypes `To` retType)) ->
                 Type where
 
-  FromFuncLiteral : forall ctxt, parTypes, retType.
-                    (body : Block (onAnonFunc ctxt parTypes retType) True) ->
-                    Callable {ctxt} {parTypes} {retType} (ELambda body)
+  FromFuncLiteral : forall cnt, ctxt, parTypes, retType.
+                    (body : Block (lambdaCnt cnt parTypes)
+                                  (lambdaCtxt cnt ctxt parTypes retType)
+                                  True) ->
+                    Callable {cnt} {ctxt} {parTypes} {retType} (ELambda body)
 
   FromGetDecl     : forall ctxt, parTypes, retTypes.
                     (idx   : Fin ctxt.stackLen) ->
@@ -478,13 +526,18 @@ data IfTerm : (isIfTerm, isThenTerm, isElseTerm : Bool) -> Type where
 --   } ctxt
 
 public export
-onDeclare1 : (ctxt    : Context) ->
-             (kind    : Kind) ->
-             (newType : GType) ->
-             Context
-onDeclare1 ctxt kind newType =
+decl1Cnt : (cnt : Nat) -> Nat
+decl1Cnt cnt = S cnt
+
+public export
+decl1Ctxt : (cnt : Nat) ->
+            (ctxt : Context) ->
+            (kind : Kind) ->
+            (newType : GType) ->
+            Context
+decl1Ctxt cnt ctxt kind newType =
   { stackLen   $= S
-  , stack      $= push1 kind newType
+  , stack      $= push1 kind cnt newType
   , blockDepth $= FS
   } ctxt
 
@@ -495,93 +548,127 @@ onDeclare1 ctxt kind newType =
 --   Unbuffered : forall ctxt. ChanBuf ctxt
 
 
-public export
-data ChanOp : (ctxt : Context) -> Type where
-  Open    : forall ctxt.
-            {elemType : Scalar} ->
-            (cap : Expr ctxt (GS GInt)) ->
-            ChanOp ctxt
+namespace ChanOp
+  public export
+  data ChanOp : (cnt : Nat) -> (ctxt : Context) -> Type where
+    Open    : forall cnt, ctxt.
+              (elemType : Scalar) ->
+              (cap : Expr cnt ctxt (GS GInt)) ->
+              ChanOp cnt ctxt
 
-  Send    : forall ctxt.
-            {elemType : Scalar} ->
-            (chan  : GetChanDecl ctxt elemType) ->
-            (value : Expr ctxt (GS elemType)) ->
-            ChanOp ctxt
+    Send    : forall cnt, ctxt.
+              {elemType : Scalar} ->
+              (chan  : GetChanDecl ctxt elemType) ->
+              (value : Expr cnt ctxt (GS elemType)) ->
+              ChanOp cnt ctxt
 
-  Recv    : forall ctxt.
-            {elemType : Scalar} ->
-            (chan : GetChanDecl ctxt elemType) ->
-            ChanOp ctxt
-
-
-public export
-onChanOp : {ctxt : Context} -> (op : ChanOp ctxt) -> Context
-onChanOp {ctxt} (Open {elemType} _) = onDeclare1 ctxt Var (GChan elemType)
-onChanOp {ctxt} (Send _ _) = ctxt
-onChanOp {ctxt} (Recv {elemType} _) =
-  onDeclare1 (onDeclare1 ctxt Var $ GS elemType) Var (GS GBool)
+    Recv    : forall cnt, ctxt.
+              {elemType : Scalar} ->
+              (chan : GetChanDecl ctxt elemType) ->
+              ChanOp cnt ctxt
 
 
-public export
-data Stmt : (ctxt : Context) -> (isTerm : Bool) -> Type where
-  SReturn : forall ctxt.
-            (res : MaybeExpr ctxt ctxt.returns) ->
-            Stmt ctxt True
+  public export
+  openName : {cnt : _} -> forall ctxt. (cap : Expr cnt ctxt (GS GInt)) -> Nat
+  openName cap = tick cap
 
-  SChanOp : forall ctxt.
-            (op : ChanOp ctxt) ->
-            Stmt ctxt False
-
-  SVar1 : forall ctxt.
-          {newType : GType} ->
-          (initial : Expr ctxt newType) ->
-          Stmt ctxt False
-
-  SCall : forall ctxt.
-          {retType : MaybeType} ->
-          (async : Bool) ->
-          (call : Call ctxt retType) ->
-          Stmt ctxt False
-
--- @WHEN IF_STMTS
-  SIf : forall ctxt, isTerm.
-        {tt, et : Bool} ->
-        (branch : IfTerm isTerm tt et) =>
-        (test : Expr ctxt (GS GBool)) ->
-        (then_ : Block ctxt tt) ->
-        (else_ : Block ctxt et) ->
-        Stmt ctxt isTerm
--- @END IF_STMTS
-
-  -- SLoop : forall ctxt.
-  --         (elemType : Scalar) ->
-  --         {sliceLen : Nat} ->
-  --         (elems : ExprList ctxt $ replicate sliceLen elemType) ->
-  --         (body : Block (onDeclare1 ctxt Var (GS elemType)) False) ->
-  --         Stmt ctxt False
+  public export
+  recvName1 : (cnt : Nat) -> Nat
+  recvName1 cnt = cnt
 
 
-public export
-onStmt : forall isTerm. {ctxt : Context} -> Stmt ctxt isTerm -> Context
-onStmt {ctxt} (SVar1 {newType} _) = onDeclare1 ctxt Var newType
-onStmt {ctxt} (SChanOp op) = onChanOp op
-onStmt {ctxt} _ = ctxt
+  public export
+  tick : forall ctxt. {cnt : Nat} -> ChanOp cnt ctxt -> Nat
+  tick (Open _ cap) = tick cap + 1
+  tick (Send chan value) = tick value
+  tick {cnt} (Recv chan) = cnt + 2
+
+
+  public export
+  chanOpCtxt : {cnt : _} -> {ctxt : _} -> (op : ChanOp cnt ctxt) -> Context
+  chanOpCtxt {ctxt} (Open elemType cap) =
+    decl1Ctxt (openName cap) ctxt Var (GChan elemType)
+  chanOpCtxt {ctxt} (Send _ _) = ctxt
+  chanOpCtxt {ctxt} (Recv {elemType} chan) =
+    let name := recvName1 cnt
+        ctxt' := decl1Ctxt name ctxt Var $ GS elemType
+    in decl1Ctxt (S name) ctxt' Var (GS GBool)
+
+
+namespace Stmt
+  public export
+  data Stmt : (cnt : Nat) -> (ctxt : Context) -> (isTerm : Bool) -> Type where
+    SReturn : forall cnt, ctxt.
+              (res : MaybeExpr cnt ctxt ctxt.returns) ->
+              Stmt cnt ctxt True
+
+    SChanOp : forall cnt, ctxt.
+              (op : ChanOp cnt ctxt) ->
+              Stmt cnt ctxt False
+
+    SVar1 : forall cnt, ctxt.
+            {newType : GType} ->
+            (initial : Expr cnt ctxt newType) ->
+            Stmt cnt ctxt False
+
+    SCall : forall cnt, ctxt.
+            {retType : MaybeType} ->
+            (async : Bool) ->
+            (call : Call cnt ctxt retType) ->
+            Stmt cnt ctxt False
+
+  -- @WHEN IF_STMTS
+    SIf : forall cnt, ctxt, isTerm.
+          {tt, et : Bool} ->
+          (branch : IfTerm isTerm tt et) =>
+          (test : Expr cnt ctxt (GS GBool)) ->
+          (then_ : Block (tick test) ctxt tt) ->
+          (else_ : Block (tick then_) ctxt et) ->
+          Stmt cnt ctxt isTerm
+  -- @END IF_STMTS
+
+    -- SLoop : forall ctxt.
+    --         (elemType : Scalar) ->
+    --         {sliceLen : Nat} ->
+    --         (elems : ExprList ctxt $ replicate sliceLen elemType) ->
+    --         (body : Block (decl1Ctxt ctxt Var (GS elemType)) False) ->
+    --         Stmt ctxt False
+
+
+  public export
+  tick : forall ctxt, isTerm. {cnt : Nat} -> Stmt cnt ctxt isTerm -> Nat
+  tick (SReturn res) = tick res
+  tick (SChanOp op) = tick op
+  tick (SVar1 initial) = tick initial + 1
+  tick (SCall async call) = tick call
+  tick (SIf test then_ else_) = tick else_
+
+
+  public export
+  stmtCtxt : forall isTerm. {cnt : _} -> {ctxt : _} -> Stmt cnt ctxt isTerm -> Context
+  stmtCtxt {ctxt} (SVar1 {newType} initial) = decl1Ctxt (tick initial) ctxt Var newType
+  stmtCtxt {ctxt} (SChanOp op) = chanOpCtxt op
+  stmtCtxt {ctxt} _ = ctxt
 
 
 namespace Block
-  data Block : (ctxt : Context) -> (isTerm : Bool) -> Type where
-    End : forall ctxt. Block ctxt False
+  data Block : (cnt : Nat) -> (ctxt : Context) -> (isTerm : Bool) -> Type where
+    End : forall cnt, ctxt. Block cnt ctxt False
 
-    Term : forall ctxt.
-           (last : Stmt ctxt True) ->
-           Block ctxt True
+    Term : forall cnt, ctxt.
+           (last : Stmt cnt ctxt True) ->
+           Block cnt ctxt True
 
-    Seq : forall ctxt, isTerm.
-          (head : Stmt ctxt False) ->
-          (tail : Block (onStmt head) isTerm) ->
-          Block ctxt isTerm
+    Seq : forall cnt, ctxt, isTerm.
+          (head : Stmt cnt ctxt False) ->
+          (tail : Block (tick head) (stmtCtxt head) isTerm) ->
+          Block cnt ctxt isTerm
+
+  tick {cnt} End = cnt
+  tick (Term last) = tick last
+  tick (Seq head tail) = tick tail
 
 
 export
-genBlocks : Fuel -> (ctxt : Context) -> (isTerm : Bool) ->
-              Gen MaybeEmpty $ Block ctxt isTerm
+genBlocks : Fuel -> (cnt : Nat) -> (ctxt : Context) -> (isTerm : Bool) ->
+              Gen MaybeEmpty $ Block cnt ctxt isTerm
