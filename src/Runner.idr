@@ -92,12 +92,17 @@ run conf = do
   seed <- conf.usedSeed
   let vals := unGenTryN conf.testsCnt seed $ do
     stmt <- genBlocks conf.modelFuel 0 conf.context True
-    code <- wrapBlock {ctxt = conf.context} {opts = conf.layoutOpts} stmt
+    let verbosePP := builtinChanOp 100 0
+    codeVerb <- wrapBlock @{conf.layoutOpts} @{verbosePP} {ctxt = conf.context} stmt
+    let randomPP := builtinChanOp 1 4
+    code <- wrapBlock @{conf.layoutOpts} @{randomPP} {ctxt = conf.context} stmt
     let desc := eval stmt
-    pure (code, desc)
-  Lazy.for_ vals $ \(code, desc) => do
+    pure (code, codeVerb, desc)
+  Lazy.for_ vals $ \(code, codeVerb, desc) => do
     putStrLn "-//- CODE -//-\n"
     putStrLn $ render conf.layoutOpts code
+    putStrLn "-//- CODE VERBOSE -//-\n"
+    putStrLn $ render conf.layoutOpts codeVerb
     putStrLn "-//- DESCRIPTION -//-\n"
     putStrLn desc
 

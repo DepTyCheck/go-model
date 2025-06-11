@@ -14,6 +14,34 @@ import Text.PrettyPrint.Bernardy
 %unbound_implicits off
 %default total
 
+
+public export
+interface CustomChanOp where
+  constructor MkCustomChanOp
+
+  imports : {auto opts : LayoutOpts} -> Doc opts
+  topLevelDecls : {auto opts : LayoutOpts} -> Doc opts
+
+  chanOpenPP : {auto opts : LayoutOpts} ->
+               (chanName : Doc opts) ->
+               (elemType : Scalar) ->
+               (cap : Doc opts) ->
+               (Gen0 $ Doc opts)
+
+  chanSendPP : {auto opts : LayoutOpts} ->
+               (elemType : Scalar) ->
+               (chanName : Doc opts) ->
+               (value : Doc opts) ->
+               (Gen0 $ Doc opts)
+
+  chanRecvPP : {auto opts : LayoutOpts} ->
+               (elemType : Scalar) ->
+               (chanName : Doc opts) ->
+               (resName : Doc opts) ->
+               (okName : Doc opts) ->
+               (Gen0 $ Doc opts)
+
+
 export
 indentWidth : Nat
 indentWidth = 4
@@ -50,6 +78,8 @@ parameters {auto opts : LayoutOpts}
   goCall : (func : Doc opts) -> (args : List $ Doc opts) -> Doc opts
   goCall func args = func <+> goList args
 
+  goStr : Doc opts -> Doc opts
+  goStr doc = "\"" <+> doc <+> "\""
 
   export
   scalarPP : Scalar -> Doc opts
@@ -138,6 +168,7 @@ parameters {auto opts : LayoutOpts}
 parameters {cnt : Nat}
            {ctxt : Context}
            {auto opts : LayoutOpts}
+           {auto customChanOp : CustomChanOp}
 
   export
   statementPP : forall term. Stmt cnt ctxt term -> (Gen0 $ Doc opts)
@@ -325,15 +356,22 @@ statementPP (SIf test then_ else_) = do
 
 
 sendRecvPP {ctxt} op@(Open elemType cap) = do
-  cap <- exprPP cap
-  varPP (goCall "make" [typePP (GChan elemType), cap]) (chanOpCtxt op) 1
+  let chanName := line $ show $ openName cap
+  cap' <- exprPP cap
+  chanOpenPP chanName elemType cap'
 
-sendRecvPP {ctxt} (Send chan value) =
-  pure $ !(getChanPP chan) <++> "<-" <++> !(exprPP value)
+sendRecvPP {ctxt} (Send {elemType} chan value) = do
+  chanName <- getChanPP chan
+  value' <- exprPP value
+  chanSendPP elemType chanName value'
 
-sendRecvPP {ctxt} op@(Recv chan) = do
-  let initial := "<-" <++> !(getChanPP chan)
-  varPP initial (chanOpCtxt op) 2
+sendRecvPP {cnt} {ctxt} (Recv {elemType} chan) = do
+  chanName <- getChanPP chan
+  let resName  := recvName1 {cnt}
+      resName' := line "v\{show resName}"
+      okName  := S resName
+      okName' := line "v\{show okName}"
+  chanRecvPP elemType chanName resName' okName'
 
 
 blockPP {ctxt} End = pure empty
@@ -356,3 +394,105 @@ wrapBlock {ctxt} block = do
               , "func main() {"
               , "}"
               ]
+
+
+export
+builtinChanOp : (weightVerbose, weightSilent : Nat) -> CustomChanOp
+builtinChanOp weightVerbose weightSilent = MkCustomChanOp
+  { imports = imports'
+  , topLevelDecls = topLevelDecls'
+  , chanOpenPP = chanOpenPP'
+  , chanSendPP = chanSendPP' weightVerbose weightSilent
+  , chanRecvPP = chanRecvPP' weightVerbose weightSilent
+  }
+  where
+    imports' : {auto opts : LayoutOpts} -> Doc opts
+    imports' = empty
+
+    topLevelDecls' : {auto opts : LayoutOpts} -> Doc opts
+    topLevelDecls' = empty
+
+    chanOpenPP' : {auto opts : LayoutOpts} ->
+                  (chanName : Doc opts) ->
+                  (elemType : Scalar) ->
+                  (cap : Doc opts) ->
+                  (Gen0 $ Doc opts)
+    chanOpenPP' chanName elemType cap = do
+      let init := goCall "make" [typePP (GChan elemType), cap]
+      pure $ vsep
+        [ "var" <++> chanName <++> "=" <++> init
+        , "_" <++> "=" <++> chanName
+        ]
+
+    flipCoin : (wTrue, wFalse : Nat) -> Gen0 Bool
+    flipCoin 0 0 = assert_total flipCoin 1 1
+    flipCoin 0 (S _) = pure False
+    flipCoin (S _) 0 = pure True
+    flipCoin wTrue@(S _) wFalse@(S _) =
+      frequency [ (FromNat wTrue, pure True), (FromNat wFalse, pure False) ]
+
+    chanSendPP' : (verbose, silent : Nat) ->
+                  {auto opts : LayoutOpts} ->
+                  (elemType : Scalar) ->
+                  (chanName : Doc opts) ->
+                  (value : Doc opts) ->
+                  (Gen0 $ Doc opts)
+    chanSendPP' verbose silent elemType chanName value = do
+      verbOk <- flipCoin verbose silent
+      verbFail <- flipCoin verbose silent
+      (tempName, tempDecl) <-
+        if verbOk || verbFail
+           then do
+             tempNum : Int <- choose (1000, 9999)
+             let name := line "temp\{show tempNum}"
+             let decl := "var" <++> name <++> "=" <++> value
+             pure (name, [decl])
+           else
+             pure (value, [])
+      let printOk := ifThenElse verbOk
+           [ indent' 4 $
+               goCall "println" [goStr $ "TO" <++> chanName, tempName] ]
+           []
+      let printFail := ifThenElse verbFail
+           [ indent' 4 $
+               goCall "println" [goStr $ "TO" <++> chanName <++> "FAILED"] ]
+           []
+      pure $ vsep $ join
+        [ tempDecl
+        , [ "select {"
+          , "case" <++> chanName <++> "<-" <++> tempName <+> ":"
+          ]
+        , printOk
+        , [ "default:" ]
+        , printFail
+        , [ "}" ]
+        ]
+
+
+    chanRecvPP' : (verbose, silent : Nat) ->
+                  {auto opts : LayoutOpts} ->
+                  (elemType : Scalar) ->
+                  (chanName : Doc opts) ->
+                  (resName : Doc opts) ->
+                  (okName : Doc opts) ->
+                  (Gen0 $ Doc opts)
+    chanRecvPP' verbose silent elemType chanName resName okName = do
+      verbOk <- flipCoin verbose silent
+      verbFail <- flipCoin verbose silent
+      let printOk := ifThenElse verbOk
+           [ indent' 4 $
+               goCall "println" [goStr $ "FROM" <++> chanName <++> resName, resName] ]
+           []
+      let printFail := ifThenElse verbFail
+           [ indent' 4 $
+               goCall "println" [goStr $ "FROM" <++> chanName <++> resName <++> "FAILED"] ]
+           []
+      pure $ vsep $ join
+        [ [ "select {"
+          , "case" <++> resName <+> "," <++> okName <++> ":= <-" <++> chanName <+> ":"
+          ]
+        , printOk
+        , [ "default:" ]
+        , printFail
+        , [ "}" ]
+        ]
