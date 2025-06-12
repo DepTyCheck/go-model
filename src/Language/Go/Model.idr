@@ -580,7 +580,7 @@ namespace ChanOp
   public export
   tick : forall ctxt. {cnt : Nat} -> ChanOp cnt ctxt -> Nat
   tick (Open _ cap) = tick cap + 1
-  tick (Send chan value) = tick value
+  tick (Send chan value) = tick value + 1
   tick {cnt} (Recv chan) = cnt + 2
 
 

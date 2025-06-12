@@ -31,6 +31,7 @@ interface CustomChanOp where
   chanSendPP : {auto opts : LayoutOpts} ->
                (elemType : Scalar) ->
                (chanName : Doc opts) ->
+               (tempName : Doc opts) ->
                (value : Doc opts) ->
                (Gen0 $ Doc opts)
 
@@ -356,14 +357,16 @@ statementPP (SIf test then_ else_) = do
 
 
 sendRecvPP {ctxt} op@(Open elemType cap) = do
-  let chanName := line $ show $ openName cap
+  let chanName := line "v\{show $ openName cap}"
   cap' <- exprPP cap
   chanOpenPP chanName elemType cap'
 
 sendRecvPP {ctxt} (Send {elemType} chan value) = do
   chanName <- getChanPP chan
+  let tempName := tick value
+      tempName' := line "v\{show tempName}"
   value' <- exprPP value
-  chanSendPP elemType chanName value'
+  chanSendPP elemType chanName tempName' value'
 
 sendRecvPP {cnt} {ctxt} (Recv {elemType} chan) = do
   chanName <- getChanPP chan
@@ -435,23 +438,18 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
                   {auto opts : LayoutOpts} ->
                   (elemType : Scalar) ->
                   (chanName : Doc opts) ->
+                  (tempName : Doc opts) ->
                   (value : Doc opts) ->
                   (Gen0 $ Doc opts)
-    chanSendPP' verbose silent elemType chanName value = do
+    chanSendPP' verbose silent elemType chanName tempName value = do
       verbOk <- flipCoin verbose silent
       verbFail <- flipCoin verbose silent
-      (tempName, tempDecl) <-
-        if verbOk || verbFail
-           then do
-             tempNum : Int <- choose (1000, 9999)
-             let name := line "temp\{show tempNum}"
-             let decl := "var" <++> name <++> "=" <++> value
-             pure (name, [decl])
-           else
-             pure (value, [])
+      let (tempName', tempDecl) := ifThenElse (verbOk || verbFail)
+           (tempName, ["var" <++> tempName <++> "=" <++> value])
+           (value, [])
       let printOk := ifThenElse verbOk
            [ indent' 4 $
-               goCall "println" [goStr $ "TO" <++> chanName, tempName] ]
+               goCall "println" [goStr $ "TO" <++> chanName, tempName'] ]
            []
       let printFail := ifThenElse verbFail
            [ indent' 4 $
@@ -460,7 +458,7 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
       pure $ vsep $ join
         [ tempDecl
         , [ "select {"
-          , "case" <++> chanName <++> "<-" <++> tempName <+> ":"
+          , "case" <++> chanName <++> "<-" <++> tempName' <+> ":"
           ]
         , printOk
         , [ "default:" ]
@@ -488,8 +486,11 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
                goCall "println" [goStr $ "FROM" <++> chanName <++> resName <++> "FAILED"] ]
            []
       pure $ vsep $ join
-        [ [ "select {"
-          , "case" <++> resName <+> "," <++> okName <++> ":= <-" <++> chanName <+> ":"
+        [ [ "var" <++> resName <++> scalarPP elemType
+          , "var" <++> okName <++> "bool"
+          , "select {"
+          , "case" <++> resName <+> "," <++> okName <++> "= <-" <++> chanName <+> ":"
+          , indent' 4 $ "_, _ =" <++> resName <+> "," <++> okName
           ]
         , printOk
         , [ "default:" ]
