@@ -99,11 +99,11 @@ run conf = do
     let desc := eval stmt
     pure (code, codeVerb, desc)
   Lazy.for_ vals $ \(code, codeVerb, desc) => do
-    putStrLn "-//- CODE -//-\n"
+    putStrLn "//* NORMAL CODE *//"
     putStrLn $ render conf.layoutOpts code
-    putStrLn "-//- CODE VERBOSE -//-\n"
+    putStrLn "//* VERBOSE CODE *//"
     putStrLn $ render conf.layoutOpts codeVerb
-    putStrLn "-//- DESCRIPTION -//-\n"
+    putStrLn "//* DESCRIPTION *//"
     putStrLn desc
 
 ---------------
