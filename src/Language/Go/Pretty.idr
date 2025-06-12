@@ -344,16 +344,18 @@ statementPP (SIf test then_ else_) = do
        ]
 -- @END IF_STMTS
 
--- statementPP {ctxt} (SLoop type elems body) = do
---   elems <- assert_total exprListPP elems
---   let rhv := "[]" <+> scalarPP type <+> goGeneralList "{" "}" "," elems
---   let newCtxt : Context; newCtxt = onDeclare1 ctxt Var (GS type)
---   let newVar := hsepBy comma !(traverse namePP $ takeTopDecl 1 newCtxt.stack)
---   pure $ vsep
---     [ "for" <++> newVar <++> "in range" <++> rhv <++> "{"
---     , indent' 4 !(assert_total blockPP body)
---     , "}"
---     ]
+statementPP {ctxt} (SLoop elemType elems body) = do
+  elems' <- assert_total $ traverse exprPP elems
+  let rhv := "[]" <+> scalarPP elemType <+> goGeneralList "{" "}" "," elems'
+  let newCtxt : Context;
+      newCtxt = decl1Ctxt (tick elems) ctxt Var (GS elemType)
+  let newVar := hsepBy comma !(traverse namePP $ takeTopDecl 1 newCtxt.stack)
+  pure $ vsep
+    [ "for _," <++> newVar <++> ":= range" <++> rhv <++> "{"
+    , indent' 4 $ "_ =" <++> newVar
+    , indent' 4 !(assert_total $ blockPP {ctxt = newCtxt} body)
+    , "}"
+    ]
 
 
 sendRecvPP {ctxt} op@(Open elemType cap) = do

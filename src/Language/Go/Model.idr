@@ -343,6 +343,27 @@ namespace ExprList
   tick (head :: tail) = tick tail
 
 
+namespace ExprHList
+  public export
+  data ExprHList : (cnt : Nat) ->
+                   (ctxt  : Context) ->
+                   (type : GType) ->
+                   Type where
+
+    Nil  : forall cnt, ctxt, type. ExprHList cnt ctxt type
+
+    (::) : forall cnt, ctxt, type.
+           (head : Expr cnt ctxt type) ->
+           (tail : ExprHList (tick head) ctxt type) ->
+           ExprHList cnt ctxt type
+
+
+  public export
+  tick : forall ctxt, type. {cnt : Nat} -> ExprHList cnt ctxt type -> Nat
+  tick {cnt} Nil = cnt
+  tick (head :: tail) = tick tail
+
+
 namespace MaybeExpr
   public export
   data MaybeExpr : (cnt : Nat) -> (ctxt : Context) -> (type : MaybeType) -> Type where
@@ -627,12 +648,13 @@ namespace Stmt
           Stmt cnt ctxt isTerm
   -- @END IF_STMTS
 
-    -- SLoop : forall ctxt.
-    --         (elemType : Scalar) ->
-    --         {sliceLen : Nat} ->
-    --         (elems : ExprList ctxt $ replicate sliceLen elemType) ->
-    --         (body : Block (decl1Ctxt ctxt Var (GS elemType)) False) ->
-    --         Stmt ctxt False
+    SLoop : forall cnt, ctxt.
+            (elemType : Scalar) ->
+            (elems : ExprHList cnt ctxt (GS elemType)) ->
+            (body : Block (tick elems + 1)
+                          (decl1Ctxt (tick elems) ctxt Var (GS elemType))
+                          False) ->
+            Stmt cnt ctxt False
 
 
   public export
@@ -642,6 +664,7 @@ namespace Stmt
   tick (SVar1 initial) = tick initial + 1
   tick (SCall async call) = tick call
   tick (SIf test then_ else_) = tick else_
+  tick (SLoop _ elems body) = tick body
 
 
   public export

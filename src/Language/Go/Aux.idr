@@ -110,6 +110,19 @@ namespace ExprList
   traverse f (e :: es) = [| f e :: traverse f es |]
 
 
+namespace ExprHList
+  export
+  traverse : forall m, b.
+             {cnt : _} -> {ctxt : _} -> {type : _} ->
+             Applicative m =>
+             ({cnt' : Nat} -> Expr cnt' ctxt type -> m b) ->
+             ExprHList cnt ctxt type ->
+             m (List b)
+  traverse f [] = pure []
+  traverse f (e :: es) = [| f e :: traverse f es |]
+
+
+
 export
 onChanOpReturns : forall cnt, ctxt.
                   (op : ChanOp cnt ctxt) ->
@@ -134,4 +147,5 @@ namespace Block
   stmtCtxtReturns (SReturn res) = Refl
   stmtCtxtReturns (SCall async call) = Refl
   stmtCtxtReturns (SIf test then_ else_) = Refl
+  stmtCtxtReturns (SLoop type elems body) = Refl
 

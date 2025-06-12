@@ -132,12 +132,12 @@ push1 : forall len.
 push1 _ _ newValue estack = estack :< newValue
 
 decl1Ctxt : (0 cnt : Nat) ->
-             (0 ctxt : Context) ->
-             (0 kind : Kind) ->
-             (0 newType : GType) ->
-             (newValue : GValue newType) ->
-             (estack : GValueStack ctxt.stack) ->
-             GValueStack (decl1Ctxt cnt ctxt kind newType).stack
+            (0 ctxt : Context) ->
+            (0 kind : Kind) ->
+            (0 newType : GType) ->
+            (newValue : GValue newType) ->
+            (estack : GValueStack ctxt.stack) ->
+            GValueStack (decl1Ctxt cnt ctxt kind newType).stack
 decl1Ctxt _ (MkContext {}) kind _ newValue estack =
   push1 kind _ newValue estack
 
@@ -269,6 +269,18 @@ evalStmt {ctxt} {isTerm} estack (SIf {branch} test then_ else_) = do
     goUnknown type False = NoRet
     goUnknown (Just x) True = Ret $ Just $ VUnknown "UNKNOWN_IF_RESULT"
     goUnknown Nothing True = Ret Nothing
+
+
+evalStmt {ctxt} estack (SLoop elemType elems body) = do
+  elems' <- traverse (evalExpr estack) elems
+  let MkContext {} := ctxt
+  let bodyCtxt : Context
+      bodyCtxt = decl1Ctxt (tick elems) ctxt Var (GS elemType)
+  for_ elems' $ \elem => do
+    let bodyEStack : GValueStack bodyCtxt.stack
+        bodyEStack = decl1Ctxt _ ctxt _ _ elem estack
+    ignore $ evalBlock {ctxt = bodyCtxt} bodyEStack body
+  pure (estack, NoRet)
 
 
 evalBlock estack End = pure NoRet
