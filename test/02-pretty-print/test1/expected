@@ -1,0 +1,22 @@
+1/1: Building TestMain (TestMain.idr)
+Error: Unknown operator '.+.'
+
+TestMain:5:14--5:17
+ 1 | import Language.Go
+ 2 | 
+ 3 | 
+ 4 | longExpr : forall ctxt. Expr ctxt [GoInt]
+ 5 | longExpr = 1 .+. 2 .+. 3 .+. 4 .+. 5
+                  ^^^
+
+Error: While processing right hand side of longDecl. Can't find an implementation
+for BoolEqual ((OnDeclare EmptyContext Var [GoInt]) .isTerminating) False.
+
+TestMain:9:19--9:27
+ 5 | longExpr = 1 .+. 2 .+. 3 .+. 4 .+. 5
+ 6 | 
+ 7 | longDecl : Statement EmptyContext
+ 8 | longDecl =
+ 9 |   Var' _ longExpr JustStop
+                       ^^^^^^^^
+

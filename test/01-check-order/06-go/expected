@@ -1,0 +1,28 @@
+> prog_out_v2_10_ok
+> prog_out_v2_20_fail
+> prog_out_v2_30_ok
+> prog_out_v2_40_fail
+prog_out_v2_40_fail:1:0: Can get this value from the cannel
+  RECV FROM 1 v2 40
+
+> prog_out_v4_10_ok
+> prog_out_v4_20_ok
+> prog_out_v4_30_ok
+> prog_out_v4_40_fail
+prog_out_v4_40_fail:1:0: Can get this value from the cannel
+  RECV FROM 1 v4 40
+
+> prog_out_v6_10_ok
+> prog_out_v6_20_ok
+> prog_out_v6_30_fail
+> prog_out_v6_40_fail
+prog_out_v6_40_fail:1:0: Can get this value from the cannel
+  RECV FROM 1 v6 40
+
+> prog_out_v8_10_ok
+> prog_out_v8_20_ok
+> prog_out_v8_30_ok
+> prog_out_v8_40_fail
+prog_out_v8_40_fail:1:0: Can get this value from the cannel
+  RECV FROM 1 v8 40
+

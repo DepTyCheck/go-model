@@ -53,6 +53,14 @@ defaultContext =
 
 
 export
+byElemToByType : forall elem, stack, idx.
+                 ByElem elem stack idx ->
+                 ByType (GChan elem) stack idx
+byElemToByType HereE = HereT
+byElemToByType (ThereE there) = ThereT (byElemToByType there)
+
+
+export
 dip : forall len.
       (depth : Fin len) ->
       (stack : Stack len) ->

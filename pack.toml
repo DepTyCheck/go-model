@@ -1,16 +1,11 @@
-[custom.all.go-module]
+[custom.all.go-model]
 type = "local"
 path = "."
 ipkg = "go-model.ipkg"
 test = "test/test.ipkg"
 
-[custom.all.go-module-test]
-type = "local"
-path = "test"
-ipkg = "test.ipkg"
-
-[custom.all.deptycheck]
-type = "github"
-url = "https://github.com/buzden/deptycheck"
-commit = "fetch-latest:master"
-ipkg = "deptycheck.ipkg"
+# [custom.all.deptycheck]
+# type = "github"
+# url = "https://github.com/buzden/deptycheck"
+# commit = "fetch-latest:master"
+# ipkg = "deptycheck.ipkg"

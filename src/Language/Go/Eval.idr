@@ -55,7 +55,7 @@ data GValue : GType -> Type where
   VInt : Nat -> GValue (GS GInt)
   VBool : Bool -> GValue (GS GBool)
   VFunc : forall par, ret. GFuncValue par ret -> GValue (GFunc $ par `To` ret)
-  VChan : forall elemType. GValue (GChan elemType)
+  VChan : forall elemType. (id : Nat) -> GValue (GChan elemType)
 
 
 public export
@@ -80,11 +80,11 @@ weaken NoRet = NoRet
 
 export
 {0 type : _} -> Show (GValue type) where
-  show (VUnknown reason) = "UNKNOWN \{reason}"
+  show (VUnknown reason) = "UNKNOWN"
   show (VInt k) = show k
   show (VBool x) = show x
   show (VFunc x) = "FUNC"
-  show VChan = "CHAN"
+  show (VChan id) = show id
 
 
 index : forall len, type.
@@ -186,17 +186,17 @@ parameters {cnt : Nat}
 
 evalChanOp {ctxt = ctxt@(MkContext {})} estack (Open _ cap) = do
   let newName : Nat; newName = openName cap
-  tellStr "CREATE CHAN \{show newName}"
-  pure $ decl1Ctxt newName ctxt _ _ VChan estack
+  tellStr "OPEN CHAN \{show newName}"
+  pure $ decl1Ctxt newName ctxt _ _ (VChan newName) estack
 
 evalChanOp {ctxt} estack (Send chan value) = do
   value <- evalExpr estack value
-  let name := (get chan.idx ctxt.stack).name
-  tellStr "SEND_TO \{show name} \{show value}"
+  let chan' := index chan.idx estack $ byElemToByType chan.be
+  tellStr "SEND TO \{show chan'} \{show value}"
   pure estack
 
 evalChanOp {ctxt = ctxt@(MkContext {})} estack (Recv {elemType} chan) = do
-  let name := (get chan.idx ctxt.stack).name
+  let chan' := index chan.idx estack $ byElemToByType chan.be
   let 0 ctxt1 : Context; ctxt1 = decl1Ctxt cnt ctxt Var (GS elemType)
       0 ctxt2 : Context; ctxt2 = decl1Ctxt _ ctxt1 Var (GS GBool)
       valName, okName : Nat
@@ -206,7 +206,7 @@ evalChanOp {ctxt = ctxt@(MkContext {})} estack (Recv {elemType} chan) = do
       est1 = decl1Ctxt valName ctxt _ _ (VUnknown "V\{show valName}") estack
       est2 : GValueStack ctxt2.stack
       est2 = decl1Ctxt okName ctxt1 _ _ (VUnknown "V\{show okName}") est1
-  tellStr "RECV_FROM \{show name} V\{show valName} V\{show okName}"
+  tellStr "RECV FROM \{show chan'} V\{show valName} V\{show okName}"
   pure est2
 
 

@@ -1,0 +1,5 @@
+rm -rf build
+
+flock "$1" pack -q install-deps *.ipkg && \
+    idris2 --check --find-ipkg TestMain.idr && \
+    idris2 --exec main --find-ipkg TestMain.idr

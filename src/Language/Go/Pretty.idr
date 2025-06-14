@@ -397,6 +397,7 @@ wrapBlock {ctxt} block = do
               , "}"
               , ""
               , "func main() {"
+              , "    testFunc()"
               , "}"
               ]
 
@@ -481,11 +482,11 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
       verbFail <- flipCoin verbose silent
       let printOk := ifThenElse verbOk
            [ indent' 4 $
-               goCall "println" [goStr $ "FROM" <++> chanName <++> resName, resName] ]
+               goCall "println" [goStr $ "RECV FROM" <++> chanName <++> resName, resName] ]
            []
       let printFail := ifThenElse verbFail
            [ indent' 4 $
-               goCall "println" [goStr $ "FROM" <++> chanName <++> resName <++> "FAILED"] ]
+               goCall "println" [goStr $ "RECV FROM" <++> chanName <++> resName <++> "FAILED"] ]
            []
       pure $ vsep $ join
         [ [ "var" <++> resName <++> scalarPP elemType
