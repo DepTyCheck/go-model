@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
-from abc import ABC, abstractmethod
 import sys
 
-from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, TypeVar
-
-from sage.graphs.digraph import DiGraph
+from typing import Any, Callable, Optional, TypeVar
 
 
 T = TypeVar("T")
@@ -19,28 +16,13 @@ def assert_type(t: type[T], x: Any) -> T:
     return x
 
 
-def add_edge_checked(graph: DiGraph, a: Optional[str], b: Optional[str]):
-    if a is None or b is None:
-        return
-    graph.add_edge(a, b)
-
-
 class Segment(ABC):
-    def __init__(self) -> None:
-        super().__init__()
-        self._last : tuple[str, ...] | None = None
-
     @abstractmethod
-    def compute_last(self) -> tuple[str, ...]:
+    def search(self, item: str) -> bool:
         pass
 
-    def last(self) -> tuple[str, ...]:
-        if self._last is None:
-            self._last = self.compute_last()
-        return self._last
-
     @abstractmethod
-    def fill_graph(self, graph: DiGraph, prev: tuple[str, ...]) -> None:
+    def search_ordered(self, fst: str, snd: str) -> bool:
         pass
 
     @abstractmethod
@@ -49,33 +31,31 @@ class Segment(ABC):
 
 
 class Linear(Segment):
-    __slots__ = ("items", "child")
+    __slots__ = ("items", "cont")
 
     def __init__(self) -> None:
         super().__init__()
         self.items: list[str] = []
         self.cont: Optional[Segment] = None
 
-    def compute_last(self) -> tuple[str, ...]:
-        if self.cont is not None:
-            return self.cont.last()
-        elif self.items:
-            return (self.items[-1],)
-        else:
-            return ()
+    def search(self, item: str) -> bool:
+        return (
+            item in self.items
+            or self.cont is not None and self.cont.search(item)
+        )
 
-    def fill_graph(self, graph: DiGraph, prev: tuple[str, ...]) -> None:
-        for i in range(len(self.items) - 1):
-            a, b = self.items[i:i+2]
-            add_edge_checked(graph, a, b)
-        if self.items:
-            last = (self.items[-1],)
-            for p in prev:
-                add_edge_checked(graph, p, self.items[0])
-        else:
-            last = prev
-        if self.cont is not None:
-            self.cont.fill_graph(graph, last)
+    def search_ordered(self, fst: str, snd: str) -> bool:
+        try:
+            idx1 = self.items.index(fst)
+        except ValueError:
+            return self.cont is not None and self.cont.search_ordered(fst, snd)
+
+        try:
+            self.items.index(snd, idx1 + 1)
+        except ValueError:
+            return self.cont is not None and self.cont.search(snd)
+
+        return True
 
     def debug(self, offset: int) -> None:
         for x in self.items:
@@ -91,16 +71,21 @@ class Branch(Segment):
         self.else_: Linear = Linear()
         self.cont: Linear = Linear()
 
-    def compute_last(self) -> tuple[str, ...]:
+    def search(self, item: str) -> bool:
         return (
-            self.cont.last()
-            or self.then_.last() + self.else_.last()
+            self.then_.search(item)
+            or self.else_.search(item)
+            or self.cont.search(item)
         )
 
-    def fill_graph(self, graph: DiGraph, prev: tuple[str, ...]) -> None:
-        self.then_.fill_graph(graph, prev)
-        self.else_.fill_graph(graph, prev)
-        self.cont.fill_graph(graph, prev + self.then_.last() + self.else_.last())
+    def search_ordered(self, fst: str, snd: str) -> bool:
+        return (
+            self.then_.search_ordered(fst, snd)
+            or self.else_.search_ordered(fst, snd)
+            or self.cont.search_ordered(fst, snd)
+            or self.cont.search(snd)
+            and (self.then_.search(fst) or self.else_.search(fst))
+        )
 
     def debug(self, offset: int) -> None:
         print(" " * offset, "IF ... THEN")
@@ -117,14 +102,16 @@ class Go(Segment):
         self.main: Linear = Linear()
         self.other: Linear = Linear()
 
-    def compute_last(self) -> tuple[str, ...]:
-        return self.main.last() + self.other.last()
+    def search(self, item: str) -> bool:
+        return self.main.search(item) or self.other.search(item)
 
-    def fill_graph(self, graph: DiGraph, prev: tuple[str, ...]) -> None:
-        last_main = self.main.last()
-        last_other = self.other.last()
-        self.main.fill_graph(graph, prev + last_other)
-        self.other.fill_graph(graph, prev + last_main)
+    def search_ordered(self, fst: str, snd: str) -> bool:
+        return (
+            self.main.search_ordered(fst, snd)
+            or self.other.search_ordered(fst, snd)
+            or self.main.search(fst) and self.other.search(snd)
+            or self.other.search(fst) and self.main.search(snd)
+        )
 
     def debug(self, offset: int) -> None:
         print(" " * offset, "GO")
@@ -185,30 +172,19 @@ class Chan:
         self._active = assert_type(Go, self._stack.pop()[1].cont).main
         return True
 
-    def fill_graph(self, graph: DiGraph) -> None:
-        self._root.fill_graph(graph, ())
-
     def debug(self) -> None:
         self._root.debug(0)
 
+    def search_ordered(self, fst: str, snd: str) -> bool:
+        return self._root.search_ordered(fst, snd)
 
-def parse_order(content: list[str], filename: str = "string") -> dict[int, DiGraph]:
+
+def parse_order(content: list[str], filename: str = "string") -> dict[int, Chan]:
     known_chans: dict[int, Chan] = {}
-    graphs = {}
-
-    def graph(chan: int) -> DiGraph:
-        if chan not in graphs:
-            graphs[chan] = DiGraph(loops=True)
-        return graphs[chan]
 
     def each_chan(f: Callable[[Chan, int], bool], id: int) -> None:
-        to_del = []
-        for key, chan in known_chans.items():
-            if not f(chan, id):
-                to_del.append(key)
-                chan.fill_graph(graph(key))
-        for key in to_del:
-            del known_chans[key]
+        for chan in known_chans.values():
+            f(chan, id)
 
     id = 0
     for i, line in enumerate(content, 1):
@@ -216,7 +192,9 @@ def parse_order(content: list[str], filename: str = "string") -> dict[int, DiGra
             case []: pass
             case ["OPEN", "CHAN", chan]:
                 chan = int(chan)
-                if chan not in known_chans:
+                if chan in known_chans:
+                    known_chans[chan].on_open()
+                else:
                     known_chans[chan] = Chan()
             case ["SEND", "TO", chan, value]:
                 known_chans[int(chan)].on_send(value)
@@ -241,16 +219,7 @@ def parse_order(content: list[str], filename: str = "string") -> dict[int, DiGra
                     f"  {line}\n",
                     file=sys.stderr
                 )
-    for key, chan in known_chans.items():
-        chan.fill_graph(graph(key))
-
-    return graphs
-
-
-def shortest_path_checked(graph: DiGraph, u, v) -> list:
-    if u not in graph or v not in graph:
-        return []
-    return graph.shortest_path(u, v)
+    return known_chans
 
 
 def may_be_empty(*_) -> bool:
@@ -267,23 +236,19 @@ def may_be_empty(*_) -> bool:
     # return False
 
 
-def may_be_after(graph: DiGraph, first: str, second: str) -> bool:
-    return len(shortest_path_checked(graph, first, second)) > 1
-
-
-def may_have_value(graph: DiGraph, value: str, recv_op: str) -> bool:
+def may_have_value(chan: Chan, value: str, recv_op: str) -> bool:
     if value == "FAILED":
         raise RuntimeError("may_have_value can't check FAILED value")
     send_op = f"SEND {value}"
     send_unknown = "SEND UNKNOWN"
     return (
-        bool(shortest_path_checked(graph, send_op, recv_op))
-        or bool(shortest_path_checked(graph, send_unknown, recv_op))
+        chan.search_ordered(send_op, recv_op)
+        or chan.search_ordered(send_unknown, recv_op)
     )
 
 
 def check_order(
-    graphs: dict[int, DiGraph],
+    chans: dict[int, Chan],
     prog_output: list[str],
     filename: str
 ) -> bool:
@@ -292,12 +257,12 @@ def check_order(
 
     for i, line in enumerate(prog_output, 1):
         match line.split():
-            case ["RECV", "FROM", chan, label1, value]:
-                chan = int(chan)
-                graph = graphs[chan]
+            case ["RECV", "FROM", chan_id, label1, value]:
+                id = int(chan_id)
+                chan = chans[id]
                 op = f"RECV {label1}"
 
-                if value == "FAILED" and not may_be_empty(graphs[chan], op):
+                if value == "FAILED" and not may_be_empty(chan, op):
                     print(
                         f"{filename}:{i}:0: Channel can't be empty\n"
                         f"  {line}\n",
@@ -305,7 +270,7 @@ def check_order(
                     )
                     ok = False
 
-                if value != "FAILED" and not may_have_value(graphs[chan], value, op):
+                if value != "FAILED" and not may_have_value(chan, value, op):
                     print(
                         f"{filename}:{i}:0: Can get this value from the cannel\n"
                         f"  {line}\n",
@@ -313,8 +278,8 @@ def check_order(
                     )
                     ok = False
 
-                last = last_ops.get(chan, None)
-                if last is not None and not may_be_after(graph, last, op):
+                last = last_ops.get(id, None)
+                if last is not None and not chan.search_ordered(last, op):
                     print(
                         f"{filename}:{i}:0: Impossible sequence of operations\n"
                         f"  `{last}` then `{op}`\n",
@@ -322,19 +287,19 @@ def check_order(
                     )
                     ok = False
 
-                last_ops[int(chan)] = op
+                last_ops[id] = op
 
     return ok
 
 
-def parse_file(file: Path) -> dict[int, DiGraph]:
+def parse_file(file: Path) -> dict[int, Chan]:
     content = file.read_text().splitlines()
     return parse_order(content, file.as_posix())
 
 
-def check_file(graph: dict[int, DiGraph], file: Path) -> bool:
+def check_file(chans: dict[int, Chan], file: Path) -> bool:
     content = file.read_text().splitlines()
-    return check_order(graph, content, file.as_posix())
+    return check_order(chans, content, file.as_posix())
 
 
 
