@@ -2,17 +2,17 @@
 > prog_out_2
 > prog_out_3
 prog_out_3:1:0: Can get this value from the cannel
-  RECV FROM 2 v2 42
+  RECV FROM v2 v2 42
 
 prog_out_3:2:0: Can get this value from the cannel
-  RECV FROM 1 v4 10
+  RECV FROM v1 v4 10
 
 > prog_out_4
 prog_out_4:1:0: Can get this value from the cannel
-  RECV FROM 2 v4 10
+  RECV FROM v2 v4 10
 
 prog_out_4:2:0: Can get this value from the cannel
-  RECV FROM 1 v2 42
+  RECV FROM v1 v2 42
 
 > prog_out_5
 prog_out_5:3:0: Impossible sequence of operations

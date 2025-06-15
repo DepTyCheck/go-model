@@ -1,16 +1,16 @@
 > prog_out_1
 > prog_out_2
 prog_out_2:1:0: Can get this value from the cannel
-  RECV FROM 1 v10 17
+  RECV FROM v1 v10 17
 
 > prog_out_3
 prog_out_3:1:0: Can get this value from the cannel
-  RECV FROM 1 v10 18
+  RECV FROM v1 v10 18
 
 > prog_out_4
 > prog_out_5
 > prog_out_6
 > prog_out_7
 prog_out_7:1:0: Can get this value from the cannel
-  RECV FROM 1 v10 27
+  RECV FROM v1 v10 27
 

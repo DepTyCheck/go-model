@@ -1,0 +1,4 @@
+for out in prog_out_*; do
+    echo "> $out"
+    python ../../../scripts/check-order.py desc "$out" 2>&1
+done

@@ -258,7 +258,7 @@ def check_order(
     for i, line in enumerate(prog_output, 1):
         match line.split():
             case ["RECV", "FROM", chan_id, label1, value]:
-                id = int(chan_id)
+                id = int(chan_id.strip('v'))
                 chan = chans[id]
                 op = f"RECV {label1}"
 
@@ -300,7 +300,6 @@ def parse_file(file: Path) -> dict[int, Chan]:
 def check_file(chans: dict[int, Chan], file: Path) -> bool:
     content = file.read_text().splitlines()
     return check_order(chans, content, file.as_posix())
-
 
 
 def main() -> None:

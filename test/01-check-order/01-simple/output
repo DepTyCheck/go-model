@@ -9,5 +9,5 @@ prog_out_3:2:0: Impossible sequence of operations
 
 > prog_out_5
 prog_out_5:1:0: Can get this value from the cannel
-  RECV FROM 1 v2 43
+  RECV FROM v1 v2 43
 

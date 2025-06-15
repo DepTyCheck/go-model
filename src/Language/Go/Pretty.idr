@@ -392,11 +392,14 @@ wrapBlock {ctxt} block = do
   block <- blockPP block
   pure $ vsep [ "package main"
               , ""
+              , "import \"fmt\""
+              , ""
               , "func testFunc" <+> params <+?+> rets <++> "{"
               , indent' 4 block
               , "}"
               , ""
               , "func main() {"
+              , "    _ = fmt.Println"
               , "    testFunc()"
               , "}"
               ]
@@ -452,11 +455,11 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
            (value, [])
       let printOk := ifThenElse verbOk
            [ indent' 4 $
-               goCall "println" [goStr $ "TO" <++> chanName, tempName'] ]
+               goCall "fmt.Println" [goStr $ "TO" <++> chanName, tempName'] ]
            []
       let printFail := ifThenElse verbFail
            [ indent' 4 $
-               goCall "println" [goStr $ "TO" <++> chanName <++> "FAILED"] ]
+               goCall "fmt.Println" [goStr $ "TO" <++> chanName <++> "FAILED"] ]
            []
       pure $ vsep $ join
         [ tempDecl
@@ -482,11 +485,11 @@ builtinChanOp weightVerbose weightSilent = MkCustomChanOp
       verbFail <- flipCoin verbose silent
       let printOk := ifThenElse verbOk
            [ indent' 4 $
-               goCall "println" [goStr $ "RECV FROM" <++> chanName <++> resName, resName] ]
+               goCall "fmt.Println" [goStr $ "RECV FROM" <++> chanName <++> resName, resName] ]
            []
       let printFail := ifThenElse verbFail
            [ indent' 4 $
-               goCall "println" [goStr $ "RECV FROM" <++> chanName <++> resName <++> "FAILED"] ]
+               goCall "fmt.Println" [goStr $ "RECV FROM" <++> chanName <++> resName <++> "FAILED"] ]
            []
       pure $ vsep $ join
         [ [ "var" <++> resName <++> scalarPP elemType

@@ -82,7 +82,8 @@ export
 {0 type : _} -> Show (GValue type) where
   show (VUnknown reason) = "UNKNOWN"
   show (VInt k) = show k
-  show (VBool x) = show x
+  show (VBool True) = "true"
+  show (VBool False) = "false"
   show (VFunc x) = "FUNC"
   show (VChan id) = show id
 
@@ -203,10 +204,10 @@ evalChanOp {ctxt = ctxt@(MkContext {})} estack (Recv {elemType} chan) = do
       valName = recvName1 cnt
       okName = S valName
       est1 : GValueStack ctxt1.stack
-      est1 = decl1Ctxt valName ctxt _ _ (VUnknown "V\{show valName}") estack
+      est1 = decl1Ctxt valName ctxt _ _ (VUnknown "v\{show valName}") estack
       est2 : GValueStack ctxt2.stack
-      est2 = decl1Ctxt okName ctxt1 _ _ (VUnknown "V\{show okName}") est1
-  tellStr "RECV FROM \{show chan'} V\{show valName} V\{show okName}"
+      est2 = decl1Ctxt okName ctxt1 _ _ (VUnknown "v\{show okName}") est1
+  tellStr "RECV FROM \{show chan'} v\{show valName} v\{show okName}"
   pure est2
 
 
